@@ -132,18 +132,26 @@ const family = families.find((f) => f.id === activity?.parentCategoryId)
 		return experienceThemeCompatibility(
 			activity
 				? {
-						...activity,
-						parentCategoryId: activity.familyId,
-						allowedAdditionalThemeIds: activity.allowed,
-						isActive: activity.active,
+						id: String(activity.id),
+						name: String(activity.name ?? ""),
+						slug: String(activity.slug ?? activity.id),
+						parentCategoryId: activity.familyId ? String(activity.familyId) : null,
+						allowedAdditionalThemeIds: Array.isArray(activity.allowed)
+							? activity.allowed.map((value) => String(value))
+							: [],
+						isActive: Boolean(activity.active),
 						classificationKind: "activity",
 						vertical: "tour",
 						dataClass: "production",
+						themeCompatibilityRevision: Number(activity.revision ?? 0),
 					}
 				: null,
 			state.families.map((family) => ({
-				...family,
-				isActive: family.active,
+				id: String(family.id),
+				name: String(family.name ?? ""),
+				slug: String(family.slug ?? family.id),
+				parentCategoryId: null,
+				isActive: Boolean(family.active),
 				classificationKind: "family",
 				vertical: "tour",
 				dataClass: "production",
@@ -165,7 +173,7 @@ const family = families.find((f) => f.id === activity?.parentCategoryId)
 				const cancelControl = target.closest("[data-cancel-activity]")
 				if (cancelControl) {
 					const dialog = cancelControl.closest("dialog[data-activity-dialog]")
-					if (dialog?.open) {
+					if (dialog instanceof HTMLDialogElement && dialog.open) {
 						event.preventDefault()
 						dialog.close("cancel")
 					}
@@ -175,9 +183,10 @@ const family = families.find((f) => f.id === activity?.parentCategoryId)
 				const confirmControl = target.closest("[data-confirm-activity]")
 				if (confirmControl) {
 					const dialog = confirmControl.closest("dialog[data-activity-dialog]")
-					const rootId = dialog?.dataset.activityPickerRoot
+					const rootId =
+						dialog instanceof HTMLDialogElement ? dialog.dataset.activityPickerRoot : undefined
 					const state = rootId ? activityPickerStates.get(rootId) : undefined
-					if (!dialog?.open || !state) return
+					if (!(dialog instanceof HTMLDialogElement) || !dialog.open || !state) return
 					event.preventDefault()
 					const choice = dialog.querySelector<HTMLInputElement>("[name=activityChoice]:checked")
 					if (!choice) {
@@ -198,7 +207,7 @@ const family = families.find((f) => f.id === activity?.parentCategoryId)
 				}
 
 				const dialog = target.closest("dialog[data-activity-dialog]")
-				if (!dialog?.open) return
+				if (!(dialog instanceof HTMLDialogElement) || !dialog.open) return
 				const panel = dialog.querySelector("[data-activity-dialog-panel]")
 				if (panel && !panel.contains(target)) {
 					dialog.close("dismiss")
@@ -263,8 +272,9 @@ const family = families.find((f) => f.id === activity?.parentCategoryId)
 			const sync = () => {
 				const a = activityFor(state, select.value),
 					c = themeCompatibility(state, select.value, selectedThemes())
-				root.querySelector<HTMLElement>("[data-activity-name]")!.textContent =
-					a?.name ?? "Aún no elegiste una actividad"
+				root.querySelector<HTMLElement>("[data-activity-name]")!.textContent = a
+					? String(a.name ?? "")
+					: "Aún no elegiste una actividad"
 				const familyName = families.find((f: any) => f.id === a?.familyId)?.name ?? ""
 				const familyNode = root.querySelector<HTMLElement>("[data-activity-family-name]")!
 				familyNode.textContent = familyName
