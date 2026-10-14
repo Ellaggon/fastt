@@ -1,0 +1,128 @@
+---
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import Card from "@/components/ui/Card.astro"
+import Notice from "@/components/ui/Notice.astro"
+import ExperienceActivityCards from "@/components/tours/ExperienceActivityCards.astro"
+import Button from "@/components/ui/Button.astro"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { loadExperienceActivityOptions } from "@/lib/tours/loadTourPresentationForm"
+const user = await getUserFromRequest(Astro.request)
+if (!user)
+	return Astro.redirect(
+		`/SignInPage?returnTo=${encodeURIComponent(Astro.url.pathname + Astro.url.search)}`
+	)
+const providerId = await getProviderIdFromRequest(Astro.request, user)
+if (!providerId) return Astro.redirect("/provider/settings/profile")
+const options = await loadExperienceActivityOptions()
+const selected = Astro.url.searchParams.get("activityId") ?? ""
+const valid = options.activities.some((a) => a.id === selected && a.isActive)
+const error = Astro.url.searchParams.get("selection") === "invalid" || Boolean(selected && !valid)
+---
+
+<WorkspaceLayout title="Crear experiencia · Elegir actividad" productType="tour">
+	<Card class="mx-auto max-w-6xl space-y-6 rounded-2xl bg-white">
+		<header class="space-y-2">
+			<h1 class="text-2xl font-semibold text-slate-950 sm:text-3xl">
+				¿Qué experiencia quieres ofrecer?
+			</h1><p class="text-slate-600">
+				Elige la actividad principal. Después completarás su presentación.
+			</p>
+		</header>
+		{
+			error ? (
+				<Notice variant="warning" title="Actividad no disponible">
+					La actividad indicada ya no está disponible. Selecciona otra para continuar.
+				</Notice>
+			) : null
+		}
+		<a data-resume-draft hidden class="text-sm font-semibold text-teal-700 underline"
+			>Continuar borrador</a
+		>
+		<form
+			action="/product/create"
+			method="GET"
+			data-activity-entry
+			data-owner={providerId}
+			class="space-y-6"
+		>
+			<input type="hidden" name="type" value="Tour" /><input
+				type="hidden"
+				name="playbook"
+				value="launch-tour"
+			/><input type="hidden" name="step" value="create" /><input
+				type="hidden"
+				name="flow"
+				value="create"
+			/><input type="hidden" name="tourFlowVersion" value="2" />
+			{
+				["variantId", "ratePlanId", "returnTo"]
+					.filter((key) => Astro.url.searchParams.get(key))
+					.map((key) => (
+						<input type="hidden" name={key} value={Astro.url.searchParams.get(key) ?? ""} />
+					))
+			}
+			<ExperienceActivityCards
+				activities={options.activities}
+				families={options.families.filter((f) => f.isActive)}
+				selected={valid ? selected : ""}
+			/>
+			<div
+				class="sticky bottom-0 z-10 flex justify-end border-t border-slate-200 bg-white/95 py-4 backdrop-blur"
+			>
+				<Button type="submit">Continuar</Button>
+			</div>
+		</form>
+	</Card>
+</WorkspaceLayout>
+<script>
+	function initEntry() {
+		const form = document.querySelector<HTMLFormElement>("[data-activity-entry]")
+		if (!form || form.dataset.bound) return
+		form.dataset.bound = "true"
+		const creationKey = `fastt:tour-presentation-create:${form.dataset.owner}`
+		try {
+			const id = sessionStorage.getItem(creationKey)
+			if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return
+			const data = JSON.parse(
+				sessionStorage.getItem(
+					`fastt:playbook-form-draft:tour-presentation:${form.dataset.owner}:${id}`
+				) ?? "{}"
+			)
+			const activity = data.entries?.find(
+				(e: { key: string; value: string }) => e.key === "primaryActivityCategoryId"
+			)?.value
+			if (!activity) return
+			if (
+				Array.from(form.querySelectorAll<HTMLInputElement>("[name=activityId]")).some(
+					(i) => i.value === activity
+				)
+			) {
+				const link = document.querySelector<HTMLAnchorElement>("[data-resume-draft]")!,
+					url = new URL(form.action)
+				new FormData(form).forEach((v, k) => {
+					if (k !== "activityId" && String(v)) url.searchParams.set(k, String(v))
+				})
+				url.searchParams.set("activityId", activity)
+				link.href = url.pathname + url.search
+				link.hidden = false
+			}
+			form.addEventListener("submit", (event) => {
+				if (String(new FormData(form).get("activityId") ?? "") === activity) return
+				if (
+					!confirm(
+						"Ya tienes un borrador de otra actividad. ¿Quieres iniciar una experiencia nueva? Tu borrador anterior se conservará."
+					)
+				) {
+					event.preventDefault()
+					return
+				}
+				sessionStorage.removeItem(creationKey)
+			})
+		} catch {
+			/* Selection works without storage. */
+		}
+	}
+	initEntry()
+	document.addEventListener("astro:page-load", initEntry)
+</script>

@@ -2,6 +2,7 @@
 import TourPublishedReviewAction from "@/components/tours/TourPublishedReviewAction.astro"
 import TourReviewStatus from "@/components/tours/TourReviewStatus.astro"
 import { presentTourDiagnostic } from "@/lib/tours/tourDiagnosticPresentation"
+import { projectTourPublicationTasks } from "@/lib/tours/tourPublicationTasks"
 import {
 	loadTourCommercialContext,
 	tourContextEntryResponse,
@@ -201,6 +202,12 @@ const tourPresentation = publishState.tourDiagnostic
 			previewHref: Astro.url.pathname + Astro.url.search,
 		})
 	: null
+const tourPublicationTasks = publishState.tourDiagnostic
+	? projectTourPublicationTasks(publishState.tourDiagnostic)
+	: null
+const tourOpenTaskCount = tourPublicationTasks
+	? tourPublicationTasks.tasks.length + tourPublicationTasks.waiting.length
+	: 0
 const readinessPercent = publishState.readinessPercent
 const blockerLabels = publishState.blockers
 	.filter((check) => check.sectionKey !== "preview")
@@ -478,7 +485,9 @@ if (!isTour) {
 									tourPresentation
 										? tourPresentation.preparation.complete
 											? tourPresentation.message
-											: "Completa lo que falta; tus datos guardados se conservan."
+											: tourOpenTaskCount > 0
+												? `${tourOpenTaskCount} ${tourOpenTaskCount === 1 ? "tarea pendiente" : "tareas pendientes"}. Tus datos guardados se conservan.`
+												: "Tus datos guardados se conservan."
 										: isPublished
 											? "La ficha ya está activa. Usa esta revisión para comprobar cómo la verá el viajero."
 											: readyToPublish && publicationEligible

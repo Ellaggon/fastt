@@ -80,6 +80,25 @@ const selectedProductType = vertical.productType ?? ""
 const isLaunchHotelFlow = isHotelLaunch
 const tourPresentationOptions =
 	selectedVertical === "tour" ? await loadTourPresentationForm() : null
+if (tourPresentationOptions) {
+	const activityId = Astro.url.searchParams.get("activityId")
+	const activity = tourPresentationOptions.activities.find(
+		(row) => row.id === activityId && row.isActive
+	)
+	if (!activity) {
+		const target = new URL("/product/create/activity", Astro.url)
+		for (const key of ["variantId", "ratePlanId", "returnTo"]) {
+			const value = Astro.url.searchParams.get(key)
+			if (value) target.searchParams.set(key, value)
+		}
+		if (activityId) target.searchParams.set("selection", "invalid")
+		return Astro.redirect(target.pathname + target.search)
+	}
+	tourPresentationOptions.classification = {
+		...tourPresentationOptions.classification,
+		primaryActivityCategoryId: activity.id,
+	} as typeof tourPresentationOptions.classification
+}
 const destinations =
 	isChooser || selectedVertical === "tour"
 		? []

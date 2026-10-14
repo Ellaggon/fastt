@@ -1,0 +1,130 @@
+---
+import Input from "@/components/ui/Input.astro"
+interface Props {
+	activities: Array<{
+		id: string
+		name: string
+		parentCategoryId: string | null
+		isActive: boolean
+		searchAliasesJson?: unknown
+	}>
+	families: Array<{ id: string; name: string }>
+	selected?: string
+	name?: string
+}
+const { activities, families, selected = "", name = "activityId" } = Astro.props
+---
+
+<div data-activity-cards class="space-y-5">
+	<label class="block text-sm font-semibold text-slate-900">
+		Buscar actividad
+		<Input
+			data-activity-search
+			type="search"
+			placeholder="Cerámica, café, danza…"
+			autocomplete="off"
+			class="mt-2"
+		/>
+	</label>
+	<p
+		data-activity-selection
+		role="status"
+		aria-live="polite"
+		class="text-sm font-semibold text-slate-800"
+		hidden={!selected}
+	>
+		{selected ? "Actividad elegida: " + activities.find((a) => a.id === selected)?.name : ""}
+	</p>
+	<div class="space-y-6">
+		{
+			families.map((family) => (
+				<fieldset data-activity-family class="space-y-3">
+					<legend class="text-base font-semibold text-slate-950">{family.name}</legend>
+					<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+						{activities
+							.filter((a) => a.isActive && a.parentCategoryId === family.id)
+							.map((activity) => (
+								<label
+									data-activity-card
+									data-search={[
+										activity.name,
+										family.name,
+										...(Array.isArray(activity.searchAliasesJson)
+											? activity.searchAliasesJson
+											: []),
+									].join(" ")}
+									class="fastt-soft-box relative flex min-h-20 cursor-pointer items-center gap-3 p-4 text-sm font-semibold text-slate-900 transition has-[:checked]:ring-2 has-[:checked]:ring-slate-400"
+								>
+									<input
+										type="radio"
+										name={name}
+										value={activity.id}
+										checked={selected === activity.id}
+										required={name === "activityId"}
+										class="fastt-check-input h-4 w-4"
+									/>
+									<span>{activity.name}</span>
+								</label>
+							))}
+					</div>
+				</fieldset>
+			))
+		}
+	</div>
+	<p data-activity-empty hidden role="status" class="text-sm text-slate-600">
+		No encontramos esa actividad.
+	</p>
+	<a href="/provider/support" class="text-sm font-semibold text-teal-700 underline"
+		>No encuentro mi actividad</a
+	>
+</div>
+<script>
+	function bindCards() {
+		document.querySelectorAll<HTMLElement>("[data-activity-cards]").forEach((root) => {
+			if (root.dataset.cardsBound) return
+			root.dataset.cardsBound = "true"
+			root.addEventListener("change", () => {
+				const choice = root.querySelector<HTMLInputElement>("input[type=radio]:checked"),
+					summary = root.querySelector<HTMLElement>("[data-activity-selection]")!
+				summary.hidden = !choice
+				summary.textContent = choice
+					? "Actividad elegida: " + choice.closest("label")?.querySelector("span")?.textContent
+					: ""
+			})
+			const normalize = (text: string) =>
+				text
+					.normalize("NFD")
+					.replace(/[\u0300-\u036f]/g, "")
+					.toLowerCase()
+					.trim()
+			root
+				.querySelector<HTMLInputElement>("[data-activity-search]")
+				?.addEventListener("input", (event) => {
+					const query = normalize((event.target as HTMLInputElement).value)
+					let found = 0
+					root.querySelectorAll<HTMLElement>("[data-activity-card]").forEach((card) => {
+						const visible = normalize(card.dataset.search ?? "").includes(query)
+						card.hidden = !visible
+						if (visible) found++
+					})
+					root.querySelectorAll<HTMLElement>("[data-activity-family]").forEach((group) => {
+						group.hidden = !Array.from(
+							group.querySelectorAll<HTMLElement>("[data-activity-card]")
+						).some((card) => !card.hidden)
+					})
+					root.querySelector<HTMLElement>("[data-activity-empty]")!.hidden = found > 0
+				})
+		})
+	}
+	bindCards()
+	document.addEventListener("astro:page-load", bindCards)
+</script>
+
+<style is:global>
+	[data-activity-card][hidden],
+	[data-activity-family][hidden],
+	[data-additional-themes][hidden],
+	[data-additional-themes] [data-theme-option][hidden] {
+		display: none !important;
+	}
+</style>

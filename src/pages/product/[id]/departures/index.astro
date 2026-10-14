@@ -5,6 +5,7 @@ import TourPrerequisiteCard from "@/components/tours/TourPrerequisiteCard.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
+import Dialog from "@/components/ui/Dialog.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -151,7 +152,7 @@ const optionSummaryStatus =
 											data-abandon-option-session={session.id}
 											className="inline-flex min-h-11 items-center px-0 text-sm font-semibold text-slate-400 transition-colors hover:bg-transparent hover:text-white"
 										>
-											Descartar recorrido
+											Cerrar asistente
 										</Button>
 									</span>
 								</li>
@@ -355,6 +356,14 @@ const optionSummaryStatus =
 																{label}
 															</a>
 														))}
+														<Button
+															type="button"
+															variant="ghost"
+															className="h-auto w-full justify-start rounded-lg px-3 py-2.5 text-left text-sm text-red-700 hover:bg-red-50"
+															data-archive-option={row.id}
+														>
+															Archivar opción<span class="sr-only"> {row.name}</span>
+														</Button>
 													</nav>
 												</details>
 											</div>
@@ -367,6 +376,56 @@ const optionSummaryStatus =
 				</>
 			)
 		}
+		<Dialog
+			data-dismiss-session-dialog
+			aria-labelledby="dismiss-session-title"
+			class="w-[min(28rem,calc(100%-2rem))] p-6 shadow-xl backdrop:bg-slate-950/60"
+		>
+			<h2 id="dismiss-session-title" class="text-lg font-semibold">¿Cerrar este asistente?</h2>
+			<p class="mt-3 text-sm leading-6 text-slate-600">
+				Se retirará de las configuraciones en curso. La opción, sus tarifas, fechas y reservas
+				guardadas se conservan. Puedes seguir editándola desde esta página.
+			</p>
+			<p
+				data-dismiss-session-error
+				role="status"
+				aria-live="polite"
+				class="mt-3 text-sm text-red-700"
+			>
+			</p>
+			<div class="mt-5 flex justify-end gap-3">
+				<Button type="button" variant="secondary" data-cancel-dismiss-session> Cancelar </Button>
+				<Button type="button" variant="primary" data-confirm-dismiss-session>
+					Cerrar asistente
+				</Button>
+			</div>
+		</Dialog>
+		<Dialog
+			data-archive-option-dialog
+			aria-labelledby="archive-option-title"
+			class="w-[min(28rem,calc(100%-2rem))] p-6 shadow-xl backdrop:bg-slate-950/60"
+		>
+			<h2 id="archive-option-title" class="text-lg font-semibold">¿Archivar esta opción?</h2>
+			<p class="mt-3 text-sm leading-6 text-slate-600">
+				La opción dejará de venderse y se retirará de esta lista. Sus tarifas, fechas y reservas se
+				conservan. Las reservas existentes deben seguir atendiéndose. Esta acción no cancela
+				reservas ni elimina el historial.
+			</p>
+			<p
+				data-archive-option-error
+				role="status"
+				aria-live="polite"
+				class="mt-3 text-sm text-red-700"
+			>
+			</p>
+			<div class="mt-5 flex justify-end gap-3">
+				<Button type="button" variant="secondary" data-cancel-archive-option> Cancelar </Button>
+				<Button type="button" variant="primary" data-confirm-archive-option>
+					Archivar opción
+				</Button>
+			</div>
+		</Dialog>
+
 		<a
 			href={routes.productDetail(productId)}
 			class="inline-flex min-h-11 items-center text-sm font-semibold text-slate-300"
@@ -376,29 +435,17 @@ const optionSummaryStatus =
 </WorkspaceLayout>
 
 <script>
-	for (const button of document.querySelectorAll<HTMLButtonElement>(
-		"[data-abandon-option-session]"
-	))
-		button.addEventListener("click", async () => {
-			if (!confirm("¿Descartar este recorrido? La opción guardada se conserva.")) return
-			button.disabled = true
-			try {
-				const response = await fetch("/api/onboarding/tour-option-session", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						action: "abandon",
-						sessionId: button.dataset.abandonOptionSession,
-					}),
-				})
-				if (!response.ok) throw new Error("No se pudo descartar el recorrido.")
-				location.reload()
-			} catch (error) {
-				button.disabled = false
-				const target = document.querySelector("[data-option-session-feedback]")
-				if (target) target.textContent = error instanceof Error ? error.message : "Reintenta."
-			}
-		})
+	import { bindOptionArchival } from "@/lib/tours/optionArchival"
+	import { bindOptionSessionDismissal } from "@/lib/tours/optionSessionDismissal"
+	function bindDismissal() {
+		const root = document.querySelector<HTMLElement>("[data-tour-options]")
+		if (root) {
+			bindOptionSessionDismissal(root)
+			bindOptionArchival(root)
+		}
+	}
+	bindDismissal()
+	document.addEventListener("astro:page-load", bindDismissal)
 
 	function bindOptionMenus() {
 		const root = document.querySelector<HTMLElement>("[data-tour-options]")

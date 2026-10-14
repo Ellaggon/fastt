@@ -1,4 +1,5 @@
 ---
+import { experienceThemeCompatibility } from "@/shared/domain/experience-theme-compatibility"
 import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
 import Card from "@/components/ui/Card.astro"
 import Button from "@/components/ui/Button.astro"
@@ -43,26 +44,32 @@ const offeredFormats = [
 	...new Set([...EXPERIENCE_CREATION_FORMATS, ...(experienceFormat ? [experienceFormat] : [])]),
 ]
 const linked = new Set(options.additionalThemeIds ?? [])
-const families = (options.families ?? []).filter((row) => row.isActive)
-const panelClass = guided
-	? "space-y-5 bg-white"
-	: "space-y-5 rounded-lg border-slate-200 bg-slate-100 shadow-none"
+const families = (options.families ?? []).filter((row) => row.isActive || linked.has(row.id))
+const selectedActivity = options.activities?.find(
+	(a) => a.id === options.classification?.primaryActivityCategoryId
+)
+const themeState = experienceThemeCompatibility(selectedActivity, families, [...linked])
+const visibleThemes = new Set([...themeState.availableIds, ...themeState.invalidIds])
+const editorialEdit = Boolean(productId) && !guided
+const playbookVisual = guided || editorialEdit
+const panelClass = playbookVisual ? "space-y-5" : "space-y-5"
 ---
 
-<section class="space-y-6">
+<section class:list={[playbookVisual ? "space-y-6" : "space-y-6"]}>
 	<PlaybookStepHeader
 		icon="presentation"
-		title={productId && !guided ? "Presentación de la experiencia" : "Presenta tu experiencia"}
-		lead={productId && !guided
-			? "Actualiza el nombre, destino y contenido de esta experiencia."
+		size="lg"
+		title={editorialEdit ? "Presentación de la experiencia" : "Presenta tu experiencia"}
+		lead={editorialEdit
+			? "Actualiza nombre, actividad, lugar y contenido que verán los viajeros."
 			: "Cuenta qué ofreces y dónde. Después completarás los detalles de la experiencia."}
-		tone={guided ? "playbook" : "light"}
+		tone={playbookVisual ? "playbook" : "light"}
 	/>
 	<form
 		id="tourPresentationForm"
 		action="/api/product/tour-presentation"
 		method="POST"
-		class:list={["w-full", guided ? "max-w-5xl space-y-5" : "max-w-3xl space-y-6"]}
+		class:list={["w-full", playbookVisual ? "max-w-5xl space-y-5" : "max-w-3xl space-y-6"]}
 		data-draft-owner={providerId}
 	>
 		<Input type="hidden" name="productId" value={productId ?? crypto.randomUUID()} />
@@ -80,167 +87,372 @@ const panelClass = guided
 		}
 
 		<div
+			data-presentation-grid
+			data-has-themes={String(visibleThemes.size > 0)}
 			class:list={[
-				guided
-					? "grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(17.5rem,22rem)]"
+				playbookVisual
+					? "grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(14rem,19rem)]"
 					: "contents",
 			]}
 		>
-			<Card class:list={[panelClass, guided && "lg:col-start-1 lg:row-start-1"]}>
-				<fieldset class="space-y-4 border-0 p-0">
-					<legend class="sr-only">Datos básicos</legend>
-					<FormField label="Nombre de la experiencia" htmlFor="name" required>
-						<Input
-							id="name"
-							name="name"
-							value={name}
-							maxlength={200}
-							required
-							placeholder={formatPresentation.namePlaceholder}
-							aria-describedby="nameError"
-						/>
-						<p id="nameError" data-presentation-error="name" class="hidden text-sm text-red-600">
-						</p>
-					</FormField>
-
-					<ExperienceActivityPicker options={options} />
-					<FormField
-						label="¿Cómo se desarrolla la experiencia?"
-						htmlFor="experienceFormat"
-						required={formatContractVersion === 1}
-					>
-						<Select
-							id="experienceFormat"
-							name="experienceFormat"
-							required={formatContractVersion === 1}
-							aria-describedby="experienceFormatHelp experienceFormatError"
+			{
+				playbookVisual ? (
+					<>
+						<div
+							data-presentation-main
+							class="order-1 flex min-w-0 flex-col gap-5 lg:col-start-1 lg:row-start-1"
 						>
-							<option value="">Selecciona cómo se desarrolla</option>
-							{
-								offeredFormats.map((format) => (
-									<option value={format} selected={experienceFormat === format}>
-										{getExperienceFormatPresentation(format).label}
-									</option>
-								))
-							}
-						</Select>
-						<p id="experienceFormatHelp" class="text-sm leading-6 text-slate-500">
-							{formatPresentation.explanation}
-						</p>
-						<p
-							id="experienceFormatError"
-							data-presentation-error="experienceFormat"
-							class="hidden text-sm text-red-600"
+							<Card class:list={[panelClass]}>
+								<fieldset class="space-y-5 border-0 p-0">
+									<legend class="sr-only">Identidad y lugar</legend>
+									<div class="space-y-1">
+										<h2 class="text-base font-semibold text-slate-950">Identidad y lugar</h2>
+										<p class="text-sm leading-6 text-slate-500">
+											Nombre y ciudad donde se encuentra la experiencia.
+										</p>
+									</div>
+									<FormField label="Nombre de la experiencia" htmlFor="name" required>
+										<Input
+											id="name"
+											name="name"
+											value={name}
+											maxlength={200}
+											required
+											placeholder={formatPresentation.namePlaceholder}
+											aria-describedby="nameError"
+										/>
+										<p
+											id="nameError"
+											data-presentation-error="name"
+											class="hidden text-sm text-red-600"
+										/>
+									</FormField>
+									<FormField label="Ciudad o lugar" htmlFor="geoPlaceId" required>
+										<Select
+											id="geoPlaceId"
+											name="geoPlaceId"
+											required
+											aria-describedby="destinationHelp geoPlaceIdError"
+										>
+											<option value="">Elige ciudad o lugar</option>
+											{options.places.map((place) => (
+												<option value={place.id} selected={place.id === geoPlaceId}>
+													{place.name} · {place.country}
+												</option>
+											))}
+										</Select>
+										<p id="destinationHelp" class="mt-2 text-sm leading-6 text-slate-500">
+											El lugar donde se podrá encontrar esta experiencia. La dirección y las
+											indicaciones se completan después.
+										</p>
+										<p
+											id="geoPlaceIdError"
+											data-presentation-error="geoPlaceId"
+											class="hidden text-sm text-red-600"
+										/>
+									</FormField>
+								</fieldset>
+							</Card>
+							<Card class:list={[panelClass]}>
+								<fieldset class="space-y-5 border-0 p-0">
+									<legend class="sr-only">Descripción y destacados</legend>
+									<div class="space-y-1">
+										<h2 class="text-base font-semibold text-slate-950">Descripción y destacados</h2>
+										<p class="text-sm leading-6 text-slate-500">
+											Texto principal y puntos clave que aparecerán en la ficha de la experiencia.
+										</p>
+									</div>
+									<FormField label="Descripción" htmlFor="description" required>
+										<Textarea
+											id="description"
+											name="description"
+											value={description ?? ""}
+											rows="5"
+											required
+											maxlength={20000}
+											placeholder={formatPresentation.descriptionPlaceholder}
+											aria-describedby="descriptionError"
+										/>
+										<p
+											id="descriptionError"
+											data-presentation-error="description"
+											class="hidden text-sm text-red-600"
+										/>
+									</FormField>
+									<FormField
+										label="Lo que hace especial esta experiencia"
+										htmlFor="highlights"
+										required
+									>
+										<Textarea
+											id="highlights"
+											name="highlights"
+											value={highlights.join("\n")}
+											rows="4"
+											required
+											placeholder="Escribe lo que hace especial esta experiencia"
+											aria-describedby="highlightsHelp highlightsError"
+										/>
+										<p id="highlightsHelp" class="mt-2 text-sm leading-6 text-slate-500">
+											Escribe un destacado por línea.
+										</p>
+										<p
+											id="highlightsError"
+											data-presentation-error="highlights"
+											class="hidden text-sm text-red-600"
+										/>
+									</FormField>
+								</fieldset>
+							</Card>
+							<Card
+								data-additional-themes
+								hidden={visibleThemes.size === 0}
+								class:list={[panelClass]}
+							>
+								<fieldset
+									class="flex h-full flex-col gap-4 border-0 p-0"
+									aria-describedby="additionalThemeIdsError"
+								>
+									<p data-theme-review hidden class="text-sm text-amber-800" role="status" />
+									<TourCategoryChoices
+										categories={families}
+										permittedIds={new Set(themeState.availableIds)}
+										visibleIds={visibleThemes}
+										name="additionalThemeId"
+										optional={true}
+										selectedIds={linked}
+										stacked={true}
+									/>
+									<p
+										id="additionalThemeIdsError"
+										data-presentation-error="additionalThemeIds"
+										class="hidden text-sm text-red-600"
+									/>
+								</fieldset>
+							</Card>
+						</div>
+						<Card
+							class:list={[
+								panelClass,
+								"order-2 min-w-0 lg:col-start-2 lg:row-start-1 lg:self-start",
+							]}
 						>
-						</p>
-					</FormField>
-					<FormField label="Ciudad o lugar" htmlFor="geoPlaceId" required>
-						<Select
-							id="geoPlaceId"
-							name="geoPlaceId"
-							required
-							aria-describedby="destinationHelp geoPlaceIdError"
+							<fieldset class="min-w-0 space-y-5 border-0 p-0">
+								<legend class="sr-only">Actividad y formato</legend>
+								<div class="space-y-1">
+									<h2 class="text-base font-semibold text-slate-950">Actividad y formato</h2>
+									<p class="text-sm leading-6 text-slate-500">
+										Qué haces y cómo se vive la experiencia.
+									</p>
+								</div>
+								<ExperienceActivityPicker options={options} />
+								<FormField
+									label="Formato de la experiencia"
+									htmlFor="experienceFormat"
+									required={formatContractVersion === 1}
+								>
+									<Select
+										id="experienceFormat"
+										name="experienceFormat"
+										required={formatContractVersion === 1}
+										aria-describedby="experienceFormatHelp experienceFormatError"
+									>
+										<option value="">Elige un formato</option>
+										{offeredFormats.map((format) => (
+											<option value={format} selected={experienceFormat === format}>
+												{getExperienceFormatPresentation(format).label}
+											</option>
+										))}
+									</Select>
+									<p id="experienceFormatHelp" class="mt-2 text-sm leading-6 text-slate-500">
+										{formatPresentation.explanation}
+									</p>
+									<p
+										id="experienceFormatError"
+										data-presentation-error="experienceFormat"
+										class="hidden text-sm text-red-600"
+									/>
+								</FormField>
+							</fieldset>
+						</Card>
+					</>
+				) : (
+					<>
+						<Card class:list={[panelClass]}>
+							<fieldset class="space-y-5 border-0 p-0">
+								<legend class="sr-only">Datos básicos</legend>
+								<div class="space-y-1">
+									<h2 class="text-base font-semibold text-slate-950">Identidad y lugar</h2>
+									<p class="text-sm leading-6 text-slate-500">
+										Nombre, actividad principal, formato y ciudad donde se encuentra la experiencia.
+									</p>
+								</div>
+								<FormField label="Nombre de la experiencia" htmlFor="name" required>
+									<Input
+										id="name"
+										name="name"
+										value={name}
+										maxlength={200}
+										required
+										placeholder={formatPresentation.namePlaceholder}
+										aria-describedby="nameError"
+									/>
+									<p
+										id="nameError"
+										data-presentation-error="name"
+										class="hidden text-sm text-red-600"
+									/>
+								</FormField>
+								<ExperienceActivityPicker options={options} />
+								<FormField
+									label="Formato de la experiencia"
+									htmlFor="experienceFormat"
+									required={formatContractVersion === 1}
+								>
+									<Select
+										id="experienceFormat"
+										name="experienceFormat"
+										required={formatContractVersion === 1}
+										aria-describedby="experienceFormatHelp experienceFormatError"
+									>
+										<option value="">Elige un formato</option>
+										{offeredFormats.map((format) => (
+											<option value={format} selected={experienceFormat === format}>
+												{getExperienceFormatPresentation(format).label}
+											</option>
+										))}
+									</Select>
+									<p id="experienceFormatHelp" class="mt-2 text-sm leading-6 text-slate-500">
+										{formatPresentation.explanation}
+									</p>
+									<p
+										id="experienceFormatError"
+										data-presentation-error="experienceFormat"
+										class="hidden text-sm text-red-600"
+									/>
+								</FormField>
+								<FormField label="Ciudad o lugar" htmlFor="geoPlaceId" required>
+									<Select
+										id="geoPlaceId"
+										name="geoPlaceId"
+										required
+										aria-describedby="destinationHelp geoPlaceIdError"
+									>
+										<option value="">Elige ciudad o lugar</option>
+										{options.places.map((place) => (
+											<option value={place.id} selected={place.id === geoPlaceId}>
+												{place.name} · {place.country}
+											</option>
+										))}
+									</Select>
+									<p id="destinationHelp" class="mt-2 text-sm leading-6 text-slate-500">
+										El lugar donde se podrá encontrar esta experiencia. La dirección y las
+										indicaciones se completan después.
+									</p>
+									<p
+										id="geoPlaceIdError"
+										data-presentation-error="geoPlaceId"
+										class="hidden text-sm text-red-600"
+									/>
+								</FormField>
+							</fieldset>
+						</Card>
+						<Card
+							data-additional-themes
+							hidden={visibleThemes.size === 0}
+							class:list={[panelClass]}
 						>
-							<option value="">Selecciona una ciudad o lugar</option>
-							{
-								options.places.map((place) => (
-									<option value={place.id} selected={place.id === geoPlaceId}>
-										{place.name} · {place.country}
-									</option>
-								))
-							}
-						</Select>
-						<p id="destinationHelp" class="mt-2 text-sm leading-6 text-slate-500">
-							El lugar donde se podrá encontrar esta experiencia. La dirección y las indicaciones se
-							completan después.
-						</p>
-						<p
-							id="geoPlaceIdError"
-							data-presentation-error="geoPlaceId"
-							class="hidden text-sm text-red-600"
-						>
-						</p>
-					</FormField>
-				</fieldset>
-			</Card>
-
-			<Card class:list={[panelClass, guided && "lg:col-start-1 lg:row-start-2"]}>
-				<fieldset class="space-y-4 border-0 p-0">
-					<legend class="sr-only">Descripción y destacados</legend>
-					<FormField label="Descripción" htmlFor="description" required>
-						<Textarea
-							id="description"
-							name="description"
-							value={description ?? ""}
-							rows="5"
-							required
-							maxlength={20000}
-							placeholder={formatPresentation.descriptionPlaceholder}
-							aria-describedby="descriptionError"
-						/>
-						<p
-							id="descriptionError"
-							data-presentation-error="description"
-							class="hidden text-sm text-red-600"
-						>
-						</p>
-					</FormField>
-					<FormField label="Lo que hace especial esta experiencia" htmlFor="highlights" required>
-						<Textarea
-							id="highlights"
-							name="highlights"
-							value={highlights.join("\n")}
-							rows="4"
-							required
-							placeholder="Escribe lo que hace especial esta experiencia"
-							aria-describedby="highlightsHelp highlightsError"
-						/>
-						<p id="highlightsHelp" class="mt-2 text-sm leading-6 text-slate-500">
-							Escribe un destacado por línea.
-						</p>
-						<p
-							id="highlightsError"
-							data-presentation-error="highlights"
-							class="hidden text-sm text-red-600"
-						>
-						</p>
-					</FormField>
-				</fieldset>
-			</Card>
-
-			<Card
-				class:list={[
-					panelClass,
-					guided && "lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:self-stretch",
-				]}
-			>
-				<fieldset
-					class="flex h-full flex-col gap-4 border-0 p-0"
-					aria-describedby="additionalThemeIdsError"
-				>
-					<TourCategoryChoices
-						categories={families}
-						name="additionalThemeId"
-						optional={true}
-						selectedIds={linked}
-						stacked={guided}
-					/>
-					<p
-						id="additionalThemeIdsError"
-						data-presentation-error="additionalThemeIds"
-						class="hidden text-sm text-red-600"
-					>
-					</p>
-				</fieldset>
-			</Card>
+							<fieldset
+								class="flex h-full flex-col gap-4 border-0 p-0"
+								aria-describedby="additionalThemeIdsError"
+							>
+								<p data-theme-review hidden class="text-sm text-amber-800" role="status" />
+								<TourCategoryChoices
+									categories={families}
+									permittedIds={new Set(themeState.availableIds)}
+									visibleIds={visibleThemes}
+									name="additionalThemeId"
+									optional={true}
+									selectedIds={linked}
+									stacked={false}
+								/>
+								<p
+									id="additionalThemeIdsError"
+									data-presentation-error="additionalThemeIds"
+									class="hidden text-sm text-red-600"
+								/>
+							</fieldset>
+						</Card>
+						<Card class:list={[panelClass]}>
+							<fieldset class="space-y-5 border-0 p-0">
+								<legend class="sr-only">Descripción y destacados</legend>
+								<div class="space-y-1">
+									<h2 class="text-base font-semibold text-slate-950">Descripción y destacados</h2>
+									<p class="text-sm leading-6 text-slate-500">
+										Texto principal y puntos clave que aparecerán en la ficha de la experiencia.
+									</p>
+								</div>
+								<FormField label="Descripción" htmlFor="description" required>
+									<Textarea
+										id="description"
+										name="description"
+										value={description ?? ""}
+										rows="5"
+										required
+										maxlength={20000}
+										placeholder={formatPresentation.descriptionPlaceholder}
+										aria-describedby="descriptionError"
+									/>
+									<p
+										id="descriptionError"
+										data-presentation-error="description"
+										class="hidden text-sm text-red-600"
+									/>
+								</FormField>
+								<FormField
+									label="Lo que hace especial esta experiencia"
+									htmlFor="highlights"
+									required
+								>
+									<Textarea
+										id="highlights"
+										name="highlights"
+										value={highlights.join("\n")}
+										rows="4"
+										required
+										placeholder="Escribe lo que hace especial esta experiencia"
+										aria-describedby="highlightsHelp highlightsError"
+									/>
+									<p id="highlightsHelp" class="mt-2 text-sm leading-6 text-slate-500">
+										Escribe un destacado por línea.
+									</p>
+									<p
+										id="highlightsError"
+										data-presentation-error="highlights"
+										class="hidden text-sm text-red-600"
+									/>
+								</FormField>
+							</fieldset>
+						</Card>
+					</>
+				)
+			}
 		</div>
 
-		<p data-presentation-status class="text-sm text-slate-400" role="status" aria-live="polite"></p>
+		<p
+			data-presentation-status
+			class:list={["text-sm", playbookVisual ? "text-slate-400" : "text-slate-400"]}
+			role="status"
+			aria-live="polite"
+		>
+		</p>
 		{
 			!guided ? (
-				<Button type="submit" variant="selection" className="fastt-playbook-cta">
-					Guardar presentación
-				</Button>
+				<div class="flex justify-end">
+					<Button type="submit" variant="selection" className="fastt-playbook-cta">
+						Guardar presentación
+					</Button>
+				</div>
 			) : null
 		}
 	</form>
@@ -268,6 +480,7 @@ const panelClass = guided
 		}
 		const draft = bindPlaybookFormDraft(form, {
 			key: `tour-presentation:${form.dataset.draftOwner}:${id.value}`,
+			excludeNames: ["activityChoice"],
 		})
 		const status = form.querySelector<HTMLElement>("[data-presentation-status]")!
 		const refreshFormat = () => {
@@ -307,7 +520,7 @@ const panelClass = guided
 				error.classList.remove("hidden")
 				const control = form.querySelector<HTMLSelectElement>('[name="primaryActivityCategoryId"]')!
 				control.setAttribute("aria-invalid", "true")
-				control.focus()
+				form.querySelector<HTMLButtonElement>("[data-change-activity]")?.focus()
 				status.textContent = "Revisa los campos indicados."
 				return
 			}
@@ -361,3 +574,14 @@ const panelClass = guided
 	initPresentation()
 	document.addEventListener("astro:page-load", initPresentation)
 </script>
+
+<style is:global>
+	[data-presentation-grid].contents[data-has-themes="false"] {
+		display: block;
+		max-width: 48rem;
+	}
+
+	[data-presentation-grid].contents[data-has-themes="false"] > :not([hidden]) + :not([hidden]) {
+		margin-top: 1.25rem;
+	}
+</style>
