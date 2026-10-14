@@ -24,7 +24,7 @@ const baseModel: ProviderContractSurface = {
 			productId: "tour-1",
 			name: "Tour QA",
 			commercialLine: "tour",
-			verticalLabel: "Tour",
+			verticalLabel: "Experiencia",
 			collectionModelLabel: "El proveedor cobra al viajero",
 			country: "BO",
 			status: "approved",

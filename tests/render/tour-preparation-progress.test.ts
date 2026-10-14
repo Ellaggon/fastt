@@ -64,7 +64,8 @@ describe("tour preparation and review rendered contract", () => {
 		const html = await container.renderToString(Review, {
 			props: { diagnosis, reviewHref, published: false },
 		})
-		expect(html).toContain("1 tarea pendiente")
+		expect(html).toContain("data-tour-publication-tasks")
+		expect(html).toContain('aria-label="Completar: Fotos"')
 		expect(html).toContain("Requisitos cumplidos (9)")
 		expect(html).not.toContain("Ver etapas")
 		expect(html).not.toMatch(/<details[^>]*open/)
@@ -93,7 +94,7 @@ describe("tour preparation and review rendered contract", () => {
 			props: { diagnosis, reviewHref, published: false },
 		})
 		expect(blocked).not.toMatch(/<button[^>]*data-tour-review-activate/)
-		expect(blocked).toContain("En revisión por Fastt")
+		expect(blocked).toContain("En revisión")
 	})
 	it("does not imply that private requests or publication are enabled by inventory exemption", async () => {
 		const diagnosis = fixture()
@@ -133,7 +134,8 @@ it("marks a grouped stage pending without surfacing requirement copy in stage bo
 	const review = await container.renderToString(Review, {
 		props: { diagnosis, reviewHref, published: false },
 	})
-	expect(review).toContain("1 tarea pendiente")
+	expect(review).toContain("data-tour-publication-tasks")
+	expect(review).toContain('aria-label="Completar: Presentación"')
 	expect(review).not.toContain("Categorías de búsqueda")
 	expect(review).toContain("/product/tour/presentation?")
 	expect(review).toContain("Requisitos cumplidos (9)")

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it } from "vitest"
+import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import {
 	db,
 	eq,
@@ -8,6 +8,7 @@ import {
 	User,
 	Variant,
 	RatePlan,
+	DailyInventory,
 	VariantCapacity,
 	GeoPlace,
 	Tour,
@@ -81,6 +82,7 @@ beforeEach(async () => {
 	}
 })
 afterEach(async () => {
+	await db.delete(DailyInventory).where(eq(DailyInventory.variantId, variants[0]))
 	await db.delete(ProviderAuditLog).where(eq(ProviderAuditLog.providerId, provider))
 	await db.delete(Tour).where(eq(Tour.productId, product))
 	await db
@@ -346,4 +348,113 @@ it("changing the saved experience format preserves an independent commercial ses
 	expect(await listOptionSessions(provider, user, product)).toHaveLength(1)
 	const [tour] = await db.select().from(Tour).where(eq(Tour.productId, product))
 	expect(tour.experienceFormat).toBe("class")
+})
+
+it("closing the assistant preserves the complete saved option, tariff, capacity and reserved inventory", async () => {
+	await db.insert(DailyInventory).values({
+		id: crypto.randomUUID(),
+		variantId: variants[0],
+		date: "2027-04-12",
+		totalInventory: 8,
+		reservedCount: 3,
+	})
+	const snapshot = () =>
+		Promise.all([
+			db.select().from(Variant).where(eq(Variant.id, variants[0])),
+			db.select().from(RatePlan).where(eq(RatePlan.id, rates[0])),
+			db.select().from(VariantCapacity).where(eq(VariantCapacity.variantId, variants[0])),
+			db.select().from(DailyInventory).where(eq(DailyInventory.variantId, variants[0])),
+		])
+	const session = await startOptionSession(
+		provider,
+		user,
+		product,
+		crypto.randomUUID(),
+		undefined,
+		"additional_option",
+		{ variantId: variants[0], ratePlanId: rates[0] }
+	)
+	const before = await snapshot()
+	await finishOptionSession(provider, user, session.id, "abandoned")
+	await finishOptionSession(provider, user, session.id, "abandoned")
+	expect(await snapshot()).toEqual(before)
+	expect(
+		(
+			await db
+				.select()
+				.from(ProviderOptionPreparationSession)
+				.where(eq(ProviderOptionPreparationSession.id, session.id))
+		)[0].status
+	).toBe("abandoned")
+	expect(
+		(await listOptionSessions(provider, user, product)).some((row) => row.id === session.id)
+	).toBe(false)
+})
+
+vi.mock("@/lib/auth/getUserFromRequest", () => ({
+	getUserFromRequest: vi.fn(async () => ({ id: user, email: "archive@test.invalid" })),
+}))
+vi.mock("@/lib/auth/getProviderIdFromRequest", () => ({
+	getProviderIdFromRequest: vi.fn(async () => provider),
+}))
+vi.mock("@/lib/cache/invalidation", () => ({ invalidateVariant: vi.fn(async () => undefined) }))
+
+it("the real lifecycle route archives only the owned option without altering rates or reserved dates", async () => {
+	const { POST } = await import("@/pages/api/variant/lifecycle")
+	await db.insert(DailyInventory).values({
+		id: crypto.randomUUID(),
+		variantId: variants[0],
+		date: "2027-04-12",
+		totalInventory: 8,
+		reservedCount: 3,
+	})
+	const session = await startOptionSession(
+		provider,
+		user,
+		product,
+		crypto.randomUUID(),
+		undefined,
+		"additional_option",
+		{ variantId: variants[0], ratePlanId: rates[0] }
+	)
+	const snapshot = () =>
+		Promise.all([
+			db.select().from(RatePlan).where(eq(RatePlan.variantId, variants[0])),
+			db.select().from(DailyInventory).where(eq(DailyInventory.variantId, variants[0])),
+			db.select().from(VariantCapacity).where(eq(VariantCapacity.variantId, variants[0])),
+			db.select().from(Variant).where(eq(Variant.id, variants[1])),
+		])
+	const before = await snapshot()
+	const archive = async (id: string) => {
+		const body = new FormData()
+		body.set("variantId", id)
+		body.set("lifecycleState", "archived")
+		return POST({
+			request: new Request("http://localhost/api/variant/lifecycle", { method: "POST", body }),
+		} as never)
+	}
+	expect((await archive(variants[0])).status).toBe(200)
+	expect((await archive(variants[0])).status).toBe(200)
+	expect(await snapshot()).toEqual(before)
+	const [retired] = await db.select().from(Variant).where(eq(Variant.id, variants[0]))
+	expect(retired.lifecycleState).toBe("archived")
+	expect(retired.salesEnabled).toBe(false)
+	const { VariantManagementRepository } =
+		await import("@/modules/catalog/infrastructure/repositories/VariantManagementRepository")
+	await new VariantManagementRepository().persistLifecycleEvaluation({
+		variantId: variants[0],
+		lifecycleState: "ready",
+		validationErrorsJson: null,
+	})
+	const [reevaluated] = await db.select().from(Variant).where(eq(Variant.id, variants[0]))
+	expect(reevaluated.lifecycleState).toBe("archived")
+	expect(reevaluated.salesEnabled).toBe(false)
+
+	expect((await listOptionSessions(provider, user, product)).some((s) => s.id === session.id)).toBe(
+		false
+	)
+	const { getProviderIdFromRequest } = await import("@/lib/auth/getProviderIdFromRequest")
+	vi.mocked(getProviderIdFromRequest).mockResolvedValueOnce(crypto.randomUUID())
+	expect((await archive(variants[1])).status).toBe(404)
+	expect(await snapshot()).toEqual(before)
 })

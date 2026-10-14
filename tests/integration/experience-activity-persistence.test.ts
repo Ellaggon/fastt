@@ -26,6 +26,7 @@ import { CatalogReadModelRepository } from "@/modules/catalog/infrastructure/rep
 import { evaluateTourContentReadiness } from "@/lib/tours/tourContentReadiness"
 import { experienceCategoryFilter } from "@/lib/tours/experienceClassificationSql"
 import { saveExperienceBusinessKinds } from "@/lib/provider/experience-business-kinds"
+const compatibleActivityId = randomUUID()
 const providerId = randomUUID(),
 	actorId = randomUUID(),
 	productId = randomUUID(),
@@ -60,6 +61,16 @@ const { POST: oldCategoryPost } = await import("@/pages/api/catalog/product-cate
 const { POST: businessPost } = await import("@/pages/api/provider/settings/experience-business")
 const read = new CatalogReadModelRepository()
 beforeAll(async () => {
+	await db.insert(ProductCategory).values({
+		id: compatibleActivityId,
+		slug: `compatible-${compatibleActivityId.replaceAll("-", "").replace(/[0-9a-f]/g, (c) => String.fromCharCode(103 + parseInt(c, 16)))}`,
+		name: "Actividad compatible de prueba",
+		vertical: "tour",
+		classificationKind: "activity",
+		parentCategoryId: "exp:family:arts",
+		allowedAdditionalThemeIds: ["exp:family:food", "exp:family:science"],
+	})
+
 	await db.insert(User).values({ id: actorId, email: `${actorId}@activity.test` })
 	await db
 		.insert(Provider)
@@ -134,7 +145,9 @@ afterAll(async () => {
 	await db.delete(ProviderAuditLog).where(eq(ProviderAuditLog.providerId, providerId))
 	await db.delete(ProviderCommercialLine).where(eq(ProviderCommercialLine.providerId, providerId))
 	await db.delete(Product).where(inArray(Product.id, [productId, otherId]))
-	await db.delete(ProductCategory).where(eq(ProductCategory.id, legacyId))
+	await db
+		.delete(ProductCategory)
+		.where(inArray(ProductCategory.id, [legacyId, compatibleActivityId]))
 	await db.delete(GeoPlace).where(eq(GeoPlace.id, geoId))
 	await db.delete(Provider).where(eq(Provider.id, providerId))
 	await db.delete(User).where(eq(User.id, actorId))
@@ -182,6 +195,7 @@ it("saves through the real route, keeps legacy links and protected rows, and sha
 	const before = await protectedRows()
 	expect((await send()).status).toBe(200)
 	const aggregate = await read.getProductFullAggregate(productId, providerId)
+ expect(aggregate?.subtype?.kind).toBe("tour")
 	expect(aggregate?.subtype).toMatchObject({
 		experienceFormat: "workshop",
 		primaryActivityCategoryId: "exp:activity:ceramics",
@@ -298,11 +312,15 @@ it("serializes theme edits, preserves identical links, and rejects stale competi
 		oldRevision = await revision()
 	const responses = await Promise.all([
 		send({
+			primaryActivityCategoryId: compatibleActivityId,
+			expectedThemeCompatibilityRevision: "0",
 			additionalThemeId: "exp:family:food",
 			expectedClassificationRevision: String(oldRevision),
 			experienceFormat: "class",
 		}),
 		send({
+			primaryActivityCategoryId: compatibleActivityId,
+			expectedThemeCompatibilityRevision: "0",
 			additionalThemeId: "exp:family:science",
 			expectedClassificationRevision: String(oldRevision),
 			experienceFormat: "class",
@@ -315,7 +333,12 @@ it("serializes theme edits, preserves identical links, and rejects stale competi
 		.where(eq(ProductCategoryLink.productId, productId))
 	const theme = rows.find((r) => r.assignmentKind === "additional_theme")!
 	expect(await revision()).toBeGreaterThan(oldRevision)
-	const same = await send({ additionalThemeId: theme.categoryId, experienceFormat: "class" })
+	const same = await send({
+		primaryActivityCategoryId: compatibleActivityId,
+		expectedThemeCompatibilityRevision: "0",
+		additionalThemeId: theme.categoryId,
+		experienceFormat: "class",
+	})
 	expect(same.status).toBe(200)
 	expect(
 		await db.select().from(ProductCategoryLink).where(eq(ProductCategoryLink.productId, productId))
@@ -358,4 +381,120 @@ it("validates business classification through its authenticated route", async ()
 	expect((await businessPost(request("school"))).status).toBe(403)
 	allowed = true
 	expect(await protectedRows()).toEqual(before)
+})
+
+it("rejects an unrelated theme through the real endpoint without writing", async () => {
+	const before = await db.select().from(Tour).where(eq(Tour.productId, productId))
+	expect(
+		(
+			await send({
+				primaryActivityCategoryId: "exp:activity:product-tasting",
+				additionalThemeId: "exp:family:science",
+				expectedThemeCompatibilityRevision: "0",
+			})
+		).status
+	).toBe(400)
+	expect(await db.select().from(Tour).where(eq(Tour.productId, productId))).toEqual(before)
+})
+it("rejects a stale compatibility revision while preserving the persisted selection", async () => {
+	const before = await db.select().from(Tour).where(eq(Tour.productId, productId))
+	expect(
+		(
+			await send({
+				primaryActivityCategoryId: compatibleActivityId,
+				additionalThemeId: "exp:family:food",
+				expectedThemeCompatibilityRevision: "999",
+			})
+		).status
+	).toBe(409)
+	expect(await db.select().from(Tour).where(eq(Tour.productId, productId))).toEqual(before)
+})
+it("stops using a historical incompatible theme for discovery without deleting its row", async () => {
+	const [before] = await db.select().from(Tour).where(eq(Tour.productId, productId))
+	await db
+		.update(Tour)
+		.set({ primaryActivityCategoryId: compatibleActivityId })
+		.where(eq(Tour.productId, productId))
+	await db
+		.insert(ProductCategoryLink)
+		.values({
+			id: randomUUID(),
+			productId,
+			categoryId: "exp:family:food",
+			assignmentKind: "additional_theme",
+		})
+		.onConflictDoNothing()
+	await db
+		.update(Tour)
+		.set({ primaryActivityCategoryId: "exp:activity:product-tasting" })
+		.where(eq(Tour.productId, productId))
+	expect(
+		await db
+			.select()
+			.from(Product)
+			.where(experienceCategoryFilter(sql`${productId}`, ["experience-science"]))
+	).toEqual([])
+	expect(
+		(
+			await db
+				.select()
+				.from(ProductCategoryLink)
+				.where(eq(ProductCategoryLink.productId, productId))
+		).some((r) => r.categoryId === "exp:family:food")
+	).toBe(true)
+	const aggregate = await read.getProductFullAggregate(productId, providerId)
+ expect(aggregate?.subtype?.kind).toBe("tour")
+	expect(
+		aggregate?.subtype?.kind === "tour"
+			? aggregate.subtype.categories.some((c) => c.id === "exp:family:science")
+			: true
+	).toBe(false)
+
+	await db
+		.update(Tour)
+		.set({ primaryActivityCategoryId: before.primaryActivityCategoryId })
+		.where(eq(Tour.productId, productId))
+})
+it("database rejects an incompatible direct theme writer without removing historical links", async () => {
+	const [current] = await db.select().from(Tour).where(eq(Tour.productId, productId))
+	await db
+		.update(Tour)
+		.set({ primaryActivityCategoryId: "exp:activity:product-tasting" })
+		.where(eq(Tour.productId, productId))
+	const before = await db
+		.select()
+		.from(ProductCategoryLink)
+		.where(eq(ProductCategoryLink.productId, productId))
+	await expect(
+		db.insert(ProductCategoryLink).values({
+			id: randomUUID(),
+			productId,
+			categoryId: "exp:family:wellness",
+			assignmentKind: "additional_theme",
+		})
+	).rejects.toThrow()
+	expect(
+		await db.select().from(ProductCategoryLink).where(eq(ProductCategoryLink.productId, productId))
+	).toEqual(before)
+	await db
+		.update(Tour)
+		.set({ primaryActivityCategoryId: current.primaryActivityCategoryId })
+		.where(eq(Tour.productId, productId))
+})
+it("database rejects missing, duplicate or primary-family compatibility references", async () => {
+	const [before] = await db
+		.select()
+		.from(ProductCategory)
+		.where(eq(ProductCategory.id, compatibleActivityId))
+	for (const ids of [["missing"], ["exp:family:food", "exp:family:food"], ["exp:family:arts"]]) {
+		await expect(
+			db
+				.update(ProductCategory)
+				.set({ allowedAdditionalThemeIds: ids })
+				.where(eq(ProductCategory.id, compatibleActivityId))
+		).rejects.toThrow()
+	}
+	expect(
+		(await db.select().from(ProductCategory).where(eq(ProductCategory.id, compatibleActivityId)))[0]
+	).toEqual(before)
 })

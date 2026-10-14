@@ -10,10 +10,10 @@ describe("financial-ops-vocabulary", () => {
 	it("uses tour ops copy for tour scope", () => {
 		const copy = resolveFinancialPresentationFromContext({
 			vertical: "tour",
-			scopeProduct: "Tour",
+			scopeProduct: "Experiencia",
 			productPlural: "tours",
 		})
-		expect(copy.scopeProduct).toBe("Tour")
+		expect(copy.scopeProduct).toBe("Experiencia")
 		expect(copy.stayGuestLabel).toBe("Salida y participante")
 		expect(copy.evidenceSearchPlaceholder).toContain("participante")
 		expect(copy.workspaceSearchPlaceholder).toContain("tours")
