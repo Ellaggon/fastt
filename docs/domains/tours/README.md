@@ -10,6 +10,8 @@ Review trigger: cambio del contrato o de las superficies públicas y del proveed
 
 ## Leer primero
 
+- [Negocios y experiencias: catálogo de encaje](./experience-business-catalog.md): tipos de proveedor, actividades, formatos, límites y mapa editable Excalidraw.
+
 - [Políticas comerciales de tours](./policies.md): contrato, editor, preview y compatibilidad histórica.
 - [Acuerdo económico inicial](./commercial-terms.md): propuesta de cobro directo, comisión, base, devengo y cancelaciones; pendiente de aceptación.
 - [Matriz comercial BO v1](./policy-annex.md): borrador sin firma. No exige documentos nuevos hasta que Políticas, Finanzas y Operaciones Tours la ratifiquen.

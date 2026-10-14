@@ -3,7 +3,7 @@
 Status: active
 Document type: canonical
 Owner: Tours / Engineering
-Last verified: 2026-10-12
+Last verified: 2026-10-13
 Scope: significado de tablas y datos comerciales de tours sobre el modelo compartido
 Source of truth: esquema, migraciones y pruebas enlazadas en este documento
 Related code/tests: `src/shared/infrastructure/db/schema/`, `src/pages/api/variant/tour-slot-profile.ts`, `src/pages/api/variant/create.ts`, `tests/catalog/tour-slot-profile.test.ts`
@@ -100,6 +100,15 @@ Revertir conserva columnas y protecciones; la taxonomía no amplía permisos de 
 Fuentes: `src/shared/domain/experience-classification.ts`,
 `src/lib/tours/experienceClassificationSql.ts`,
 `tests/integration/experience-activity-persistence.test.ts`.
+
+La creación empieza en `/product/create/activity`, sin insertar productos al explorar tarjetas.
+La familia principal deriva de la actividad; las temáticas adicionales sólo se ofrecen si figuran
+en `ProductCategory.allowedAdditionalThemeIds`. `themeCompatibilityRevision` controla cambios
+editoriales concurrentes. La selección sigue en `ProductCategoryLink`; relaciones anteriores
+incompatibles se conservan y dejan de contar en descubrimiento. El guardado revalida en transacción.
+Migraciones: `2026-10-13_experience_theme_compatibility.sql` añade campos; desplegar el cliente
+compatible antes de `2026-10-13_experience_theme_enforcement.sql`, que protege nuevos enlaces.
+Revertir mantiene los campos y la validación; no recuperar un cliente que ofrezca todas las familias.
 
 ## Tour content columns (Fase 1)
 
