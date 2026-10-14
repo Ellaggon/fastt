@@ -1,3 +1,4 @@
+import { safeFinancialReturn } from "@/lib/financial/financialReturn"
 /**
  * Only allow same-origin relative paths (open-redirect safe).
  */
@@ -46,7 +47,10 @@ export function safeProductPreviewReturn(value: unknown): string | null {
 
 /** Evidence may return to a concrete offer outside a guided creation flow. */
 export function safeVerificationReturn(value: unknown): string | null {
-	const guided = safeRatePlanPlaybookReturn(value) ?? safeProductPreviewReturn(value)
+	const guided =
+		safeFinancialReturn(value) ??
+		safeRatePlanPlaybookReturn(value) ??
+		safeProductPreviewReturn(value)
 	if (guided) return guided
 	const raw = String(value ?? "").trim()
 	if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("://")) return null

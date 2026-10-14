@@ -1,0 +1,155 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Drawer from "@/components/ui/Drawer.astro"
+import DrawerHeader from "@/components/ui/DrawerHeader.astro"
+import ProductTourManagementPanelContent from "@/components/product/ProductTourManagementPanelContent.astro"
+import { ArrowRight } from "@lucide/astro"
+
+interface Props {
+	isPublished: boolean
+	optionSummary: string
+	publicationSupport: string
+	continueHref: string
+	previewHref: string
+	departuresHref: string
+	publicationHref: string
+	deleteLabel: string
+	productId: string
+	productName: string
+}
+
+const {
+	isPublished,
+	optionSummary,
+	publicationSupport,
+	continueHref,
+	previewHref,
+	departuresHref,
+	publicationHref,
+	deleteLabel,
+	productId,
+	productName,
+} = Astro.props
+
+const drawerId = "product-tour-management-drawer"
+const panelProps = {
+	isPublished,
+	optionSummary,
+	publicationSupport,
+	continueHref,
+	previewHref,
+	departuresHref,
+	publicationHref,
+	deleteLabel,
+	productId,
+	productName,
+}
+---
+
+<div
+	class="order-first min-w-0 max-w-full space-y-0 xl:order-none xl:col-start-2 xl:row-start-1 xl:space-y-5"
+	data-product-tour-management
+>
+	<div class="xl:hidden sticky top-0 z-30 mb-4 min-w-0 max-w-full">
+		<Card variant="flush" className="fastt-workspace-panel overflow-hidden bg-white text-slate-900">
+			<div class="space-y-2 p-3 sm:p-4">
+				<div class="flex items-center gap-2">
+					<Button
+						type="button"
+						variant="ghost"
+						className="fastt-tour-management-trigger h-auto min-w-0 flex-1 justify-start gap-2.5 px-0 py-0.5 text-left hover:bg-transparent"
+						data-drawer-open={drawerId}
+						aria-controls={drawerId}
+						aria-expanded="false"
+						aria-haspopup="dialog"
+					>
+						<span
+							class="fastt-soft-box flex size-9 shrink-0 flex-col items-center justify-center gap-[4px] border border-slate-200 bg-slate-50 text-slate-700"
+							aria-hidden="true"
+						>
+							<span class="block h-0.5 w-3.5 rounded-full bg-current"></span>
+							<span class="block h-0.5 w-3.5 rounded-full bg-current"></span>
+							<span class="block h-0.5 w-3.5 rounded-full bg-current"></span>
+						</span>
+						<span class="min-w-0 flex-1">
+							<span class="flex flex-wrap items-center gap-1.5">
+								<span class="text-sm font-semibold text-slate-950">Gestión</span>
+								<Badge variant={isPublished ? "success" : "neutral"} className="shrink-0">
+									{isPublished ? "Publicado" : "Borrador"}
+								</Badge>
+							</span>
+						</span>
+					</Button>
+					<Button
+						href={continueHref}
+						variant="selection"
+						size="sm"
+						className="shrink-0"
+						aria-label="Continuar ficha"
+					>
+						<span class="hidden min-[400px]:inline">Continuar ficha</span>
+						<ArrowRight class="size-4 shrink-0" aria-hidden="true" />
+					</Button>
+				</div>
+				<p class="break-words text-xs leading-5 text-slate-600 sm:text-sm">{publicationSupport}</p>
+			</div>
+		</Card>
+	</div>
+
+	<aside
+		class="hidden xl:sticky xl:top-5 xl:block xl:self-start"
+		aria-label="Gestión de la experiencia"
+	>
+		<Card variant="flush" className="fastt-workspace-panel overflow-hidden">
+			<ProductTourManagementPanelContent {...panelProps} />
+		</Card>
+	</aside>
+
+	<div class="xl:hidden">
+		<Drawer id={drawerId} side="right" label="Gestión de la experiencia" class="max-w-md bg-white">
+			<DrawerHeader
+				title="Gestión"
+				description={optionSummary}
+				closeLabel="Cerrar gestión"
+				titleId="product-tour-management-title"
+			/>
+			<div
+				class="flex min-h-0 flex-1 flex-col overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]"
+			>
+				<div class="border-b border-slate-100 px-5 pb-4">
+					<div class="flex flex-wrap items-center gap-2">
+						<Badge variant={isPublished ? "success" : "neutral"}>
+							{isPublished ? "Publicado" : "Borrador"}
+						</Badge>
+						<p class="text-sm leading-6 text-slate-600">{publicationSupport}</p>
+					</div>
+				</div>
+				<ProductTourManagementPanelContent {...panelProps} showHeader={false} />
+			</div>
+		</Drawer>
+	</div>
+</div>
+
+<script>
+	const syncTourManagementTrigger = () => {
+		const drawer = document.getElementById("product-tour-management-drawer")
+		const trigger = document.querySelector<HTMLButtonElement>(".fastt-tour-management-trigger")
+		if (!drawer || !trigger) return
+		const open =
+			drawer.classList.contains("translate-x-0") && drawer.getAttribute("aria-hidden") === "false"
+		trigger.setAttribute("aria-expanded", open ? "true" : "false")
+	}
+	document.addEventListener("click", (event) => {
+		const target = event.target
+		if (!(target instanceof Element)) return
+		if (
+			target.closest("[data-drawer-open='product-tour-management-drawer']") ||
+			target.closest("[data-drawer-close]") ||
+			target.closest("[data-drawer-overlay]")
+		) {
+			requestAnimationFrame(syncTourManagementTrigger)
+		}
+	})
+</script>

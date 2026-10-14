@@ -15,6 +15,7 @@ import {
 import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { playbookRedirectHrefFor } from "@/lib/playbook/playbook-nav"
+import { safeFinancialReturn } from "@/lib/financial/financialReturn"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -31,6 +32,7 @@ if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
 
 const productId = String(Astro.params.id ?? "")
 if (!productId) return Astro.redirect("/product/create")
+const financialReturn = safeFinancialReturn(Astro.url.searchParams.get("returnTo"))
 const flow = Astro.url.searchParams.get("flow")
 if (!resolvePlaybookFromUrl(Astro.url).active && flow === "create") {
 	return Astro.redirect(buildPlaybookHref(`/product/${productId}/location`, "location"))
@@ -402,11 +404,11 @@ const tourLocationPanelClass = "space-y-5 bg-white"
 															`/product/${encodeURIComponent(productId)}/content`,
 															"content"
 														)
-												: `/product/${encodeURIComponent(productId)}/content`
+												: (financialReturn ?? `/product/${encodeURIComponent(productId)}/content`)
 										}
 										variant="secondary"
 									>
-										Volver
+										{financialReturn ? "Volver a Finanzas" : "Volver"}
 									</Button>
 									<Button
 										id="submitBtn"

@@ -17,7 +17,7 @@ const stateClass = open
 		? "-translate-x-full"
 		: "translate-x-full"
 const finalClass =
-	`fastt-side-sheet fixed top-0 z-50 flex h-dvh w-full max-w-xl flex-col border-slate-200 transition-transform duration-200 ${sideClass} ${stateClass} ${className} ${classProp}`.trim()
+	`fastt-side-sheet fixed top-0 z-50 flex h-dvh w-full max-w-[min(100vw,36rem)] flex-col border-slate-200 transition-transform duration-200 ${sideClass} ${stateClass} ${className} ${classProp}`.trim()
 const finalOverlayClass =
 	`fastt-modal-backdrop fastt-drawer-overlay fixed inset-0 z-40 transition-opacity ${open ? "opacity-100" : "pointer-events-none opacity-0"} ${overlayClass}`.trim()
 ---

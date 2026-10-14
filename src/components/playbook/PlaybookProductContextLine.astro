@@ -17,28 +17,36 @@ const {
 	class: className = "",
 } = Astro.props
 const TourIcon = tourIcon === "compass" ? Compass : Ticket
-const label = variantName?.trim()
-	? `${productName.trim()} · ${variantName.trim()}`
-	: productName.trim()
+const trimmedProductName = productName.trim()
+const trimmedVariantName = variantName?.trim() ?? ""
+const hotelLabel = trimmedVariantName
+	? `${trimmedProductName} · ${trimmedVariantName}`
+	: trimmedProductName
 ---
 
 {
-	label ? (
+	isTour && trimmedProductName ? (
+		<div class:list={["min-w-0 space-y-1", className]}>
+			<p class="flex min-w-0 items-center gap-2.5 text-lg font-semibold text-white sm:text-xl">
+				<TourIcon class="h-5 w-5 shrink-0 text-slate-300" aria-hidden="true" />
+				<span class="truncate">{trimmedProductName}</span>
+			</p>
+			{trimmedVariantName ? (
+				<p class="pl-[1.875rem] text-base font-semibold text-slate-200 sm:text-lg">
+					{trimmedVariantName}
+				</p>
+			) : null}
+		</div>
+	) : hotelLabel ? (
 		<p
 			class:list={[
 				"flex min-w-0 items-center gap-2.5",
-				isTour
-					? "text-lg font-semibold text-white sm:text-xl"
-					: "text-xs font-semibold tracking-wide text-slate-400 uppercase",
+				"text-xs font-semibold tracking-wide text-slate-400 uppercase",
 				className,
 			]}
 		>
-			{isTour ? (
-				<TourIcon class="h-5 w-5 shrink-0 text-slate-300" aria-hidden="true" />
-			) : (
-				<Hotel class="h-4 w-4 shrink-0" aria-hidden="true" />
-			)}
-			{label}
+			<Hotel class="h-4 w-4 shrink-0" aria-hidden="true" />
+			{hotelLabel}
 		</p>
 	) : null
 }

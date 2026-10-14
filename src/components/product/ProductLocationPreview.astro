@@ -9,7 +9,7 @@ const { label } = Astro.props
 ---
 
 <div
-	class="relative min-h-80 overflow-hidden bg-slate-100"
+	class="relative max-w-full min-h-80 overflow-hidden bg-slate-100 [&_.leaflet-container]:max-w-full"
 	data-product-location-preview
 	data-state="loading"
 	data-latitude=""

@@ -1,9 +1,13 @@
-import { diagnoseCommercialPolicy } from "@/lib/commercial-policy/read"
 import { resolveProductCommercialDiagnosis } from "@/lib/commercial-policy/enforcement"
 import {
 	liveMoneyExecutionInfrastructure,
 	liveMoneyMovementRelease,
 } from "@/lib/payments/live-money-activation"
+import {
+	presentFinancialContract,
+	type FinancialContractPresentation,
+} from "./financial-contract-presentation"
+import { listProviderDocuments } from "@/lib/provider-documents"
 import { readProviderHolderProfile } from "@/lib/provider-holder-profile"
 import {
 	collectionModelForCommercialLine,
@@ -17,32 +21,22 @@ import {
 	GeoPlace,
 	Product,
 	ProductGeoPlace,
-	ProviderDocument,
+	inArray,
 } from "@/shared/infrastructure/db/compat"
 
-type ContractStatus = "pending" | "in_review" | "approved" | "unavailable"
-
-export type ProviderContractOffering = {
+export type ProviderContractOffering = FinancialContractPresentation & {
 	productId: string
 	name: string
 	commercialLine: import("@/lib/verification/commercial-lines").CommercialLine | null
 	verticalLabel: string
 	collectionModelLabel: string
 	country: string | null
-	status: ContractStatus
-	statusLabel: string
-	detail: string
+	collectionModel: import("@/lib/verification/commercial-lines").CommercialLineCollectionModel
 	platformCollectionAvailable: boolean
+	platformPayoutAvailable: boolean
 }
 
-export type ProviderContractSurface = {
-	holderStatus: "missing" | "declared" | "in_review"
-	collectionSummaryLabel: string
-	collectionSummaryDetail: string
-	offerings: ProviderContractOffering[]
-	liveMoneyAvailable: boolean
-	verificationHref: string
-}
+export type ProviderContractSurface = { offerings: ProviderContractOffering[] }
 
 function modelLabel(value: unknown): string {
 	if (value === "property_collect") return "El proveedor cobra al viajero"
@@ -68,12 +62,24 @@ function unavailableOffering(params: {
 		name: params.name,
 		commercialLine: commercialLineForProductType(params.vertical),
 		verticalLabel: verticalLabel(params.vertical),
-		collectionModelLabel: "Aún por definir",
+		collectionModel: "undecided",
+		collectionModelLabel: "No se pudo comprobar",
 		country: params.country,
-		status: "unavailable",
-		statusLabel: "Sin flujo aprobado",
+		status: "read_failed",
+		statusLabel: "No se pudo comprobar",
 		detail: params.detail,
+		reasons: [
+			{
+				code: "contract_read_failed",
+				message: params.detail,
+				owner: "unknown",
+				policyVersionId: null,
+				action: null,
+			},
+		],
+		primaryAction: null,
 		platformCollectionAvailable: false,
+		platformPayoutAvailable: false,
 	}
 }
 
@@ -82,9 +88,10 @@ function unavailableOffering(params: {
  * of inferring a payment permission from the provider-level declaration.
  */
 export async function loadProviderContractSurface(
-	providerId: string
+	providerId: string,
+	options: { productIds?: readonly string[] | null; returnTo?: string } = {}
 ): Promise<ProviderContractSurface> {
-	const verificationHref = "/provider/settings/verification/payments"
+	const returnTo = options.returnTo ?? "/financial?scope=all"
 	const holder = await readProviderHolderProfile(providerId)
 	const release = liveMoneyMovementRelease()
 	const collectionInfrastructure = liveMoneyExecutionInfrastructure("collect_payment")
@@ -103,36 +110,16 @@ export async function loadProviderContractSurface(
 				and(eq(ProductGeoPlace.productId, Product.id), eq(ProductGeoPlace.isPrimary, true))
 			)
 			.leftJoin(GeoPlace, eq(GeoPlace.id, ProductGeoPlace.placeId))
-			.where(eq(Product.providerId, providerId)),
+			.where(
+				and(
+					eq(Product.providerId, providerId),
+					options.productIds == null ? undefined : inArray(Product.id, [...options.productIds])
+				)
+			),
 		listProviderCommercialLines(providerId),
 	])
 
-	if (!holder) {
-		return {
-			holderStatus: "missing",
-			collectionSummaryLabel: "Se declara por línea de negocio",
-			collectionSummaryDetail:
-				"Completa la identidad comercial antes de revisar condiciones de cobro.",
-			offerings: products.map((product) =>
-				unavailableOffering({
-					productId: String(product.id),
-					name: String(product.name || "Servicio"),
-					vertical: product.productType,
-					country: product.country ?? null,
-					detail: "Falta la declaración del titular comercial.",
-				})
-			),
-			liveMoneyAvailable: false,
-			verificationHref,
-		}
-	}
-
-	const verifiedEvidence = await db
-		.select({ type: ProviderDocument.type })
-		.from(ProviderDocument)
-		.where(
-			and(eq(ProviderDocument.providerId, providerId), eq(ProviderDocument.status, "verified"))
-		)
+	const documents = holder ? await listProviderDocuments(providerId) : []
 	const offerings: ProviderContractOffering[] = await Promise.all(
 		products.map(async (product): Promise<ProviderContractOffering> => {
 			const productId = String(product.id)
@@ -142,46 +129,31 @@ export async function loadProviderContractSurface(
 				commercialLines,
 				commercialLineForProductType(product.productType)
 			)
-			if (!country || !["hotel", "tour", "whole_home"].includes(vertical)) {
-				return unavailableOffering({
-					productId,
-					name: String(product.name || "Servicio"),
-					vertical,
-					country,
-					detail: country
-						? "Esta actividad aún no tiene un contrato comercial soportado."
-						: "Completa el país principal de la oferta para revisar su contrato.",
-				})
-			}
 
 			try {
-				const context = {
-					holderType: holder.holderType as "persona_natural" | "entidad",
-					holderCountry: holder.holderCountry,
-					taxCountry: holder.taxResidenceCountry,
-					payoutCountry: holder.payoutCountry,
-					productCountry: country,
-					vertical: vertical as "hotel" | "tour" | "whole_home",
-				}
 				const { diagnosis: current } = await resolveProductCommercialDiagnosis({
 					providerId,
 					productId,
+					holder,
+					documents,
 				})
-				const platform = await diagnoseCommercialPolicy({
-					context: { ...context, collectionModel: "platform_collect" },
-					verifiedEvidence: verifiedEvidence.map((row) => row.type),
+				const presentation = presentFinancialContract({
+					diagnosis: current,
+					collectionModel,
+					line: commercialLineForProductType(product.productType),
+					productId,
+					returnTo,
 				})
-				const platformPolicyApproved =
-					platform.policyStatus === "supported" &&
-					platform.capabilities.collect_payment &&
-					platform.capabilities.payout
 				const platformCollectionAvailable =
-					platformPolicyApproved && release.enabled && collectionInfrastructure.available
-				const approved =
-					current.policyStatus === "supported" &&
-					current.capabilities.collect_payment &&
-					current.capabilities.payout
-				const reviewPending = holder.declarationStatus === "in_review"
+					collectionModel === "platform_collect" &&
+					current.capabilityStates.collect_payment === "allowed" &&
+					release.enabled &&
+					collectionInfrastructure.available
+				const platformPayoutAvailable =
+					collectionModel === "platform_collect" &&
+					current.capabilityStates.payout === "allowed" &&
+					release.enabled &&
+					liveMoneyExecutionInfrastructure("payout").available
 				return {
 					productId,
 					name: String(product.name || "Servicio"),
@@ -189,17 +161,9 @@ export async function loadProviderContractSurface(
 					verticalLabel: verticalLabel(vertical),
 					collectionModelLabel: modelLabel(collectionModel),
 					country,
-					status: reviewPending ? "in_review" : approved ? "approved" : "pending",
-					statusLabel: reviewPending
-						? "Declaración en revisión"
-						: approved
-							? "Contrato aprobado"
-							: "Revisión pendiente",
-					detail: reviewPending
-						? "Los cambios de titular o jurisdicción requieren una nueva revisión."
-						: approved
-							? "Las condiciones contractuales aplicables están aprobadas para esta oferta."
-							: "No hay una combinación contractual aprobada para cobrar y liquidar esta oferta.",
+					collectionModel,
+					...presentation,
+					platformPayoutAvailable,
 					platformCollectionAvailable,
 				}
 			} catch {
@@ -208,21 +172,11 @@ export async function loadProviderContractSurface(
 					name: String(product.name || "Servicio"),
 					vertical,
 					country,
-					detail: "El contrato comercial aún no está disponible en este entorno.",
+					detail: "No pudimos comprobar las condiciones comerciales. Vuelve a intentarlo.",
 				})
 			}
 		})
 	)
 
-	return {
-		holderStatus: holder.declarationStatus === "in_review" ? "in_review" : "declared",
-		collectionSummaryLabel: "Se declara por línea de negocio",
-		collectionSummaryDetail:
-			holder.declarationStatus === "in_review"
-				? "La declaración cambió y está pendiente de revisión."
-				: "La declaración no autoriza por sí sola cobros ni liquidaciones.",
-		offerings,
-		liveMoneyAvailable: release.enabled && collectionInfrastructure.available,
-		verificationHref,
-	}
+	return { offerings }
 }

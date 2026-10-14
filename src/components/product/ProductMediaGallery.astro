@@ -14,7 +14,7 @@ const { imagesHref, singularLabel } = Astro.props
 
 <Card
 	variant="flush"
-	className="overflow-hidden bg-white text-slate-900"
+	className="max-w-full overflow-hidden bg-white text-slate-900"
 	data-product-media-gallery-card
 >
 	<div
@@ -33,7 +33,7 @@ const { imagesHref, singularLabel } = Astro.props
 		<Button href={imagesHref} variant="secondary" size="sm"> Gestionar fotos </Button>
 	</div>
 
-	<div class="p-2 md:p-3" data-product-media-gallery>
+	<div class="max-w-full overflow-hidden p-2 md:p-3" data-product-media-gallery>
 		<div class="md:hidden">
 			<div
 				id="productHeroMedia"
@@ -44,7 +44,7 @@ const { imagesHref, singularLabel } = Astro.props
 			</div>
 			<div
 				id="summaryImageGrid"
-				class="mt-2 flex gap-2 overflow-x-auto pb-1"
+				class="mt-2 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1 [-webkit-overflow-scrolling:touch]"
 				aria-live="polite"
 				data-product-media-strip
 			>
@@ -81,6 +81,7 @@ const { imagesHref, singularLabel } = Astro.props
 						data-product-media-thumb
 						class="product-media-mosaic__thumb relative overflow-hidden rounded-[var(--fastt-radius-card)] bg-slate-100"
 						data-thumb-index={index}
+						hidden
 					>
 						<div class="flex h-full min-h-[136px] items-center justify-center text-xs font-medium text-slate-400">
 							Foto {index + 2}

@@ -1,4 +1,3 @@
-import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
 import { resolveWorkspaceScope } from "@/lib/workspace/resolveWorkspaceScope"
 import { listProviderCommercialLines } from "@/lib/verification/commercial-lines"
 import { db, eq, Product } from "@/shared/infrastructure/db/compat"
@@ -30,8 +29,7 @@ export async function resolveFinancialApiProductScope(
 		return { ok: true, productFilter: null }
 	}
 
-	const [sidebarData, commercialLines, catalogProducts] = await Promise.all([
-		getProviderSidebarData(providerId),
+	const [commercialLines, catalogProducts] = await Promise.all([
 		listProviderCommercialLines(providerId).catch(() => []),
 		db
 			.select({ id: Product.id, name: Product.name, productType: Product.productType })
@@ -48,7 +46,7 @@ export async function resolveFinancialApiProductScope(
 	const resolution = resolveWorkspaceScope({
 		requestedScope,
 		productId: requestedProductId,
-		productTypes: sidebarData.productTypes ?? [],
+		productTypes: catalogProducts.map((row) => row.productType),
 		commercialLines: commercialLines.map((entry) => entry.line),
 		products,
 	})

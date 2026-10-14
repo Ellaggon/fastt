@@ -1,3 +1,4 @@
+import { ProductDeletionBlockedError } from "../../application/use-cases/delete-product"
 import { experienceThemeCompatibility } from "@/shared/domain/experience-theme-compatibility"
 import { evaluateExperienceClassification } from "@/shared/domain/experience-classification"
 import {
@@ -32,6 +33,12 @@ import {
 	WholeHomeUnit,
 	TourSlotProfile,
 	TourTicketType,
+	TourBookingQuestion,
+	TourPrivateRequest,
+	Booking,
+	BookingLineItem,
+	ProductReview,
+	or,
 	ProductCategoryLink,
 	ProviderAuditLog,
 	Package,
@@ -1187,173 +1194,234 @@ export class ProductRepository implements ProductRepositoryPort {
 		}
 	}
 
-	async deleteProductCascade(productId: string) {
+	async ensureProductDeletionOwned(productId: string, providerId: string) {
+		return db
+			.select({ id: Product.id })
+			.from(Product)
+			.where(and(eq(Product.id, productId), eq(Product.providerId, providerId)))
+			.then(first)
+	}
+
+	async deleteProductCascade(productId: string, providerId?: string) {
 		if (!productId) return
-		const product = await db.select().from(Product).where(eq(Product.id, productId)).then(first)
-		if (!product) return
+		const images = await db.transaction(async (tx) => {
+			const db = tx
+			const ratePlanCommands = new RatePlanCommandRepository(
+				tx as unknown as typeof import("@/shared/infrastructure/db/compat").db
+			)
+			const product = await db
+				.select()
+				.from(Product)
+				.where(eq(Product.id, productId))
+				.for("update")
+				.then(first)
+			if (!product) return []
+			if (providerId && product.providerId !== providerId) throw new ProductDeletionBlockedError()
 
-		const variants = await db.select().from(Variant).where(eq(Variant.productId, productId))
-		const variantIds = variants.map((variant) => String(variant.id))
-		const ratePlans = variantIds.length
-			? await db.select().from(RatePlan).where(inArray(RatePlan.variantId, variantIds))
-			: []
-		const ratePlanIds = ratePlans.map((ratePlan) => String(ratePlan.id))
-		const serviceRows = await db
-			.select()
-			.from(ProductService)
-			.where(eq(ProductService.productId, productId))
+			const variants = await db.select().from(Variant).where(eq(Variant.productId, productId))
+			const variantIds = variants.map((variant) => String(variant.id))
+			const ratePlans = variantIds.length
+				? await db.select().from(RatePlan).where(inArray(RatePlan.variantId, variantIds))
+				: []
+			const ratePlanIds = ratePlans.map((ratePlan) => String(ratePlan.id))
+			const hasHistory = await db
+				.select({ id: TourPrivateRequest.id })
+				.from(TourPrivateRequest)
+				.where(eq(TourPrivateRequest.productId, productId))
+				.limit(1)
+			const reviews = await db
+				.select({ id: ProductReview.id })
+				.from(ProductReview)
+				.where(eq(ProductReview.productId, productId))
+				.limit(1)
+			const bookingLines = await db
+				.select({ id: BookingLineItem.id })
+				.from(BookingLineItem)
+				.where(
+					or(
+						eq(BookingLineItem.productIdSnapshot, productId),
+						...(variantIds.length ? [inArray(BookingLineItem.variantId, variantIds)] : [])
+					)
+				)
+				.limit(1)
+			const bookings = ratePlanIds.length
+				? await db
+						.select({ id: Booking.id })
+						.from(Booking)
+						.where(inArray(Booking.ratePlanId, ratePlanIds))
+						.limit(1)
+				: []
+			if (hasHistory.length || reviews.length || bookingLines.length || bookings.length)
+				throw new ProductDeletionBlockedError()
+			const serviceRows = await db
+				.select()
+				.from(ProductService)
+				.where(eq(ProductService.productId, productId))
 
-		const serviceIds = serviceRows.map((service) => String(service.id))
-		const productImages = await db
-			.select({ id: Image.id, objectKey: Image.objectKey, url: Image.url })
-			.from(ProductImage)
-			.innerJoin(Image, eq(Image.id, ProductImage.imageId))
-			.where(eq(ProductImage.productId, productId))
-		const variantImages = variantIds.length
-			? await db
-					.select({ id: Image.id, objectKey: Image.objectKey, url: Image.url })
-					.from(VariantImage)
-					.innerJoin(Image, eq(Image.id, VariantImage.imageId))
-					.where(inArray(VariantImage.variantId, variantIds))
-			: []
-		const productObjectPrefix = `products/${productId}/`
-		const pendingProductImages = (await db.select().from(Image)).filter((image) =>
-			String((image as any).objectKey ?? "").startsWith(productObjectPrefix)
-		)
-		const imagesById = new Map<string, (typeof productImages)[number]>()
-		for (const image of [...productImages, ...variantImages, ...pendingProductImages]) {
-			imagesById.set(String(image.id), image)
-		}
-		const images = [...imagesById.values()]
-		const imageIds = images.map((image) => String(image.id))
-		const imageObjectKeys = [
-			...new Set(
-				images
-					.map((image) => String((image as any).objectKey ?? "").trim())
-					.filter((objectKey) => objectKey.length > 0)
-			),
-		]
-
-		if (imageIds.length) {
-			await db.delete(ImageUpload).where(inArray(ImageUpload.imageId, imageIds))
-		}
-		if (imageObjectKeys.length) {
-			await db.delete(ImageUpload).where(inArray(ImageUpload.objectKey, imageObjectKeys))
-		}
-
-		if (ratePlanIds.length) {
-			for (const ratePlanId of ratePlanIds) {
-				await this.ratePlanCommands.deleteRatePlan(ratePlanId)
+			const serviceIds = serviceRows.map((service) => String(service.id))
+			const productImages = await db
+				.select({ id: Image.id, objectKey: Image.objectKey, url: Image.url })
+				.from(ProductImage)
+				.innerJoin(Image, eq(Image.id, ProductImage.imageId))
+				.where(eq(ProductImage.productId, productId))
+			const variantImages = variantIds.length
+				? await db
+						.select({ id: Image.id, objectKey: Image.objectKey, url: Image.url })
+						.from(VariantImage)
+						.innerJoin(Image, eq(Image.id, VariantImage.imageId))
+						.where(inArray(VariantImage.variantId, variantIds))
+				: []
+			const productObjectPrefix = `products/${productId}/`
+			const pendingProductImages = await db
+				.select()
+				.from(Image)
+				.where(sql`starts_with(${Image.objectKey}, ${productObjectPrefix})`)
+			const imagesById = new Map<string, (typeof productImages)[number]>()
+			for (const image of [...productImages, ...variantImages, ...pendingProductImages]) {
+				imagesById.set(String(image.id), image)
 			}
-		}
+			const images = [...imagesById.values()]
+			const imageIds = images.map((image) => String(image.id))
+			const imageObjectKeys = [
+				...new Set(
+					images
+						.map((image) => String((image as any).objectKey ?? "").trim())
+						.filter((objectKey) => objectKey.length > 0)
+				),
+			]
 
-		if (variantIds.length) {
-			await this.ratePlanCommands.purgeEffectivePricingByVariantIds(variantIds)
+			if (imageIds.length) {
+				await db.delete(ImageUpload).where(inArray(ImageUpload.imageId, imageIds))
+			}
+			if (imageObjectKeys.length) {
+				await db.delete(ImageUpload).where(inArray(ImageUpload.objectKey, imageObjectKeys))
+			}
+
+			if (ratePlanIds.length) {
+				for (const ratePlanId of ratePlanIds) {
+					await ratePlanCommands.deleteRatePlan(ratePlanId)
+				}
+			}
+
+			if (variantIds.length) {
+				await ratePlanCommands.purgeEffectivePricingByVariantIds(variantIds)
+				await db
+					.delete(CommercialRuleApplication)
+					.where(
+						and(
+							eq(CommercialRuleApplication.scope, "variant"),
+							inArray(CommercialRuleApplication.scopeId, variantIds)
+						)
+					)
+				await db
+					.delete(TaxFeeAssignment)
+					.where(
+						and(
+							eq(TaxFeeAssignment.scope, "variant"),
+							inArray(TaxFeeAssignment.scopeId, variantIds)
+						)
+					)
+				await db
+					.delete(PolicyAssignment)
+					.where(
+						and(
+							eq(PolicyAssignment.scope, "variant"),
+							inArray(PolicyAssignment.scopeId, variantIds)
+						)
+					)
+				await db.delete(VariantImage).where(inArray(VariantImage.variantId, variantIds))
+				await db.delete(SearchUnitView).where(inArray(SearchUnitView.variantId, variantIds))
+				await db
+					.delete(EffectiveRestriction)
+					.where(inArray(EffectiveRestriction.variantId, variantIds))
+				await db
+					.delete(EffectiveAvailability)
+					.where(inArray(EffectiveAvailability.variantId, variantIds))
+				await db
+					.delete(ProviderExternalCalendarEvent)
+					.where(inArray(ProviderExternalCalendarEvent.variantId, variantIds))
+				await db
+					.delete(ProviderExternalCalendar)
+					.where(inArray(ProviderExternalCalendar.variantId, variantIds))
+				await db
+					.delete(ProviderIntegrationMapping)
+					.where(
+						and(
+							eq(ProviderIntegrationMapping.localEntityType, "variant"),
+							inArray(ProviderIntegrationMapping.localEntityId, variantIds)
+						)
+					)
+				await db.delete(DailyInventory).where(inArray(DailyInventory.variantId, variantIds))
+				await db
+					.delete(VariantInventoryConfig)
+					.where(inArray(VariantInventoryConfig.variantId, variantIds))
+				await db.delete(VariantRoomAmenity).where(inArray(VariantRoomAmenity.variantId, variantIds))
+				await db.delete(VariantRoomBed).where(inArray(VariantRoomBed.variantId, variantIds))
+				await db.delete(VariantRoomProfile).where(inArray(VariantRoomProfile.variantId, variantIds))
+				await db.delete(VariantCapacity).where(inArray(VariantCapacity.variantId, variantIds))
+				await db.delete(TourSlotProfile).where(inArray(TourSlotProfile.variantId, variantIds))
+				await db.delete(Variant).where(inArray(Variant.id, variantIds))
+			}
+
+			if (serviceIds.length) {
+				await db
+					.delete(ProductServiceAttribute)
+					.where(inArray(ProductServiceAttribute.productServiceId, serviceIds))
+				await db.delete(ProductService).where(inArray(ProductService.id, serviceIds))
+			}
+
 			await db
 				.delete(CommercialRuleApplication)
 				.where(
 					and(
-						eq(CommercialRuleApplication.scope, "variant"),
-						inArray(CommercialRuleApplication.scopeId, variantIds)
+						eq(CommercialRuleApplication.scope, "product"),
+						eq(CommercialRuleApplication.scopeId, productId)
 					)
 				)
 			await db
 				.delete(TaxFeeAssignment)
-				.where(
-					and(eq(TaxFeeAssignment.scope, "variant"), inArray(TaxFeeAssignment.scopeId, variantIds))
-				)
-			await db
-				.delete(PolicyAssignment)
-				.where(
-					and(eq(PolicyAssignment.scope, "variant"), inArray(PolicyAssignment.scopeId, variantIds))
-				)
-			await db.delete(VariantImage).where(inArray(VariantImage.variantId, variantIds))
-			await db.delete(SearchUnitView).where(inArray(SearchUnitView.variantId, variantIds))
-			await db
-				.delete(EffectiveRestriction)
-				.where(inArray(EffectiveRestriction.variantId, variantIds))
-			await db
-				.delete(EffectiveAvailability)
-				.where(inArray(EffectiveAvailability.variantId, variantIds))
-			await db
-				.delete(ProviderExternalCalendarEvent)
-				.where(inArray(ProviderExternalCalendarEvent.variantId, variantIds))
-			await db
-				.delete(ProviderExternalCalendar)
-				.where(inArray(ProviderExternalCalendar.variantId, variantIds))
+				.where(and(eq(TaxFeeAssignment.scope, "product"), eq(TaxFeeAssignment.scopeId, productId)))
 			await db
 				.delete(ProviderIntegrationMapping)
 				.where(
 					and(
-						eq(ProviderIntegrationMapping.localEntityType, "variant"),
-						inArray(ProviderIntegrationMapping.localEntityId, variantIds)
+						eq(ProviderIntegrationMapping.localEntityType, "product"),
+						eq(ProviderIntegrationMapping.localEntityId, productId)
 					)
 				)
-			await db.delete(DailyInventory).where(inArray(DailyInventory.variantId, variantIds))
 			await db
-				.delete(VariantInventoryConfig)
-				.where(inArray(VariantInventoryConfig.variantId, variantIds))
-			await db.delete(VariantRoomAmenity).where(inArray(VariantRoomAmenity.variantId, variantIds))
-			await db.delete(VariantRoomBed).where(inArray(VariantRoomBed.variantId, variantIds))
-			await db.delete(VariantRoomProfile).where(inArray(VariantRoomProfile.variantId, variantIds))
-			await db.delete(VariantCapacity).where(inArray(VariantCapacity.variantId, variantIds))
-			await db.delete(Variant).where(inArray(Variant.id, variantIds))
-		}
+				.delete(PolicyAssignment)
+				.where(and(eq(PolicyAssignment.scope, "product"), eq(PolicyAssignment.scopeId, productId)))
 
-		if (serviceIds.length) {
+			await db.delete(ProductImage).where(eq(ProductImage.productId, productId))
+			if (imageIds.length) {
+				await db.delete(Image).where(inArray(Image.id, imageIds))
+			}
+			await db.delete(HouseRule).where(eq(HouseRule.productId, productId))
+			await db.delete(ProductContent).where(eq(ProductContent.productId, productId))
+			await db.delete(ProductLocation).where(eq(ProductLocation.productId, productId))
 			await db
-				.delete(ProductServiceAttribute)
-				.where(inArray(ProductServiceAttribute.productServiceId, serviceIds))
-			await db.delete(ProductService).where(inArray(ProductService.id, serviceIds))
-		}
+				.delete(ProductOperationalSurface)
+				.where(eq(ProductOperationalSurface.productId, productId))
 
-		await db
-			.delete(CommercialRuleApplication)
-			.where(
-				and(
-					eq(CommercialRuleApplication.scope, "product"),
-					eq(CommercialRuleApplication.scopeId, productId)
-				)
-			)
-		await db
-			.delete(TaxFeeAssignment)
-			.where(and(eq(TaxFeeAssignment.scope, "product"), eq(TaxFeeAssignment.scopeId, productId)))
-		await db
-			.delete(ProviderIntegrationMapping)
-			.where(
-				and(
-					eq(ProviderIntegrationMapping.localEntityType, "product"),
-					eq(ProviderIntegrationMapping.localEntityId, productId)
-				)
-			)
-		await db
-			.delete(PolicyAssignment)
-			.where(and(eq(PolicyAssignment.scope, "product"), eq(PolicyAssignment.scopeId, productId)))
+			const pt = String(product.productType || "").toLowerCase()
+			if (pt === "hotel") {
+				await db.delete(Hotel).where(eq(Hotel.productId, productId))
+			} else if (pt === "tour") {
+				await db.delete(Tour).where(eq(Tour.productId, productId))
+			} else if (pt === "package") {
+				await db.delete(Package).where(eq(Package.productId, productId))
+			} else if (pt === "limousine") {
+				await db.delete(Limousine).where(eq(Limousine.productId, productId))
+			}
 
-		await db.delete(ProductImage).where(eq(ProductImage.productId, productId))
-		if (imageIds.length) {
-			await db.delete(Image).where(inArray(Image.id, imageIds))
-		}
-		await db.delete(HouseRule).where(eq(HouseRule.productId, productId))
-		await db.delete(ProductContent).where(eq(ProductContent.productId, productId))
-		await db.delete(ProductLocation).where(eq(ProductLocation.productId, productId))
-		await db
-			.delete(ProductOperationalSurface)
-			.where(eq(ProductOperationalSurface.productId, productId))
+			await db.delete(TourTicketType).where(eq(TourTicketType.productId, productId))
+			await db.delete(TourBookingQuestion).where(eq(TourBookingQuestion.productId, productId))
+			await db.delete(ProductCategoryLink).where(eq(ProductCategoryLink.productId, productId))
+			await db.delete(Product).where(eq(Product.id, productId))
 
-		const pt = String(product.productType || "").toLowerCase()
-		if (pt === "hotel") {
-			await db.delete(Hotel).where(eq(Hotel.productId, productId))
-		} else if (pt === "tour") {
-			await db.delete(Tour).where(eq(Tour.productId, productId))
-		} else if (pt === "package") {
-			await db.delete(Package).where(eq(Package.productId, productId))
-		} else if (pt === "limousine") {
-			await db.delete(Limousine).where(eq(Limousine.productId, productId))
-		}
-
-		await db.delete(Product).where(eq(Product.id, productId))
-
+			return images
+		})
 		if (!this.r2 || !process.env.R2_BUCKET_NAME) return
 		for (const img of images) {
 			try {

@@ -51,3 +51,25 @@ export const financialNavigationItems: FinancialNavItem[] = [
 		description: "Casos financieros que requieren revisión y no encajan en un flujo único.",
 	},
 ]
+
+/** Provider tasks keep their technical destinations; specialist reviews remain reachable. */
+export function financialNavigationFor(vertical: string | null) {
+	if (vertical !== "tour")
+		return financialNavigationItems.map((item) => ({ ...item, secondary: false }))
+	const labels: Record<string, string> = {
+		"/financial": "Pendientes",
+		"/financial/collections": "Cobros",
+		"/financial/refunds": "Devoluciones",
+		"/financial/settlements": "Conciliación",
+		"/financial/provider-payables": "Importes del proveedor",
+		"/financial/exceptions": "Excepciones",
+	}
+	const primary = new Set(["/financial", "/financial/collections", "/financial/refunds"])
+	return financialNavigationItems
+		.map((item) => ({
+			...item,
+			label: labels[item.href] ?? item.label,
+			secondary: !primary.has(item.href),
+		}))
+		.sort((a, b) => Number(a.secondary) - Number(b.secondary))
+}

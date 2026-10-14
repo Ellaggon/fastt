@@ -1,8 +1,11 @@
 ---
 import ProviderCommercialContractCard from "@/components/provider/ProviderCommercialContractCard.astro"
+import Button from "@/components/ui/Button.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
 import { loadProviderContractSurface } from "@/lib/commercial-policy/provider-contract-surface"
+import { resolveFinancialApiProductScope } from "@/lib/financial/financialApiProductScope"
+import { safeFinancialReturn } from "@/lib/financial/financialReturn"
 
 const auth = await requireProviderSessionSurface(Astro.request).catch((error: any) => {
 	if (error instanceof Response && error.status === 401) return "__LOGIN__"
@@ -13,14 +16,27 @@ if (auth === "__LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__PROFILE__") return Astro.redirect("/provider/settings/profile")
 const providerId = typeof auth === "string" ? null : auth.provider.providerId
 if (!providerId) return Astro.redirect("/provider/settings/profile")
-const model = await loadProviderContractSurface(providerId)
+const scope = await resolveFinancialApiProductScope(providerId, Astro.url)
+if (!scope.ok) return scope.response
+const returnTo = safeFinancialReturn(Astro.url.searchParams.get("returnTo"))
+const model = await loadProviderContractSurface(providerId, {
+	productIds: scope.productFilter,
+	returnTo: returnTo ?? undefined,
+})
 ---
 
 <ProviderSettingsLayout
-	title="Cobros y liquidaciones"
-	heading="Cobros y liquidaciones"
-	description="Revisa el modelo contractual de tus ofertas y el estado de los controles necesarios antes de operar dinero."
+	title="Condiciones comerciales"
+	heading="Condiciones comerciales"
+	description="Consulta la modalidad de cobro de tus ofertas y los requisitos que necesitan atención."
 	showSettingsTabs={false}
 >
+	{
+		returnTo && (
+			<Button href={returnTo} variant="secondary">
+				Volver a Finanzas
+			</Button>
+		)
+	}
 	<ProviderCommercialContractCard model={model} />
 </ProviderSettingsLayout>

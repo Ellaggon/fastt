@@ -1,17 +1,10 @@
 ---
 import FinancialUnifiedWorkspace from "@/components/financial/FinancialUnifiedWorkspace.astro"
-import ProviderCommercialContractCard from "@/components/provider/ProviderCommercialContractCard.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
-import { filterProviderContractSurfaceByScope } from "@/lib/commercial-policy/filter-provider-contract-surface"
-import { loadProviderContractSurface } from "@/lib/commercial-policy/provider-contract-surface"
 import { prepareFinancialWorkspaceScope } from "@/lib/workspace/financialWorkspaceScope"
 
 const prepared = await prepareFinancialWorkspaceScope(Astro.request, Astro.url)
 if (prepared instanceof Response) return prepared
-const contractModel = filterProviderContractSurfaceByScope(
-	await loadProviderContractSurface(prepared.providerId),
-	prepared.scope
-)
 
 /*
 	Financial UX guardrail vocabulary intentionally preserved here while the
@@ -47,8 +40,8 @@ const contractModel = filterProviderContractSurfaceByScope(
 ---
 
 <WorkspaceLayout title="Finanzas">
-	<ProviderCommercialContractCard model={contractModel} compact={true} />
 	<FinancialUnifiedWorkspace
+		providerId={prepared.providerId}
 		scope={prepared.scope}
 		isSimpleFinancialView={prepared.isSimpleFinancialView}
 	/>

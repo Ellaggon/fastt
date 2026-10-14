@@ -1,4 +1,8 @@
 import {
+	registerFinancialReload,
+	registerFinancialPageRetry,
+} from "../../_client/financial-load-state"
+import {
 	fetchFinancialJson,
 	financialEndpointUrls,
 	financialUrlWithCursor,
@@ -409,11 +413,13 @@ function openDrawer(item: RefundItem): void {
 		</section>`
 	backdrop.classList.remove("hidden")
 	drawer.classList.remove("translate-x-full")
+	drawer.removeAttribute("inert")
 }
 
 function closeDrawer(): void {
 	document.getElementById("refundsDrawerBackdrop")?.classList.add("hidden")
 	document.getElementById("refundsDrawer")?.classList.add("translate-x-full")
+	document.getElementById("refundsDrawer")?.setAttribute("inert", "")
 	state.selectedItem = null
 }
 
@@ -475,6 +481,7 @@ async function loadRefunds(options: { force?: boolean } = {}): Promise<void> {
 		])
 		applyPayload(payload, operationsPayload)
 	} catch {
+		if (getCachedFinancialJson(financialEndpointUrls.refundHandoffs)) return
 		const rows = document.getElementById("refundsRows")
 		const summary = document.getElementById("refundsSummary")
 		if (summary) summary.textContent = "No se pudo cargar el seguimiento de reembolsos."
@@ -496,9 +503,11 @@ async function loadMoreRefunds(): Promise<void> {
 				}),
 				{ force: true }
 			),
-			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
+			fetchFinancialJson(financialEndpointUrls.operations),
 		])
 		applyPayload(mergeFinancialPayloadById(state.payload, payload), operationsPayload)
+	} catch {
+		// Keep rows and cursor; the shared load notice owns retry.
 	} finally {
 		state.loadingMore = false
 		renderLoadMore()
@@ -538,3 +547,7 @@ export function initRefundsWorkspace(): void {
 	document.getElementById("refundsDrawerBackdrop")?.addEventListener("click", closeDrawer)
 	void loadRefunds()
 }
+
+registerFinancialReload("/financial/refunds", loadRefunds)
+
+registerFinancialPageRetry("/financial/refunds", loadMoreRefunds)

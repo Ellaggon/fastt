@@ -1,17 +1,24 @@
 ---
+import FinancialContractSummary from "@/components/financial/FinancialContractSummary.astro"
 import FinancialSubnav from "@/components/financial/FinancialSubnav.astro"
 
 interface Props {
 	title: string
 	description: string
+	contextLabel?: string | null
 	note?: string
 }
 
-const { title, description, note = "" } = Astro.props
+const { title, description, note = "", contextLabel = null } = Astro.props
 ---
 
 <section class="space-y-6 md:space-y-8">
 	<header class="flex flex-col gap-2">
+		{
+			contextLabel && (
+				<p class="text-xs font-semibold tracking-wide text-slate-400">{contextLabel}</p>
+			)
+		}
 		<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">{title}</h1>
 		<p class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6">{description}</p>
 		{
@@ -29,6 +36,7 @@ const { title, description, note = "" } = Astro.props
 	</header>
 
 	<FinancialSubnav />
+	<FinancialContractSummary />
 
 	<slot />
 </section>

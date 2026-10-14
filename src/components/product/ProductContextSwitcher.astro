@@ -3,7 +3,7 @@ import ContextSwitcher, {
 	type ContextSwitcherGroup,
 	type ContextSwitcherOption,
 } from "@/components/ui/ContextSwitcher.astro"
-import { productTypeLabel } from "@/lib/catalog/productVerticalRegistry"
+import { getProductVerticalEntry, productTypeLabel } from "@/lib/catalog/productVerticalRegistry"
 import { listRatePlansWithArrivalException } from "@/lib/policies/ratePlanArrivalException"
 import { routes } from "@/lib/routes"
 import {
@@ -232,17 +232,75 @@ const current =
 				? allHouseRulesOption
 				: (products.find((item) => item.id === productId) ??
 					productOptions[0] ?? { id: productId, label: resolvedName, href: hrefFor(productId) })
+const showTourPlaybookDuo =
+	isTour && requestedVariantId && isPlaybook && !selectable && Boolean(productId)
+const tourScopeLabels = getProductVerticalEntry("tour").labels
+const tourVariantRow = showTourPlaybookDuo
+	? await db
+			.select({ name: Variant.name })
+			.from(Variant)
+			.where(eq(Variant.id, requestedVariantId))
+			.then(first)
+	: null
+const tourVariantDisplayName =
+	String(tourVariantRow?.name ?? "").trim() || tourScopeLabels.scopeVariant
 ---
 
-<ContextSwitcher
-	label={label}
-	value={current.label}
-	options={products}
-	groups={groups}
-	selectedId={selectedId}
-	icon={icon}
-	menuLabel={nestRooms ? "Cambiar contexto" : `Cambiar ${label.toLowerCase()}`}
-	emptyMessage={`No hay otros ${label.toLowerCase()}s disponibles.`}
-	ariaLabel={nestRooms ? "Cambiar contexto de reglas" : `Cambiar ${label.toLowerCase()} actual`}
-	variant={variant}
-/>
+{
+	showTourPlaybookDuo ? (
+		<div class="fastt-context-switcher-duo">
+			<ContextSwitcher
+				label={tourScopeLabels.scopeProduct}
+				value={resolvedName}
+				options={[]}
+				icon="tour"
+				menuLabel={`Cambiar ${tourScopeLabels.scopeProduct.toLowerCase()}`}
+				emptyMessage=""
+				ariaLabel={`${tourScopeLabels.scopeProduct} actual`}
+				variant={variant}
+			/>
+			<ContextSwitcher
+				label={tourScopeLabels.scopeVariant}
+				value={tourVariantDisplayName}
+				options={[]}
+				icon="tour"
+				menuLabel={`Cambiar ${tourScopeLabels.scopeVariant.toLowerCase()}`}
+				emptyMessage=""
+				ariaLabel={`${tourScopeLabels.scopeVariant} actual`}
+				variant={variant}
+			/>
+		</div>
+	) : (
+		<ContextSwitcher
+			label={label}
+			value={current.label}
+			options={products}
+			groups={groups}
+			selectedId={selectedId}
+			icon={icon}
+			menuLabel={nestRooms ? "Cambiar contexto" : `Cambiar ${label.toLowerCase()}`}
+			emptyMessage={`No hay otros ${label.toLowerCase()}s disponibles.`}
+			ariaLabel={nestRooms ? "Cambiar contexto de reglas" : `Cambiar ${label.toLowerCase()} actual`}
+			variant={variant}
+		/>
+	)
+}
+
+<style>
+	.fastt-context-switcher-duo {
+		display: flex;
+		min-width: 0;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.35rem;
+	}
+
+	@media (min-width: 640px) {
+		.fastt-context-switcher-duo {
+			flex-direction: row;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: 0.75rem 1.25rem;
+		}
+	}
+</style>

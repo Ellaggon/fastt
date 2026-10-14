@@ -1,3 +1,4 @@
+import { registerFinancialReload, registerFinancialPageRetry } from "./financial-load-state"
 import {
 	searchFinancialBookingCandidates,
 	submitExternalEvidenceAssociation,
@@ -18,6 +19,7 @@ import {
 import { countFinancialQueue, filterFinancialRows } from "./financial-filters"
 import { primarySummaryQueues } from "./financial-queues"
 import { renderFinancialRowHtml } from "./financial-renderers"
+import { financialBookingDetailHref } from "./financial-navigation-scope"
 import { financialSegmentMarkup, financialSummaryClass, financialUi } from "./financial-ui-classes"
 import {
 	createFinancialWorkspaceState,
@@ -58,6 +60,7 @@ type WorkspacePayloads = {
 
 export function initFinancialWorkspace(): void {
 	const workspaceState = createFinancialWorkspaceState()
+	registerFinancialReload("/financial", fetchOperations)
 	const actorFilter = document.getElementById("financialActorFilter") as HTMLSelectElement | null
 	const ageFilter = document.getElementById("financialAgeFilter") as HTMLSelectElement | null
 	const searchFilter = document.getElementById("financialSearchFilter") as HTMLInputElement | null
@@ -118,6 +121,19 @@ export function initFinancialWorkspace(): void {
 	const inboxState = {
 		segment: "needs_action_today",
 	}
+	const savedFilters = new URLSearchParams(location.search)
+	for (const [key, control] of [
+		["age", ageFilter],
+		["actor", actorFilter],
+	] as const) {
+		const value = savedFilters.get(key)
+		if (control && value && Array.from(control.options).some((option) => option.value === value))
+			control.value = value
+	}
+	if (searchFilter) searchFilter.value = savedFilters.get("search") ?? ""
+	const savedSegment = savedFilters.get("segment")
+	if (savedSegment && primarySummaryQueues.some((item) => item.queue === savedSegment))
+		inboxState.segment = savedSegment
 	const searchShell = searchFilter?.closest(".financial-search-compact") as HTMLElement | null
 
 	function syncSearchShell(): void {
@@ -135,6 +151,7 @@ export function initFinancialWorkspace(): void {
 	clearFilters?.addEventListener("click", () => {
 		if (actorFilter) actorFilter.value = "all"
 		if (ageFilter) ageFilter.value = "all"
+		if (searchFilter) searchFilter.value = ""
 		renderFinancialView()
 	})
 
@@ -228,37 +245,40 @@ export function initFinancialWorkspace(): void {
 
 	function renderEmptyRows(): void {
 		if (!rows) return
+		const filters = currentFilters()
+		const filtered = Boolean(filters.search || filters.age !== "all" || filters.actor !== "all")
 		const nextSegment = primarySummaryQueues.find(
 			(metric) =>
 				metric.queue !== inboxState.segment &&
 				countQueue(workspaceState.combinedItems, metric.queue) > 0
 		)
-		const action = nextSegment
-			? `<button type="button" data-empty-queue="${nextSegment.queue}" class="mt-3 ${financialUi.buttonSecondarySm}">Ver ${escapeHtml(nextSegment.label.toLowerCase())}</button>`
-			: ""
-		const emptyMessages: Record<string, string> = {
-			needs_action_today: "No hay casos que requieran atención ahora.",
-			blocked: "No hay casos bloqueados en esta vista.",
-			waiting_external: "No hay casos esperando respuesta externa.",
-			ready_to_close: "No hay casos listos para cerrar.",
-			recently_closed: "No hay casos cerrados recientemente.",
-		}
-		const message = nextSegment
-			? `${emptyMessages[inboxState.segment] || "No hay casos en esta vista"} Hay casos en ${nextSegment.label.toLowerCase()}.`
-			: emptyMessages[inboxState.segment] || "No hay casos para estos filtros."
-		rows.innerHTML = `<div class="${financialUi.emptyState}">
-			<div class="mx-auto max-w-md">
-				<p class="text-sm font-semibold text-slate-700">${escapeHtml(message)}</p>
-				<p class="mt-1 text-xs text-slate-500">Cambia de segmento o ajusta filtros solo si necesitas buscar un caso específico.</p>
-				${action}
-			</div>
-		</div>`
-		rows.querySelectorAll("[data-empty-queue]").forEach((button) => {
+		const message = filtered
+			? "No encontramos casos con estos filtros."
+			: nextSegment
+				? "No hay casos en este estado. Hay pendientes en otro estado."
+				: pagingState.operationsHasMore
+					? "No hay pendientes entre los casos cargados."
+					: inboxState.segment === "needs_action_today"
+						? "No tienes pendientes financieros."
+						: "No hay casos en este estado."
+		const action = filtered
+			? `<button type="button" data-empty-clear class="mt-3 ${financialUi.buttonSecondarySm}">Limpiar filtros</button>`
+			: nextSegment
+				? `<button type="button" data-empty-queue="${nextSegment.queue}" class="mt-3 ${financialUi.buttonSecondarySm}">Ver ${escapeHtml(nextSegment.label.toLowerCase())}</button>`
+				: `<a href="${financialBookingDetailHref("")}" class="mt-3 inline-block ${financialUi.buttonSecondarySm}">Ver reservas</a>`
+		rows.innerHTML = `<div class="${financialUi.emptyState}"><div class="mx-auto max-w-md"><p class="text-sm font-semibold text-slate-700">${message}</p><p class="mt-1 text-xs text-slate-500">Aquí aparecerán las reservas que necesiten revisar un cobro o una devolución.</p>${action}</div></div>`
+		rows.querySelector("[data-empty-clear]")?.addEventListener("click", () => {
+			if (searchFilter) searchFilter.value = ""
+			if (ageFilter) ageFilter.value = "all"
+			if (actorFilter) actorFilter.value = "all"
+			renderFinancialView()
+		})
+		rows.querySelectorAll("[data-empty-queue]").forEach((button) =>
 			button.addEventListener("click", () => {
-				inboxState.segment = String(button.getAttribute("data-empty-queue") || "needs_action_today")
+				inboxState.segment = String(button.getAttribute("data-empty-queue"))
 				renderFinancialView()
 			})
-		})
+		)
 	}
 
 	function renderRows(items: any[]): void {
@@ -500,8 +520,27 @@ export function initFinancialWorkspace(): void {
 	}
 
 	function renderFinancialView(): void {
+		if (location.pathname === "/financial") {
+			const params = new URLSearchParams(location.search)
+			for (const [key, value] of Object.entries(currentFilters())) {
+				if (value && value !== "all" && !(key === "segment" && value === "needs_action_today"))
+					params.set(key, value)
+				else params.delete(key)
+			}
+			history.replaceState(history.state, "", location.pathname + (params.size ? `?${params}` : ""))
+		}
+
 		mergeFinancialWorkspaceItems(workspaceState)
 		const filteredItems = applyFilters(workspaceState.combinedItems)
+		const completelyEmpty =
+			workspaceState.combinedItems.length === 0 &&
+			!currentFilters().search &&
+			currentFilters().age === "all" &&
+			currentFilters().actor === "all"
+		const section = rows?.closest<HTMLElement>("[data-financial-view]")
+		if (section) section.dataset.financialEmpty = completelyEmpty ? "true" : "false"
+		const controls = section?.querySelector<HTMLElement>("[data-financial-inbox-toolbar]")
+		if (controls) controls.hidden = completelyEmpty
 		renderSummary(workspaceState.combinedItems)
 		renderFilterSummary()
 		renderRows(filteredItems)
@@ -509,7 +548,7 @@ export function initFinancialWorkspace(): void {
 			const openCount = countQueue(workspaceState.combinedItems, "needs_action_today")
 			const shownCount = filteredItems.length
 			const actor = String(actorFilter?.value || "all") as any
-			listSummary.textContent = `${openCount} ${openCount === 1 ? "caso requiere" : "casos requieren"} atención. Mostrando ${shownCount}.`
+			listSummary.textContent = `${pagingState.operationsHasMore ? "Entre los casos cargados: " : ""}${openCount} ${openCount === 1 ? "caso requiere" : "casos requieren"} atención. Mostrando ${shownCount}.`
 			if (listHint) listHint.textContent = actorNoiseHint(actor)
 		}
 		if (loadMoreWrap) loadMoreWrap.classList.toggle("hidden", !pagingState.operationsHasMore)
@@ -597,11 +636,19 @@ export function initFinancialWorkspace(): void {
 				financialUrlWithCursor(financialEndpointUrls.operations, {
 					limit: pagingState.operationsLimit,
 				})
-			).catch(() => emptyPayload),
-			load(financialEndpointUrls.exceptions).catch(() => emptyPayload),
-			load(financialEndpointUrls.reviewEvents).catch(() => emptyPayload),
-			load(financialEndpointUrls.references).catch(() => emptyPayload),
-			load(financialEndpointUrls.refundHandoffs).catch(() => emptyPayload),
+			).catch(() => getCachedFinancialJson(financialEndpointUrls.operations) ?? emptyPayload),
+			load(financialEndpointUrls.exceptions).catch(
+				() => getCachedFinancialJson(financialEndpointUrls.exceptions) ?? emptyPayload
+			),
+			load(financialEndpointUrls.reviewEvents).catch(
+				() => getCachedFinancialJson(financialEndpointUrls.reviewEvents) ?? emptyPayload
+			),
+			load(financialEndpointUrls.references).catch(
+				() => getCachedFinancialJson(financialEndpointUrls.references) ?? emptyPayload
+			),
+			load(financialEndpointUrls.refundHandoffs).catch(
+				() => getCachedFinancialJson(financialEndpointUrls.refundHandoffs) ?? emptyPayload
+			),
 		])
 		return {
 			operationsPayload,
@@ -640,7 +687,7 @@ export function initFinancialWorkspace(): void {
 	actorFilter?.addEventListener("change", renderFinancialView)
 	ageFilter?.addEventListener("change", renderFinancialView)
 	searchFilter?.addEventListener("input", renderFinancialView)
-	loadMoreButton?.addEventListener("click", async () => {
+	const loadNextPage = async () => {
 		if (loadMoreButton instanceof HTMLButtonElement) {
 			loadMoreButton.disabled = true
 			loadMoreButton.textContent = "Cargando..."
@@ -654,7 +701,7 @@ export function initFinancialWorkspace(): void {
 					cursor: nextCursor,
 				}),
 				{ force: true }
-			).catch(() => ({ items: [] }))
+			)
 			applyWorkspacePayloads({
 				operationsPayload: mergeFinancialPayloadById(
 					pagingState.operationsPayload,
@@ -674,13 +721,17 @@ export function initFinancialWorkspace(): void {
 				reconciliationPayload: { items: [], deferred: true },
 				providerFinancePayload: { items: [], deferred: true },
 			})
+		} catch {
+			// Failed pages preserve the current rows and cursor for retry.
 		} finally {
 			if (loadMoreButton instanceof HTMLButtonElement) {
 				loadMoreButton.disabled = false
 				loadMoreButton.textContent = "Cargar más casos"
 			}
 		}
-	})
+	}
+	loadMoreButton?.addEventListener("click", () => void loadNextPage())
+	registerFinancialPageRetry("/financial", loadNextPage)
 	drawerClose?.addEventListener("click", closeDrawer)
 	drawerBackdrop?.addEventListener("click", closeDrawer)
 	void fetchOperations()

@@ -1,0 +1,139 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import { MapPin, Images } from "@lucide/astro"
+
+export interface TourPreparationRecapArea {
+	label: string
+	ready: boolean
+}
+
+interface Props {
+	formatLabel: string | null
+	activityName: string | null
+	destinationName: string | null
+	durationLabel: string | null
+	description: string | null
+	highlights: string[]
+	address: string | null
+	imageUrls: string[]
+	areas: TourPreparationRecapArea[]
+}
+
+const {
+	formatLabel,
+	activityName,
+	destinationName,
+	durationLabel,
+	description,
+	highlights,
+	address,
+	imageUrls,
+	areas,
+} = Astro.props
+
+const hasBody =
+	Boolean(description) ||
+	highlights.length > 0 ||
+	Boolean(address) ||
+	imageUrls.length > 0 ||
+	Boolean(formatLabel || activityName || destinationName || durationLabel)
+---
+
+{
+	hasBody ? (
+		<div class="space-y-5 border-t border-slate-100 pt-5">
+			<div>
+				<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+					Lo que ya guardaste
+				</p>
+				<p class="mt-1 text-sm leading-6 text-slate-600">
+					Revisa cómo quedó la ficha antes de configurar horarios, precio y fechas.
+				</p>
+			</div>
+
+			{formatLabel || activityName || destinationName || durationLabel ? (
+				<dl class="grid gap-2 text-sm sm:grid-cols-2">
+					{formatLabel ? (
+						<div class="fastt-soft-box border border-slate-100 bg-slate-50/80 px-3 py-2">
+							<dt class="text-xs font-medium text-slate-500">Formato</dt>
+							<dd class="mt-0.5 font-medium text-slate-900">{formatLabel}</dd>
+						</div>
+					) : null}
+					{activityName ? (
+						<div class="fastt-soft-box border border-slate-100 bg-slate-50/80 px-3 py-2">
+							<dt class="text-xs font-medium text-slate-500">Actividad</dt>
+							<dd class="mt-0.5 font-medium text-slate-900">{activityName}</dd>
+						</div>
+					) : null}
+					{destinationName ? (
+						<div class="fastt-soft-box border border-slate-100 bg-slate-50/80 px-3 py-2">
+							<dt class="text-xs font-medium text-slate-500">Destino</dt>
+							<dd class="mt-0.5 font-medium text-slate-900">{destinationName}</dd>
+						</div>
+					) : null}
+					{durationLabel ? (
+						<div class="fastt-soft-box border border-slate-100 bg-slate-50/80 px-3 py-2">
+							<dt class="text-xs font-medium text-slate-500">Duración</dt>
+							<dd class="mt-0.5 font-medium text-slate-900">{durationLabel}</dd>
+						</div>
+					) : null}
+				</dl>
+			) : null}
+
+			{description ? (
+				<div class="space-y-1">
+					<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Descripción</p>
+					<p class="line-clamp-5 text-sm leading-6 text-slate-700">{description}</p>
+				</div>
+			) : null}
+
+			{highlights.length > 0 ? (
+				<div class="space-y-2">
+					<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Destacados</p>
+					<ul class="list-disc space-y-1 pl-5 text-sm leading-6 text-slate-700">
+						{highlights.map((line) => (
+							<li>{line}</li>
+						))}
+					</ul>
+				</div>
+			) : null}
+
+			{address ? (
+				<div class="flex gap-2 text-sm leading-6 text-slate-700">
+					<MapPin class="mt-0.5 size-4 shrink-0 text-slate-400" aria-hidden="true" />
+					<span>{address}</span>
+				</div>
+			) : null}
+
+			{imageUrls.length > 0 ? (
+				<div class="space-y-2">
+					<p class="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+						<Images class="size-3.5" aria-hidden="true" />
+						Fotos ({imageUrls.length})
+					</p>
+					<div class="flex gap-2 overflow-x-auto overscroll-x-contain pb-0.5">
+						{imageUrls.map((url) => (
+							<img
+								src={url}
+								alt=""
+								class="h-16 w-20 shrink-0 rounded-[var(--fastt-radius-control)] object-cover ring-1 ring-slate-900/5"
+								loading="lazy"
+								decoding="async"
+							/>
+						))}
+					</div>
+				</div>
+			) : null}
+
+			{areas.length > 0 ? (
+				<ul class="flex flex-wrap gap-2" aria-label="Estado de la ficha">
+					{areas.map((row) => (
+						<li>
+							<Badge variant={row.ready ? "success" : "warning"}>{row.label}</Badge>
+						</li>
+					))}
+				</ul>
+			) : null}
+		</div>
+	) : null
+}

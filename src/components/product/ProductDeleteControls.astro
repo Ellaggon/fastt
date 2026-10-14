@@ -10,6 +10,8 @@ interface Props {
 	productName: string
 	workspaceSingularLabel: string
 	variantsLabel?: string
+	/** When false, only the confirmation dialog is rendered (trigger lives elsewhere). */
+	showPromo?: boolean
 }
 
 const {
@@ -17,36 +19,44 @@ const {
 	productName,
 	workspaceSingularLabel,
 	variantsLabel = "habitaciones",
+	showPromo = true,
 } = Astro.props
 const deleteLabel = `Eliminar ${workspaceSingularLabel.toLowerCase()}`
 ---
 
-<section class="border-t border-slate-800 pt-6 md:pt-8" data-product-delete-zone>
-	<Card variant="flush" className="overflow-hidden border border-rose-200 bg-white text-slate-900">
-		<div class="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between md:p-6">
-			<div class="min-w-0">
-				<p class="text-sm font-semibold text-slate-950">{deleteLabel}</p>
-				<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
-					Solo si este {workspaceSingularLabel.toLowerCase()} fue creado por error o ya no forma parte
-					de tu operación. Se borrarán la ficha, {variantsLabel}, fotos, tarifas e inventario
-					asociados.
-				</p>
-			</div>
-			<Button
-				type="button"
-				variant="danger"
-				size="sm"
-				className="shrink-0"
-				data-open-product-delete
-				data-product-id={productId}
-				data-product-name={productName}
+{
+	showPromo ? (
+		<section class="border-t border-slate-800 pt-6 md:pt-8" data-product-delete-zone>
+			<Card
+				variant="flush"
+				className="overflow-hidden border border-rose-200 bg-white text-slate-900"
 			>
-				<Trash2 class="h-4 w-4" aria-hidden="true" />
-				{deleteLabel}
-			</Button>
-		</div>
-	</Card>
-</section>
+				<div class="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between md:p-6">
+					<div class="min-w-0">
+						<p class="text-sm font-semibold text-slate-950">{deleteLabel}</p>
+						<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+							Solo si este {workspaceSingularLabel.toLowerCase()} fue creado por error o ya no forma
+							parte de tu operación. Se borrarán la ficha, {variantsLabel}, fotos, tarifas e
+							inventario asociados.
+						</p>
+					</div>
+					<Button
+						type="button"
+						variant="danger"
+						size="sm"
+						className="shrink-0"
+						data-open-product-delete
+						data-product-id={productId}
+						data-product-name={productName}
+					>
+						<Trash2 class="h-4 w-4" aria-hidden="true" />
+						{deleteLabel}
+					</Button>
+				</div>
+			</Card>
+		</section>
+	) : null
+}
 
 <Dialog class="w-[min(520px,calc(100%-2rem))]" data-product-delete-dialog={productId}>
 	<form
@@ -60,7 +70,8 @@ const deleteLabel = `Eliminar ${workspaceSingularLabel.toLowerCase()}`
 			<h2 class="text-lg font-semibold text-slate-950">Eliminar {productName}</h2>
 			<p class="text-sm leading-6 text-slate-600">
 				Se eliminarán la ficha, {variantsLabel}, fotos, tarifas, condiciones e inventario asociados.
-				Esta acción no puede deshacerse.
+				Esta acción no puede deshacerse. Si existen reservas, solicitudes o historial protegido, la
+				eliminación se bloqueará y se conservarán los datos.
 			</p>
 		</div>
 		<label class="block space-y-1.5 text-sm">
@@ -69,7 +80,15 @@ const deleteLabel = `Eliminar ${workspaceSingularLabel.toLowerCase()}`
 			</span>
 			<Input data-product-delete-confirmation autocomplete="off" />
 		</label>
-		<p class="text-sm text-rose-700" data-product-delete-feedback></p>
+		<p class="text-sm text-rose-700" data-product-delete-feedback role="alert" aria-live="polite">
+		</p>
+		<a
+			hidden
+			data-product-delete-history-action
+			class="text-sm font-medium underline"
+			href={`/provider/support?from=${encodeURIComponent(`/product/${productId}`)}`}
+			>Solicitar revisión</a
+		>
 		<div class="flex justify-end gap-2 border-t border-slate-200 pt-4">
 			<Button type="button" variant="secondary" data-close-product-delete>Cancelar</Button>
 			<Button type="submit" variant="danger" data-confirm-product-delete disabled>
@@ -130,6 +149,10 @@ const deleteLabel = `Eliminar ${workspaceSingularLabel.toLowerCase()}`
 				if (submit) submit.disabled = true
 				const feedback = dialog.querySelector<HTMLElement>("[data-product-delete-feedback]")
 				if (feedback) feedback.textContent = ""
+				const historyAction = dialog.querySelector<HTMLElement>(
+					"[data-product-delete-history-action]"
+				)
+				if (historyAction) historyAction.hidden = true
 			},
 			true
 		)
@@ -151,6 +174,10 @@ const deleteLabel = `Eliminar ${workspaceSingularLabel.toLowerCase()}`
 					body: JSON.stringify({ productId }),
 				})
 				const result = await response.json().catch(() => null)
+				const historyAction = form.querySelector<HTMLElement>(
+					"[data-product-delete-history-action]"
+				)
+				if (historyAction) historyAction.hidden = response.status !== 409
 				if (!response.ok) {
 					throw new Error(result?.error || result?.message || "No se pudo eliminar el servicio")
 				}

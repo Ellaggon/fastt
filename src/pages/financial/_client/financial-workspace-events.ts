@@ -46,6 +46,7 @@ export function closeFinancialDrawer(params: {
 	document.querySelectorAll("[data-financial-floating-panel]").forEach((panel) => panel.remove())
 	document.body.classList.remove("overflow-hidden")
 	params.drawer?.classList.add("translate-x-full")
+	params.drawer?.setAttribute("inert", "")
 	params.drawerBackdrop?.classList.add("hidden")
 }
 
@@ -108,6 +109,7 @@ export function openFinancialDrawer(params: {
 		wireFinancialDrawerActions(drawerBody, handlers)
 	}
 	drawer?.classList.remove("translate-x-full")
+	drawer?.removeAttribute("inert")
 	drawerBackdrop?.classList.remove("hidden")
 }
 

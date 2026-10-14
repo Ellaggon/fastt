@@ -44,13 +44,36 @@ function applyFinancialView(view: FinancialViewId): void {
 	document.querySelectorAll<HTMLAnchorElement>("a[data-financial-nav]").forEach((link) => {
 		const linkView = viewForFinancialPath(new URL(link.href).pathname)
 		const active = linkView === view
-		link.toggleAttribute("aria-current", active)
+		if (active) link.setAttribute("aria-current", "page")
+		else link.removeAttribute("aria-current")
 		link.dataset.active = active ? "true" : "false"
 	})
-	document.title = viewTitles[view]
+	const tour = currentFinancialNavigationScope().vertical === "tour"
+	const tourTitles = {
+		"inbox": "Pendientes",
+		"collections": "Cobros",
+		"settlements": "Conciliación",
+		"provider-payables": "Importes del proveedor",
+		"refunds": "Devoluciones",
+		"exceptions": "Excepciones",
+	}
+	document.title = tour ? `Finanzas · ${tourTitles[view]}` : viewTitles[view]
+	const secondary = document.querySelector<HTMLDetailsElement>("[data-financial-secondary-nav]")
+	if (secondary) {
+		const active = secondary.querySelector<HTMLAnchorElement>("a[data-active='true']")
+		const summary = secondary.querySelector("summary")
+		if (summary) summary.textContent = active?.textContent ?? "Más revisiones"
+		secondary.open = false
+	}
+	document.dispatchEvent(new CustomEvent("financial:view-change"))
 }
 
 function normalizeFinancialNavUrl(url: URL): URL {
+	for (const key of ["segment", "age", "search", "actor"]) {
+		const value = new URLSearchParams(location.search).get(key)
+		if (value && !url.searchParams.has(key)) url.searchParams.set(key, value)
+	}
+
 	const scopedPath = withFinancialNavigationScope(
 		`${url.pathname}${url.search}${url.hash}`,
 		currentFinancialNavigationScope()
@@ -101,6 +124,14 @@ export function initFinancialWorkspaceRouter(onViewChange?: (view: FinancialView
 			if (!link) return
 			const url = isSameOriginFinancialNav(link)
 			if (!url) return
+			const currentScope = currentFinancialNavigationScope()
+			const requestedScope = new URLSearchParams(url.search)
+			if (
+				(requestedScope.get("scope") ?? "") !== (currentScope.vertical ?? "all") &&
+				requestedScope.has("scope")
+			)
+				return
+			if ((requestedScope.get("productId") ?? "") !== (currentScope.productId ?? "")) return
 			event.preventDefault()
 			if (normalizePath(url.pathname) === normalizePath(window.location.pathname)) return
 			navigateFinancialView(url)

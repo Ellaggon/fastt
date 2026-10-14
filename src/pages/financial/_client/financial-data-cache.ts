@@ -18,6 +18,31 @@ const store: FinancialCacheStore =
 
 import { withFinancialApiScope } from "./financial-api-scope"
 
+export class FinancialLoadError extends Error {
+	constructor(
+		public readonly url: string,
+		public readonly status: number,
+		public readonly blockers: { label: string; href: string }[] = []
+	) {
+		super(`financial_fetch_failed:${status}`)
+	}
+}
+export type FinancialSourceState = {
+	status: "loading" | "ready" | "error"
+	data?: any
+	updatedAt: number
+	error?: FinancialLoadError
+}
+const sourceStates = new Map<string, FinancialSourceState>()
+export function getFinancialSourceState(url: string): FinancialSourceState | undefined {
+	return sourceStates.get(cacheKey(url))
+}
+function publishSource(url: string, state: FinancialSourceState) {
+	sourceStates.set(url, state)
+	if (typeof document !== "undefined")
+		document.dispatchEvent(new CustomEvent("financial:source-change", { detail: { url, state } }))
+}
+
 const headers = { accept: "application/json" }
 
 export const financialEndpointUrls = {
@@ -110,7 +135,14 @@ export const financialRouteEndpointMap: Record<string, string[]> = {
 }
 
 function cacheKey(url: string): string {
-	return withFinancialApiScope(url)
+	const scoped = withFinancialApiScope(url)
+	const providerId =
+		typeof document === "undefined"
+			? ""
+			: (document.getElementById("financialScopeContext")?.dataset.providerId ?? "")
+	return providerId
+		? `${scoped}${scoped.includes("?") ? "&" : "?"}_cacheProvider=${encodeURIComponent(providerId)}`
+		: scoped
 }
 
 export function getCachedFinancialJson<T = unknown>(url: string): T | null {
@@ -128,12 +160,40 @@ export async function fetchFinancialJson<T = unknown>(
 	if (!options.force && existing?.data != null) return existing.data as T
 	if (existing?.inFlight) return existing.inFlight as Promise<T>
 
-	const request = fetch(scopedUrl, { headers }).then(async (response) => {
-		if (!response.ok) throw new Error(`financial_fetch_failed:${scopedUrl}`)
-		const data = await response.json()
-		store.entries.set(key, { data, updatedAt: Date.now() })
-		return data
+	publishSource(key, {
+		status: "loading",
+		data: existing?.data,
+		updatedAt: existing?.updatedAt ?? 0,
 	})
+	const request = fetch(scopedUrl, { headers, signal: AbortSignal.timeout(15000) }).then(
+		async (response) => {
+			if (!response.ok) {
+				const details = await response.json().catch(() => null)
+				const blockers = Array.isArray(details?.blockers)
+					? details.blockers
+							.filter((row: any) => typeof row.label === "string" && typeof row.href === "string")
+							.map((row: any) => ({ label: row.label, href: row.href }))
+					: []
+				throw new FinancialLoadError(scopedUrl, response.status, blockers)
+			}
+			const data = await response.json()
+			if (data?.degraded === true) {
+				const available = existing?.data ?? data
+				store.entries.set(key, { data: available, updatedAt: existing?.updatedAt ?? 0 })
+				publishSource(key, {
+					status: "error",
+					data: available,
+					updatedAt: existing?.updatedAt ?? 0,
+					error: new FinancialLoadError(scopedUrl, 503),
+				})
+				return available
+			}
+
+			store.entries.set(key, { data, updatedAt: Date.now() })
+			publishSource(key, { status: "ready", data, updatedAt: Date.now() })
+			return data
+		}
+	)
 
 	store.entries.set(key, {
 		data: existing?.data,
@@ -149,6 +209,12 @@ export async function fetchFinancialJson<T = unknown>(
 		} else {
 			store.entries.delete(key)
 		}
+		publishSource(key, {
+			status: "error",
+			data: existing?.data,
+			updatedAt: existing?.updatedAt ?? 0,
+			error: error instanceof FinancialLoadError ? error : new FinancialLoadError(scopedUrl, 0),
+		})
 		throw error
 	}
 }

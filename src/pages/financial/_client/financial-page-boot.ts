@@ -1,3 +1,5 @@
+import { initFinancialContractSummary } from "./financial-contract-summary"
+import { initFinancialLoadState, reportFinancialBootError } from "./financial-load-state"
 import {
 	endpointsForFinancialPath,
 	financialRouteEndpointMap,
@@ -73,6 +75,8 @@ export async function bootFinancialView(view: FinancialViewId | null): Promise<v
 		if (!document.querySelector(workspace.selector)) return
 		const init = module[workspace.initName]
 		if (typeof init === "function") init()
+	} catch {
+		if (view === viewForFinancialPath(window.location.pathname)) reportFinancialBootError()
 	} finally {
 		bootingViews.delete(view)
 	}
@@ -98,6 +102,8 @@ export function wireFinancialNavigationPrewarm(): void {
 
 export function bootFinancialExperience(): void {
 	applyFinancialOpsCopyToDocument()
+	initFinancialLoadState()
+	initFinancialContractSummary()
 	initFinancialWorkspaceRouter((view) => void bootFinancialView(view))
 	prewarmCurrentFinancialPage()
 	wireFinancialNavigationPrewarm()

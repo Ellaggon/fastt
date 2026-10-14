@@ -10,11 +10,16 @@ import { getVerticalVocabulary } from "@/lib/verticalVocabulary"
 import { actorFilterOptions } from "@/pages/financial/_client/financial-actor-filters"
 
 interface Props {
+	providerId?: string
 	scope?: WorkspaceScopeResolved | null
 	isSimpleFinancialView?: boolean
 }
 
-const { scope = null, isSimpleFinancialView: isSimpleFinancialViewProp } = Astro.props
+const {
+	providerId = "",
+	scope = null,
+	isSimpleFinancialView: isSimpleFinancialViewProp,
+} = Astro.props
 
 type FinancialViewId =
 	| "inbox"
@@ -53,19 +58,26 @@ const segmentTabItemInactive = `${segmentTabItemActive} text-slate-600 hover:bg-
 const isSimpleFinancialView = isSimpleFinancialViewProp ?? true
 const scopeCatalog = scope ? getVerticalVocabulary(scope.vertical ?? "generic") : null
 const financialSearchPlaceholder = scopeCatalog
-	? `Buscar reserva, ${scopeCatalog.productPlural}, proveedor o referencia...`
+	? `Buscar reserva, ${scope?.vertical === "tour" ? "experiencias" : scopeCatalog.productPlural}, proveedor o referencia...`
 	: "Buscar reserva, producto, proveedor o referencia..."
 ---
 
 <FinancialWorkspaceShell
 	title="Finanzas"
-	description="Casos que requieren revisión, seguimiento o cierre."
+	contextLabel={scope?.product?.name ??
+		(scope?.vertical === "tour"
+			? "Experiencias"
+			: scope?.vertical === "hotel"
+				? "Alojamientos"
+				: null)}
+	description="Consulta cobros registrados, devoluciones y tareas pendientes de tus reservas."
 	note="Fastt organiza evidencia y revisiones financieras. No ejecuta cobros, pagos ni reembolsos."
 >
 	{
 		scope ? (
 			<div
 				id="financialScopeContext"
+				data-provider-id={providerId}
 				class="hidden"
 				data-vertical={scope.vertical ?? ""}
 				data-product-ids={scope.productIds.join(",")}
@@ -74,13 +86,36 @@ const financialSearchPlaceholder = scopeCatalog
 				data-ops-vocabulary={JSON.stringify(scope.vocabulary)}
 				data-scope-product={scopeCatalog?.scopeProduct ?? ""}
 				data-scope-variant={scopeCatalog?.scopeVariant ?? ""}
-				data-product-plural={scopeCatalog?.productPlural ?? ""}
+				data-product-plural={
+					scope?.vertical === "tour" ? "experiencias" : (scopeCatalog?.productPlural ?? "")
+				}
 			/>
 		) : null
 	}
+	<div
+		data-financial-load-notice
+		class="rounded-xl border border-white/10 px-4 py-3 text-sm text-slate-300"
+		role="status"
+		aria-live="polite"
+	>
+		<p data-financial-load-message>Cargando información financiera…</p>
+		<a data-financial-load-action hidden class="mt-2 font-semibold underline underline-offset-4"
+		></a>
+		<Button
+			type="button"
+			data-financial-load-retry
+			variant="ghost"
+			size="sm"
+			hidden
+			class="mt-2 underline underline-offset-4">Reintentar</Button
+		>
+		<a data-financial-load-login hidden class="mt-2 font-semibold underline underline-offset-4"
+			>Iniciar sesión</a
+		>
+	</div>
 	<section data-financial-view="inbox" class={viewClass("inbox")}>
 		<Card variant="flush" class="fastt-workspace-panel overflow-visible">
-			<div class="border-b border-slate-200 p-4">
+			<div data-financial-inbox-toolbar class="border-b border-slate-200 p-4">
 				<div class="space-y-4">
 					<div class="financial-controls">
 						<TabsOutsidePanel
@@ -97,7 +132,7 @@ const financialSearchPlaceholder = scopeCatalog
 										data-active={index === 0 ? "true" : "false"}
 										disabled
 									>
-										{label} <span class="ml-1 text-xs opacity-70">0</span>
+										{label} <span class="ml-1 text-xs opacity-70">—</span>
 									</button>
 								))
 							}
@@ -144,7 +179,7 @@ const financialSearchPlaceholder = scopeCatalog
 												data-active={index === 0 ? "true" : "false"}
 												disabled
 											>
-												{label} <span class="ml-1 text-xs opacity-70">0</span>
+												{label} <span class="ml-1 text-xs opacity-70">—</span>
 											</button>
 										))
 									}
@@ -284,7 +319,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="true"
 							class={segmentTabItemActive}
 						>
-							Requieren comprobante <span class="ml-1 text-xs opacity-70">0</span>
+							Requieren comprobante <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -292,7 +327,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							Sin reserva asociada <span class="ml-1 text-xs opacity-70">0</span>
+							Sin reserva asociada <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -300,7 +335,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							Referencias duplicadas <span class="ml-1 text-xs opacity-70">0</span>
+							Referencias duplicadas <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -308,7 +343,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							En revisión <span class="ml-1 text-xs opacity-70">0</span>
+							En revisión <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 					</TabsOutsidePanel>
 					<div>
@@ -349,7 +384,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="true"
 							class={segmentTabItemActive}
 						>
-							Montos diferentes <span class="ml-1 text-xs opacity-70">0</span>
+							Montos diferentes <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -357,7 +392,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							Falta cobro <span class="ml-1 text-xs opacity-70">0</span>
+							Falta cobro <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -365,7 +400,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							Falta liquidación <span class="ml-1 text-xs opacity-70">0</span>
+							Falta liquidación <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -373,7 +408,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							Referencia duplicada <span class="ml-1 text-xs opacity-70">0</span>
+							Referencia duplicada <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -381,7 +416,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							Sin diferencia <span class="ml-1 text-xs opacity-70">0</span>
+							Sin diferencia <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 					</TabsOutsidePanel>
 					<div>
@@ -422,7 +457,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="true"
 							class={segmentTabItemActive}
 						>
-							Bloqueados <span class="ml-1 text-xs opacity-70">0</span>
+							Bloqueados <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -430,7 +465,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							Falta comisión acordada <span class="ml-1 text-xs opacity-70">0</span>
+							Falta comisión acordada <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -438,7 +473,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							Revisar importes <span class="ml-1 text-xs opacity-70">0</span>
+							Revisar importes <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -446,7 +481,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							Resumen del proveedor pendiente <span class="ml-1 text-xs opacity-70">0</span>
+							Resumen del proveedor pendiente <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -454,7 +489,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							Sin acción urgente <span class="ml-1 text-xs opacity-70">0</span>
+							Sin acción urgente <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 					</TabsOutsidePanel>
 					<div>
@@ -495,7 +530,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="true"
 							class={segmentTabItemActive}
 						>
-							Requieren revisión <span class="ml-1 text-xs opacity-70">0</span>
+							Requieren revisión <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -503,7 +538,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							Esperando respuesta <span class="ml-1 text-xs opacity-70">0</span>
+							Esperando respuesta <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -511,7 +546,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							Comprobante faltante <span class="ml-1 text-xs opacity-70">0</span>
+							Comprobante faltante <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -519,7 +554,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							Comprobante recibido <span class="ml-1 text-xs opacity-70">0</span>
+							Comprobante recibido <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -527,7 +562,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							Listos para cerrar <span class="ml-1 text-xs opacity-70">0</span>
+							Listos para cerrar <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 					</TabsOutsidePanel>
 					<div>
@@ -568,7 +603,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="true"
 							class={segmentTabItemActive}
 						>
-							Requieren revisión <span class="ml-1 text-xs opacity-70">0</span>
+							Requieren revisión <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -576,7 +611,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							Datos faltantes <span class="ml-1 text-xs opacity-70">0</span>
+							Datos faltantes <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -584,7 +619,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							Referencia inconsistente <span class="ml-1 text-xs opacity-70">0</span>
+							Referencia inconsistente <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -592,7 +627,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							Revisión vencida <span class="ml-1 text-xs opacity-70">0</span>
+							Revisión vencida <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 						<button
 							type="button"
@@ -600,7 +635,7 @@ const financialSearchPlaceholder = scopeCatalog
 							data-active="false"
 							class={segmentTabItemInactive}
 						>
-							Cerradas <span class="ml-1 text-xs opacity-70">0</span>
+							Cerradas <span class="ml-1 text-xs opacity-70">—</span>
 						</button>
 					</TabsOutsidePanel>
 					<div>
@@ -921,6 +956,7 @@ const financialSearchPlaceholder = scopeCatalog
 >
 </div>
 <aside
+	inert
 	id="financialReviewDrawer"
 	class="fixed right-0 top-0 z-50 h-full w-full max-w-2xl translate-x-full overflow-y-auto border-l border-slate-200/80 bg-slate-50/95 text-slate-950 shadow-[0_24px_90px_rgba(15,23,42,0.22)] backdrop-blur-2xl transition-transform duration-300"
 >
@@ -945,6 +981,7 @@ const financialSearchPlaceholder = scopeCatalog
 >
 </div>
 <aside
+	inert
 	id="collectionsDrawer"
 	class="fastt-side-sheet fixed right-0 top-0 z-50 h-full w-full max-w-xl translate-x-full overflow-y-auto p-0 text-slate-900 transition-transform duration-300"
 >
@@ -969,6 +1006,7 @@ const financialSearchPlaceholder = scopeCatalog
 >
 </div>
 <aside
+	inert
 	id="settlementsDrawer"
 	class="fastt-side-sheet fixed right-0 top-0 z-50 h-full w-full max-w-xl translate-x-full overflow-y-auto p-0 text-slate-900 transition-transform duration-300"
 >
@@ -993,6 +1031,7 @@ const financialSearchPlaceholder = scopeCatalog
 >
 </div>
 <aside
+	inert
 	id="providerPayablesDrawer"
 	class="fastt-side-sheet fixed right-0 top-0 z-50 h-full w-full max-w-xl translate-x-full overflow-y-auto p-0 text-slate-900 transition-transform duration-300"
 >
@@ -1017,6 +1056,7 @@ const financialSearchPlaceholder = scopeCatalog
 >
 </div>
 <aside
+	inert
 	id="refundsDrawer"
 	class="fastt-side-sheet fixed right-0 top-0 z-50 h-full w-full max-w-xl translate-x-full overflow-y-auto p-0 text-slate-900 transition-transform duration-300"
 >
@@ -1040,6 +1080,7 @@ const financialSearchPlaceholder = scopeCatalog
 >
 </div>
 <aside
+	inert
 	id="financialExceptionsDrawer"
 	class="fastt-side-sheet fixed right-0 top-0 z-50 h-full w-full max-w-xl translate-x-full overflow-y-auto p-0 text-slate-900 transition-transform duration-300"
 >

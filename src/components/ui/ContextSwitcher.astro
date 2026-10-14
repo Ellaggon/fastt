@@ -89,7 +89,7 @@ const titleOnly = !selectable && !staticValue
 					/>
 					<span class="fastt-context-switcher__spinner" aria-hidden="true" />
 					<span
-						class="fastt-context-switcher__value truncate text-xs font-semibold tracking-wide uppercase"
+						class="fastt-context-switcher__value text-xs font-semibold tracking-wide uppercase"
 						data-context-switcher-value
 					>
 						{value}
@@ -260,11 +260,6 @@ const titleOnly = !selectable && !staticValue
 		letter-spacing: 0.02em;
 		text-transform: uppercase;
 	}
-	.fastt-context-switcher--topbar.fastt-context-switcher--static
-		.fastt-context-switcher__label::after {
-		content: "·";
-		color: rgb(100 116 139);
-	}
 	.fastt-context-switcher__menu {
 		position: absolute;
 		top: calc(100% + 0.5rem);
@@ -328,8 +323,26 @@ const titleOnly = !selectable && !staticValue
 	}
 	.fastt-context-switcher--topbar .fastt-context-switcher__select {
 		display: inline-block;
+		min-width: 0;
 		max-width: min(100%, 18rem);
 		vertical-align: middle;
+	}
+	.fastt-context-switcher__value {
+		min-width: 0;
+	}
+	@media (min-width: 1024px) {
+		.fastt-context-switcher--topbar {
+			max-width: 100%;
+		}
+		.fastt-context-switcher--topbar .fastt-context-switcher__select {
+			max-width: min(100%, 48rem);
+		}
+		.fastt-context-switcher--topbar .fastt-context-switcher__value,
+		.fastt-context-switcher--topbar .fastt-context-switcher__static {
+			overflow: visible;
+			text-overflow: clip;
+			white-space: nowrap;
+		}
 	}
 	.fastt-context-switcher--topbar .fastt-context-switcher__trigger {
 		max-width: 100%;
@@ -348,6 +361,12 @@ const titleOnly = !selectable && !staticValue
 	@media (max-width: 1023px) {
 		.fastt-context-switcher__trigger {
 			max-width: min(100%, 18rem);
+		}
+		.fastt-context-switcher--topbar .fastt-context-switcher__value,
+		.fastt-context-switcher--topbar .fastt-context-switcher__static {
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
 		}
 		.fastt-context-switcher--topbar {
 			min-width: 0;
