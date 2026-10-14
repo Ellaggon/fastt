@@ -109,7 +109,11 @@ const family = families.find((f) => f.id === activity?.parentCategoryId)
 	</Dialog>
 </div>
 <script>
-	import { experienceThemeCompatibility } from "@/shared/domain/experience-theme-compatibility"
+	import {
+		experienceThemeCompatibility,
+		type ExperienceThemeActivity,
+		type ExperienceThemeCategory,
+	} from "@/shared/domain/experience-theme-compatibility"
 
 	type ActivityPickerState = {
 		form: HTMLFormElement
@@ -129,35 +133,28 @@ const family = families.find((f) => f.id === activity?.parentCategoryId)
 
 	function themeCompatibility(state: ActivityPickerState, id: string, ids: string[]) {
 		const activity = activityFor(state, id)
-		return experienceThemeCompatibility(
-			activity
-				? {
-						id: String(activity.id),
-						name: String(activity.name ?? ""),
-						slug: String(activity.slug ?? activity.id),
-						parentCategoryId: activity.familyId ? String(activity.familyId) : null,
-						allowedAdditionalThemeIds: Array.isArray(activity.allowed)
-							? activity.allowed.map((value) => String(value))
-							: [],
-						isActive: Boolean(activity.active),
-						classificationKind: "activity",
-						vertical: "tour",
-						dataClass: "production",
-						themeCompatibilityRevision: Number(activity.revision ?? 0),
-					}
-				: null,
-			state.families.map((family) => ({
-				id: String(family.id),
-				name: String(family.name ?? ""),
-				slug: String(family.slug ?? family.id),
-				parentCategoryId: null,
-				isActive: Boolean(family.active),
-				classificationKind: "family",
-				vertical: "tour",
-				dataClass: "production",
-			})),
-			ids
-		)
+		const themeActivity: ExperienceThemeActivity | null = activity
+			? {
+					id: String(activity.id),
+					parentCategoryId: activity.familyId ? String(activity.familyId) : null,
+					allowedAdditionalThemeIds: Array.isArray(activity.allowed)
+						? activity.allowed.map((value) => String(value))
+						: [],
+					isActive: Boolean(activity.active),
+					classificationKind: "activity",
+					vertical: "tour",
+					dataClass: "production",
+					themeCompatibilityRevision: Number(activity.revision ?? 0),
+				}
+			: null
+		const themeFamilies: ExperienceThemeCategory[] = state.families.map((family) => ({
+			id: String(family.id),
+			isActive: Boolean(family.active),
+			classificationKind: "family",
+			vertical: "tour",
+			dataClass: "production",
+		}))
+		return experienceThemeCompatibility(themeActivity, themeFamilies, ids)
 	}
 
 	function ensureActivityDialogUi() {

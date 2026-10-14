@@ -1,15 +1,17 @@
-type Category = {
+export type ExperienceThemeCategory = {
 	id: string
 	classificationKind: string
 	isActive: boolean
 	vertical: string
 	dataClass: string
 }
-type Activity = Category & {
+export type ExperienceThemeActivity = ExperienceThemeCategory & {
 	parentCategoryId: string | null
 	allowedAdditionalThemeIds?: string[]
 	themeCompatibilityRevision?: number
 }
+type Category = ExperienceThemeCategory
+type Activity = ExperienceThemeActivity
 /** Discovery compatibility is editorial, independent of commercial authorization. */
 export function experienceThemeCompatibility(
 	activity: Activity | null | undefined,
