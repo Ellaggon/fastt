@@ -31,6 +31,7 @@ import type {
 } from "../../application/ports/RatePlanCommandRepositoryPort"
 
 export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort {
+	constructor(private readonly database: typeof db = db) {}
 	/** Activate a tour's selected rate and its departure in one database transaction. */
 	async activateTourRate(params: {
 		ratePlanId: string
@@ -269,6 +270,7 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 	}
 
 	async deleteRatePlan(ratePlanId: string): Promise<"not_found" | "ok"> {
+		const db = this.database
 		const compressedSchema = await hasCompressedRatePlanSchema()
 		const existing = await db
 			.select({ id: RatePlan.id })
@@ -372,6 +374,7 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 	}
 
 	async purgeEffectivePricingByVariantIds(variantIds: string[]): Promise<void> {
+		const db = this.database
 		const ids = [...new Set(variantIds.map((id) => String(id ?? "").trim()).filter(Boolean))]
 		if (!ids.length) return
 		await db.delete(EffectivePricing).where(inArray(EffectivePricing.variantId, ids))
