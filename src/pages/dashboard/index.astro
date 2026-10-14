@@ -40,7 +40,7 @@ import {
 } from "@/lib/onboarding/providerOnboardingRollout"
 import { ArrowRight, BedDouble, Hotel, Map as MapIcon, Plus, ShieldCheck } from "@lucide/astro"
 import { and, db, eq, Product, sql, Variant } from "@/shared/infrastructure/db/compat"
-import { normalizeProductVertical } from "@/lib/catalog/productVerticalRegistry"
+import { normalizeProductVertical, productTypeLabel } from "@/lib/catalog/productVerticalRegistry"
 import {
 	resolveWorkspaceNavigationScope,
 	type ActiveWorkspaceVertical,
@@ -548,7 +548,7 @@ function addAnotherServiceCopy() {
 															<div class="space-y-1">
 																<p class="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">
 																	<VerticalIcon class="h-4 w-4" />
-																	{isTour ? "Tour" : "Alojamiento"}
+																	{productTypeLabel(isTour ? "tour" : "hotel")}
 																</p>
 																<h2 class="text-xl font-semibold text-slate-950">{product.name}</h2>
 																<p class="text-sm text-slate-600">

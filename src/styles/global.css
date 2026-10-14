@@ -963,6 +963,43 @@ html[data-verification-submit-pending="true"] {
 	backdrop-filter: blur(14px) saturate(120%);
 }
 
+html.fastt-modal-open {
+	overflow: hidden;
+}
+
+.fastt-activity-dialog-shell:not([open]) {
+	display: none;
+}
+
+.fastt-activity-dialog-shell[open] {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	max-width: none;
+	height: 100%;
+	max-height: none;
+	margin: 0;
+	padding: 1rem;
+	border: 0;
+	background: transparent;
+	overflow: hidden;
+	overscroll-behavior: contain;
+}
+
+.fastt-activity-dialog-shell::backdrop {
+	background: rgb(15 23 42 / 35%);
+	backdrop-filter: blur(14px) saturate(120%);
+}
+
+.fastt-activity-dialog {
+	overscroll-behavior: contain;
+}
+
+.fastt-accent-selection {
+	accent-color: var(--fastt-color-selection);
+}
+
 .fastt-floating-modal-card {
 	border: 1px solid var(--fastt-color-border);
 	border-radius: var(--fastt-radius-dialog);

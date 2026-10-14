@@ -17,8 +17,8 @@ import {
 const labels: Record<string, string> = {
 	hotel: "Hotel",
 	hotels: "Hotel",
-	tour: "Tour",
-	tours: "Tour",
+	tour: "Experiencia",
+	tours: "Experiencias",
 }
 
 export const GET: APIRoute = async ({ request }) => {

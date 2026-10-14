@@ -51,7 +51,7 @@ function modelLabel(value: unknown): string {
 }
 
 function verticalLabel(value: unknown): string {
-	if (String(value).toLowerCase() === "tour") return "Tour"
+	if (String(value).toLowerCase() === "tour") return "Experiencia"
 	if (String(value).toLowerCase() === "whole_home") return "Vivienda completa"
 	return "Alojamiento"
 }
