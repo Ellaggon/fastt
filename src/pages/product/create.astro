@@ -2,6 +2,7 @@
 import Button from "@/components/ui/Button.astro"
 import TourPresentationForm from "@/components/tours/TourPresentationForm.astro"
 import { loadTourPresentationForm } from "@/lib/tours/loadTourPresentationForm"
+import { copyTourCreateCommercialQuery } from "@/lib/tours/tourCreateQueryPassthrough"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
@@ -87,10 +88,7 @@ if (tourPresentationOptions) {
 	)
 	if (!activity) {
 		const target = new URL("/product/create/activity", Astro.url)
-		for (const key of ["variantId", "ratePlanId", "returnTo"]) {
-			const value = Astro.url.searchParams.get(key)
-			if (value) target.searchParams.set(key, value)
-		}
+		copyTourCreateCommercialQuery(Astro.url, target)
 		if (activityId) target.searchParams.set("selection", "invalid")
 		return Astro.redirect(target.pathname + target.search)
 	}

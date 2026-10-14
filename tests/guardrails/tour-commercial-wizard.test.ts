@@ -15,6 +15,8 @@ describe("tour commercial wizard", () => {
 		const presentationLoader = read("src/lib/tours/loadTourPresentationForm.ts")
 		const categoryChoices = read("src/components/tours/TourCategoryChoices.astro")
 		const activityEntry = read("src/pages/product/create/activity.astro")
+		const createPage = read("src/pages/product/create.astro")
+		const createQueryPassthrough = read("src/lib/tours/tourCreateQueryPassthrough.ts")
 		const activityCards = read("src/components/tours/ExperienceActivityCards.astro")
 		expect(participants).toContain(
 			'continueFormId={playbook.active ? "ticketsPlaybookForm" : null}'
@@ -31,6 +33,9 @@ describe("tour commercial wizard", () => {
 		expect(presentation).toContain("ExperienceActivityPicker")
 		expect(presentation).toContain("TourCategoryChoices")
 		expect(activityEntry).toContain("ExperienceActivityCards")
+		expect(createPage).toContain("copyTourCreateCommercialQuery")
+		expect(createPage).toContain("/product/create/activity")
+		expect(createQueryPassthrough).toContain("tourCreateCommercialQueryKeys")
 		expect(activityCards).toContain("data-activity-cards")
 		expect(activityPicker).toContain('name="primaryActivityCategoryId"')
 		expect(activityPicker).toContain("experienceThemeCompatibility")
