@@ -514,7 +514,7 @@ const playbookExitHref = optionWizard
 const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
 const layoutProps = optionWizard
 	? {
-			title: "Precio de la opción",
+			title: "Precio para esta opción",
 			playbookId: "add-tour-option" as const,
 			active: true,
 			stepId: "price",
@@ -589,6 +589,9 @@ logRoutePerformance({
 	userId: auth.user.id,
 	providerId: auth.providerId,
 })
+const tourOptionPriceTitle = "Precio para esta opción"
+const tourOptionPriceLead =
+	"Define la tarifa estándar y el precio por participante en las monedas que aceptas."
 const tourRateSaveHref = isTourRateContext
 	? tourPreparationNextHref(
 			Astro.url.searchParams,
@@ -623,8 +626,8 @@ const tourRateSaveHref = isTourRateContext
 					<PlaybookStepHeader
 						size="lg"
 						icon="rate"
-						title={`Precio de ${playbookVariantLabel}`}
-						lead="Define el precio en las monedas que aceptas y las condiciones iniciales de esta opción. Después revisarás la reserva."
+						title={tourOptionPriceTitle}
+						lead={tourOptionPriceLead}
 					/>
 				) : isPlaybookRateStep ? (
 					<PlaybookStepHeader
@@ -684,18 +687,17 @@ const tourRateSaveHref = isTourRateContext
 						<div class="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
 							<div class="space-y-6 p-5 md:p-6">
 								<section class="space-y-4">
-									<div>
-										<h2 class="text-lg font-semibold text-slate-950">
-											{isTourPlaybookRateStep
-												? "Precio para esta opción"
-												: "Tarifa para esta habitación"}
-										</h2>
-										<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
-											{isTourPlaybookRateStep
-												? "La opción ya tiene horario, idioma y cupo máximo. Ahora define su tarifa estándar y el precio por participante en cada moneda que aceptas."
-												: "La habitación ya está creada y tiene fotos. Ahora define cómo se venderá: propuesta, nombre visible y precio base."}
-										</p>
-									</div>
+									{isTourPlaybookRateStep ? null : (
+										<div>
+											<h2 class="text-lg font-semibold text-slate-950">
+												Tarifa para esta habitación
+											</h2>
+											<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+												La habitación ya está creada y tiene fotos. Ahora define cómo se venderá:
+												propuesta, nombre visible y precio base.
+											</p>
+										</div>
+									)}
 
 									<div class="grid gap-4 md:grid-cols-2">
 										<label class="block space-y-1.5 text-sm md:col-span-2">

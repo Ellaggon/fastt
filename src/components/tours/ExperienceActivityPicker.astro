@@ -1,8 +1,8 @@
 ---
-import FormField from "@/components/ui/FormField.astro"
-import Input from "@/components/ui/Input.astro"
-import Select from "@/components/ui/Select.astro"
+import Button from "@/components/ui/Button.astro"
+import Dialog from "@/components/ui/Dialog.astro"
 import type { loadTourPresentationForm } from "@/lib/tours/loadTourPresentationForm"
+import ExperienceActivityCards from "./ExperienceActivityCards.astro"
 interface Props {
 	options: Awaited<ReturnType<typeof loadTourPresentationForm>>
 }
@@ -10,123 +10,352 @@ const { options } = Astro.props
 const activities = options.activities ?? [],
 	families = options.families ?? []
 const selected = options.classification?.primaryActivityCategoryId ?? ""
-const activity = activities.find((row) => row.id === selected)
+const activity = activities.find((a) => a.id === selected)
+const family = families.find((f) => f.id === activity?.parentCategoryId)
 ---
 
-<div data-activity-picker class="space-y-3">
-	<FormField label="Buscar actividad" htmlFor="activitySearch">
-		<Input
-			id="activitySearch"
-			type="search"
-			placeholder="Por ejemplo: cerámica, cocina o senderismo"
-			autocomplete="off"
-			aria-controls="primaryActivityCategoryId"
-		/>
-	</FormField>
-	<FormField label="Actividad principal" htmlFor="primaryActivityCategoryId" required>
-		<Select
-			id="primaryActivityCategoryId"
-			name="primaryActivityCategoryId"
-			aria-describedby="activityHelp primaryActivityCategoryIdError"
-		>
-			<option value="">Selecciona la actividad</option>
-			{
-				families.map((family) => (
-					<optgroup label={family.name} data-family-id={family.id}>
-						{activities
-							.filter(
-								(row) => row.parentCategoryId === family.id && (row.isActive || row.id === selected)
-							)
-							.map((row) => (
-								<option
-									value={row.id}
-									selected={row.id === selected}
-									data-search={[
-										row.name,
-										family.name,
-										...(Array.isArray(row.searchAliasesJson) ? row.searchAliasesJson : []),
-									].join(" ")}
-								>
-									{row.name}
-									{!row.isActive ? " · Requiere revisión" : ""}
-								</option>
-							))}
-					</optgroup>
-				))
-			}
-		</Select>
-		<p id="activityHelp" class="mt-2 text-sm leading-6 text-slate-500">
-			Elige qué harán los participantes. El formato se selecciona por separado.
+<div
+	data-activity-picker
+	data-activities={JSON.stringify(
+		activities.map((a) => ({
+			id: a.id,
+			name: a.name,
+			familyId: a.parentCategoryId,
+			allowed: a.allowedAdditionalThemeIds ?? [],
+			revision: a.themeCompatibilityRevision ?? 0,
+			active: a.isActive,
+		}))
+	)}
+	data-families={JSON.stringify(
+		families.map((f) => ({ id: f.id, name: f.name, active: f.isActive }))
+	)}
+	class="space-y-2"
+>
+	<label class="block text-sm font-medium text-slate-800">
+		Actividad principal <span class="text-red-600" aria-hidden="true">*</span>
+	</label>
+	<div class="fastt-soft-box space-y-1 border border-slate-200 bg-slate-50 px-4 py-3">
+		<p data-activity-name class="text-sm font-medium text-slate-900">
+			{activity?.name ?? "Aún no elegiste una actividad"}
 		</p>
-		{
-			activity && !activity.isActive && (
-				<p class="text-sm text-amber-700">
-					Esta actividad ya no admite nuevas selecciones. Revísala antes de continuar.
-				</p>
-			)
-		}
-		<p
-			id="primaryActivityCategoryIdError"
-			data-presentation-error="primaryActivityCategoryId"
-			class="hidden text-sm text-red-600"
-		>
+		<p data-activity-family-name class:list={["text-sm text-slate-500", !family?.name && "hidden"]}>
+			{family?.name ?? ""}
 		</p>
-	</FormField>
-	<p data-activity-results role="status" aria-live="polite" class="text-sm text-slate-600"></p>
-	<a href="/provider/support" class="text-sm font-semibold text-slate-700 underline"
-		>¿Falta tu actividad? Solicita su incorporación</a
+	</div>
+	<Button type="button" variant="secondary" size="sm" data-change-activity>
+		{activity ? "Cambiar actividad" : "Elegir actividad"}
+	</Button>
+	<select
+		name="primaryActivityCategoryId"
+		id="primaryActivityCategoryId"
+		hidden
+		tabindex="-1"
+		aria-label="Actividad principal"
+		aria-describedby="primaryActivityCategoryIdError"
 	>
+		<option value="">Selecciona la actividad</option>
+		{
+			activities.map((a) => (
+				<option value={a.id} selected={a.id === selected}>
+					{a.name}
+				</option>
+			))
+		}
+	</select>
+	<input
+		type="hidden"
+		name="expectedThemeCompatibilityRevision"
+		value={activity?.themeCompatibilityRevision ?? 0}
+	/>
+	<p
+		id="primaryActivityCategoryIdError"
+		data-presentation-error="primaryActivityCategoryId"
+		class="hidden text-sm text-red-600"
+	>
+	</p>
+	<Dialog
+		data-activity-dialog
+		aria-labelledby="activity-dialog-title"
+		class="fastt-activity-dialog-shell w-[min(64rem,calc(100%-2rem))] p-0 shadow-xl backdrop:bg-slate-950/60"
+	>
+		<div
+			data-activity-dialog-panel
+			class="fastt-card fastt-activity-dialog m-auto flex max-h-[90dvh] flex-col overflow-hidden p-5 sm:p-8"
+		>
+			<h2 id="activity-dialog-title" class="shrink-0 text-xl font-semibold text-slate-950">
+				Cambiar actividad
+			</h2>
+			<div
+				class="mt-5 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"
+				data-activity-dialog-body
+			>
+				<ExperienceActivityCards
+					activities={activities}
+					families={families}
+					selected={selected}
+					name="activityChoice"
+				/>
+				<p data-change-warning class="mt-4 text-sm text-amber-800" role="status"></p>
+			</div>
+			<div
+				class="mt-4 flex shrink-0 flex-wrap items-center justify-end gap-3 border-t border-slate-100 pt-4"
+			>
+				<Button type="button" variant="secondary" data-cancel-activity=""> Cancelar </Button>
+				<Button type="button" variant="selection" data-confirm-activity="">
+					Usar esta actividad
+				</Button>
+			</div>
+		</div>
+	</Dialog>
 </div>
 <script>
-	function bindActivityPickers() {
-		document.querySelectorAll<HTMLElement>("[data-activity-picker]").forEach((root) => {
-			if (root.dataset.bound) return
-			root.dataset.bound = "true"
-			const search = root.querySelector<HTMLInputElement>("input[type=search]")!
-			const select = root.querySelector<HTMLSelectElement>("select")!
-			const groups = Array.from(select.querySelectorAll("optgroup")).map(
-				(group) => group.cloneNode(true) as HTMLOptGroupElement
-			)
-			const normalize = (text: string) =>
-				text
-					.normalize("NFD")
-					.replace(/[\u0300-\u036f]/g, "")
-					.toLowerCase()
-					.trim()
-			search.addEventListener("input", () => {
-				const selection = select.value,
-					query = normalize(search.value)
-				select.querySelectorAll("optgroup").forEach((group) => group.remove())
-				let count = 0
-				for (const source of groups) {
-					const group = source.cloneNode(true) as HTMLOptGroupElement
-					Array.from(group.querySelectorAll("option")).forEach((option) => {
-						const matches = normalize(option.dataset.search ?? option.textContent ?? "").includes(
-							query
-						)
-						if (matches) count++
-						if (!matches && option.value !== selection) option.remove()
-					})
-					if (group.children.length) select.append(group)
+	import {
+		experienceThemeCompatibility,
+		type ExperienceThemeActivity,
+		type ExperienceThemeCategory,
+	} from "@/shared/domain/experience-theme-compatibility"
+
+	type ActivityPickerState = {
+		form: HTMLFormElement
+		select: HTMLSelectElement
+		trigger: HTMLButtonElement
+		activities: Array<Record<string, unknown>>
+		families: Array<Record<string, unknown>>
+		selectedThemes: () => string[]
+		sync: () => void
+	}
+
+	const activityPickerStates = new Map<string, ActivityPickerState>()
+
+	function activityFor(state: ActivityPickerState, id: string) {
+		return state.activities.find((entry) => entry.id === id)
+	}
+
+	function themeCompatibility(state: ActivityPickerState, id: string, ids: string[]) {
+		const activity = activityFor(state, id)
+		const themeActivity: ExperienceThemeActivity | null = activity
+			? {
+					id: String(activity.id),
+					parentCategoryId: activity.familyId ? String(activity.familyId) : null,
+					allowedAdditionalThemeIds: Array.isArray(activity.allowed)
+						? activity.allowed.map((value) => String(value))
+						: [],
+					isActive: Boolean(activity.active),
+					classificationKind: "activity",
+					vertical: "tour",
+					dataClass: "production",
+					themeCompatibilityRevision: Number(activity.revision ?? 0),
 				}
-				select.value = selection
-				select.dispatchEvent(new Event("fastt:options-updated"))
-				root.querySelector<HTMLElement>("[data-activity-results]")!.textContent = count
-					? `${count} ${count === 1 ? "actividad encontrada" : "actividades encontradas"}.`
-					: "No encontramos esa actividad. Puedes solicitar su incorporación."
+			: null
+		const themeFamilies: ExperienceThemeCategory[] = state.families.map((family) => ({
+			id: String(family.id),
+			isActive: Boolean(family.active),
+			classificationKind: "family",
+			vertical: "tour",
+			dataClass: "production",
+		}))
+		return experienceThemeCompatibility(themeActivity, themeFamilies, ids)
+	}
+
+	function ensureActivityDialogUi() {
+		if (document.documentElement.dataset.activityDialogUiBound) return
+		document.documentElement.dataset.activityDialogUiBound = "true"
+
+		document.addEventListener(
+			"click",
+			(event) => {
+				const target = event.target
+				if (!(target instanceof Element)) return
+
+				const cancelControl = target.closest("[data-cancel-activity]")
+				if (cancelControl) {
+					const dialog = cancelControl.closest("dialog[data-activity-dialog]")
+					if (dialog instanceof HTMLDialogElement && dialog.open) {
+						event.preventDefault()
+						dialog.close("cancel")
+					}
+					return
+				}
+
+				const confirmControl = target.closest("[data-confirm-activity]")
+				if (confirmControl) {
+					const dialog = confirmControl.closest("dialog[data-activity-dialog]")
+					const rootId =
+						dialog instanceof HTMLDialogElement ? dialog.dataset.activityPickerRoot : undefined
+					const state = rootId ? activityPickerStates.get(rootId) : undefined
+					if (!(dialog instanceof HTMLDialogElement) || !dialog.open || !state) return
+					event.preventDefault()
+					const choice = dialog.querySelector<HTMLInputElement>("[name=activityChoice]:checked")
+					if (!choice) {
+						dialog.querySelector<HTMLElement>("[data-change-warning]")!.textContent =
+							"Selecciona una actividad."
+						return
+					}
+					const invalid = themeCompatibility(state, choice.value, state.selectedThemes()).invalidIds
+					state.form
+						.querySelectorAll<HTMLInputElement>("[name=additionalThemeId]")
+						.forEach((input) => {
+							if (invalid.includes(input.value)) input.checked = false
+						})
+					state.select.value = choice.value
+					state.select.dispatchEvent(new Event("change", { bubbles: true }))
+					dialog.close("confirm")
+					return
+				}
+
+				const dialog = target.closest("dialog[data-activity-dialog]")
+				if (!(dialog instanceof HTMLDialogElement) || !dialog.open) return
+				const panel = dialog.querySelector("[data-activity-dialog-panel]")
+				if (panel && !panel.contains(target)) {
+					dialog.close("dismiss")
+				}
+			},
+			true
+		)
+	}
+
+	function attachActivityDialog(root: HTMLElement) {
+		const existingId = root.dataset.activityDialogId
+		let dialog = root.querySelector<HTMLDialogElement>("[data-activity-dialog]")
+		if (!dialog && existingId) {
+			dialog = document.body.querySelector<HTMLDialogElement>(
+				`dialog[data-activity-dialog][data-activity-picker-root="${existingId}"]`
+			)
+		}
+		if (!dialog) return null
+		if (!root.dataset.activityDialogId) {
+			root.dataset.activityDialogId = crypto.randomUUID()
+		}
+		dialog.dataset.activityPickerRoot = root.dataset.activityDialogId
+		// Dialog exploration is transient and must not mark the presentation form dirty.
+		if (dialog.parentElement !== document.body) {
+			document.body.append(dialog)
+		}
+		return dialog
+	}
+
+	function bindActivityPickers() {
+		ensureActivityDialogUi()
+
+		document.body
+			.querySelectorAll<HTMLDialogElement>("dialog[data-activity-dialog]")
+			.forEach((node) => {
+				const rootId = node.dataset.activityPickerRoot
+				if (!rootId) return
+				const owner = document.querySelector(
+					`[data-activity-picker][data-activity-dialog-id="${rootId}"]`
+				)
+				if (!owner) node.remove()
 			})
-			const updateThemes = () => {
-				const family = select.selectedOptions[0]?.parentElement?.getAttribute("data-family-id")
-				const form = select.form
-				form?.querySelectorAll<HTMLInputElement>("[name=additionalThemeId]").forEach((input) => {
-					input.disabled = input.value === family
-					if (input.disabled) input.checked = false
-					const wrapper = input.closest("label")
-					if (wrapper) wrapper.style.display = input.disabled ? "none" : ""
+
+		document.querySelectorAll<HTMLElement>("[data-activity-picker]").forEach((root) => {
+			if (root.dataset.bound) {
+				attachActivityDialog(root)
+				root.dispatchEvent(new Event("fastt:sync-activity"))
+				return
+			}
+			root.dataset.bound = "true"
+			const form = root.closest("form")!,
+				select = root.querySelector<HTMLSelectElement>("select")!,
+				trigger = root.querySelector<HTMLButtonElement>("[data-change-activity]")!
+			const dialog = attachActivityDialog(root)
+			if (!dialog) return
+			const activities = JSON.parse(root.dataset.activities ?? "[]"),
+				families = JSON.parse(root.dataset.families ?? "[]")
+			const selectedThemes = () =>
+				Array.from(form.querySelectorAll<HTMLInputElement>("[name=additionalThemeId]:checked")).map(
+					(i) => i.value
+				)
+			const sync = () => {
+				const a = activityFor(state, select.value),
+					c = themeCompatibility(state, select.value, selectedThemes())
+				root.querySelector<HTMLElement>("[data-activity-name]")!.textContent = a
+					? String(a.name ?? "")
+					: "Aún no elegiste una actividad"
+				const familyName = families.find((f: any) => f.id === a?.familyId)?.name ?? ""
+				const familyNode = root.querySelector<HTMLElement>("[data-activity-family-name]")!
+				familyNode.textContent = familyName
+				familyNode.classList.toggle("hidden", !familyName)
+				trigger.textContent = a ? "Cambiar actividad" : "Elegir actividad"
+				root.querySelector<HTMLInputElement>("[name=expectedThemeCompatibilityRevision]")!.value =
+					String(a?.revision ?? 0)
+				form.querySelectorAll<HTMLInputElement>("[name=additionalThemeId]").forEach((input) => {
+					const permitted = c.availableIds.includes(input.value)
+					const historical = input.checked && !permitted
+					input.disabled = !permitted
+					input.closest<HTMLElement>("[data-theme-option]")!.hidden = !permitted && !historical
+					input.closest<HTMLElement>("label")!.classList.toggle("opacity-60", historical)
+				})
+				const panel = form.querySelector<HTMLElement>("[data-additional-themes]")
+				if (panel) panel.hidden = c.availableIds.length === 0 && c.invalidIds.length === 0
+				const grid = form.querySelector<HTMLElement>("[data-presentation-grid]")
+				if (grid)
+					grid.dataset.hasThemes = String(c.availableIds.length > 0 || c.invalidIds.length > 0)
+				const warning = form.querySelector<HTMLElement>("[data-theme-review]")
+				if (warning) {
+					warning.hidden = c.invalidIds.length === 0
+					warning.textContent = c.invalidIds.length
+						? "Temáticas anteriores que necesitan revisión: " +
+							c.invalidIds
+								.map((id) => families.find((f: any) => f.id === id)?.name ?? id)
+								.join(", ") +
+							". Al guardar se retirarán de esta selección."
+						: ""
+				}
+			}
+			const state: ActivityPickerState = {
+				form,
+				select,
+				trigger,
+				activities,
+				families,
+				selectedThemes,
+				sync,
+			}
+			activityPickerStates.set(root.dataset.activityDialogId!, state)
+			const lockPageScroll = () => document.documentElement.classList.add("fastt-modal-open")
+			const unlockPageScroll = () => {
+				if (!document.querySelector("dialog[open]")) {
+					document.documentElement.classList.remove("fastt-modal-open")
+				}
+			}
+			trigger.addEventListener("click", () => {
+				dialog.querySelectorAll<HTMLInputElement>("[name=activityChoice]").forEach((i) => {
+					i.checked = i.value === select.value
+				})
+				dialog.querySelector<HTMLElement>("[data-change-warning]")!.textContent = ""
+				const search = dialog.querySelector<HTMLInputElement>("[data-activity-search]")
+				if (search) {
+					search.value = ""
+					search.dispatchEvent(new Event("input", { bubbles: true }))
+				}
+				dialog
+					.querySelector<HTMLInputElement>("[name=activityChoice]:checked")
+					?.dispatchEvent(new Event("change", { bubbles: true }))
+				lockPageScroll()
+				dialog.showModal()
+				dialog.querySelector<HTMLElement>("[data-activity-dialog-body]")?.scrollTo(0, 0)
+			})
+			if (!dialog.dataset.activityDialogListeners) {
+				dialog.dataset.activityDialogListeners = "true"
+				dialog.addEventListener("close", () => {
+					unlockPageScroll()
+					trigger.focus()
+				})
+				dialog.addEventListener("cancel", () => unlockPageScroll())
+				dialog.addEventListener("change", () => {
+					const next =
+						dialog.querySelector<HTMLInputElement>("[name=activityChoice]:checked")?.value ?? ""
+					const invalid = themeCompatibility(state, next, selectedThemes()).invalidIds
+					dialog.querySelector<HTMLElement>("[data-change-warning]")!.textContent = invalid.length
+						? "Estas temáticas dejarán de aplicarse al guardar: " +
+							invalid.map((id) => families.find((f: any) => f.id === id)?.name ?? id).join(", ")
+						: ""
 				})
 			}
-			select.addEventListener("change", updateThemes)
-			updateThemes()
+			select.addEventListener("change", sync)
+			sync()
+			root.addEventListener("fastt:sync-activity", sync)
 		})
 	}
 	bindActivityPickers()

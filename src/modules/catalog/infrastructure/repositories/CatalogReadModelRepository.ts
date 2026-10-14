@@ -1,3 +1,4 @@
+import { experienceCategoryMembership } from "@/lib/tours/experienceClassificationSql"
 import {
 	first,
 	sql,
@@ -217,7 +218,7 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				.where(
 					and(
 						eq(ProductCategory.vertical, "tour"),
-						sql`(${ProductCategory.id} = ${row.tourActivityId} OR ${ProductCategory.id} IN (SELECT "parentCategoryId" FROM "ProductCategory" WHERE id = ${row.tourActivityId}) OR ${ProductCategory.id} IN (SELECT "categoryId" FROM "ProductCategoryLink" WHERE "productId" = ${productId} AND (${row.tourActivityContract} = 0 OR "assignmentKind" = 'additional_theme')))`
+						experienceCategoryMembership(sql`${productId}`, sql`${ProductCategory.id}`)
 					)
 				)
 				.orderBy(asc(ProductCategory.sortOrder), asc(ProductCategory.name)),

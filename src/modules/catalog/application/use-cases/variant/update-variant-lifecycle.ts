@@ -19,6 +19,7 @@ export async function updateVariantLifecycle(
 	const parsed = updateVariantLifecycleSchema.parse(params)
 	const variant = await deps.repo.getVariantById(parsed.variantId)
 	if (!variant) throw new Error("Variant not found")
+	if (variant.lifecycleState === parsed.lifecycleState) return parsed
 
 	if (!allowedTransitions[variant.lifecycleState].includes(parsed.lifecycleState)) {
 		throw new Error("Invalid lifecycle transition")

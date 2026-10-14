@@ -6,6 +6,8 @@ interface Props {
 	stacked?: boolean
 	name?: string
 	optional?: boolean
+	permittedIds?: Set<string>
+	visibleIds?: Set<string>
 }
 const {
 	categories,
@@ -13,30 +15,38 @@ const {
 	stacked = false,
 	name = "categoryId",
 	optional = false,
+	permittedIds,
+	visibleIds,
 } = Astro.props
 ---
 
 <legend class="block w-full text-sm font-semibold text-slate-950"
-	>{optional ? "Otras temáticas relacionadas" : "Temáticas"}</legend
+	>{optional ? "Temas adicionales" : "Temáticas"}</legend
 >
 <p class="text-sm leading-6 text-slate-600">
 	{
 		optional
-			? "Opcional. Añade otros temas que ayuden a encontrar esta experiencia."
+			? "Selecciona sólo los que formen parte de esta experiencia."
 			: "Selecciona las categorías que describen esta experiencia y ayudan a encontrarla."
 	}
 </p>
 <div class:list={["pt-1", stacked ? "flex flex-col gap-2" : "flex flex-wrap gap-2.5"]}>
 	{
 		categories.map((category) => (
-			<Checkbox
-				name={name}
-				value={category.id}
-				checked={selectedIds.has(String(category.id))}
-				className={`fastt-soft-box inline-flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-800 transition hover:border-slate-300 hover:bg-slate-50 ${stacked ? "w-full" : ""}`}
+			<span
+				hidden={visibleIds ? !visibleIds.has(category.id) : false}
+				data-theme-option={category.id}
 			>
-				{category.name}
-			</Checkbox>
+				<Checkbox
+					disabled={permittedIds ? !permittedIds.has(category.id) : false}
+					name={name}
+					value={category.id}
+					checked={selectedIds.has(String(category.id))}
+					className={`fastt-soft-box inline-flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-800 transition hover:border-slate-300 hover:bg-slate-50 ${stacked ? "w-full" : ""}`}
+				>
+					{category.name}
+				</Checkbox>
+			</span>
 		))
 	}
 </div>

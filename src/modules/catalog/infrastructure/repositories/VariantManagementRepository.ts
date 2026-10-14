@@ -27,6 +27,8 @@ import {
 	ProviderExternalCalendarEvent,
 	ProviderIntegrationMapping,
 	TourSlotProfile,
+	ProviderOptionPreparationSession,
+	sql,
 	eq,
 	and,
 	count,
@@ -289,11 +291,11 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 		const updated = await db
 			.update(Variant)
 			.set({
-				lifecycleState: params.lifecycleState,
+				lifecycleState: sql`CASE WHEN ${Variant.lifecycleState} = 'archived' THEN 'archived' ELSE ${params.lifecycleState} END`,
 				lifecycleValidationErrorsJson: params.validationErrorsJson ?? null,
 				lifecycleEvaluatedAt: evaluatedAt,
 				// A failed validation always removes sale intent; a successful check preserves it.
-				salesEnabled: params.lifecycleState === "draft" ? false : undefined,
+				salesEnabled: sql`CASE WHEN ${Variant.lifecycleState} = 'archived' OR ${params.lifecycleState} = 'draft' THEN false ELSE ${Variant.salesEnabled} END`,
 			})
 			.where(eq(Variant.id, params.variantId))
 			.returning({ id: Variant.id })
@@ -326,14 +328,28 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 		lifecycleState: VariantLifecycleState
 	}) {
 		const lifecycleEvaluatedAt = new Date()
-		await db
-			.update(Variant)
-			.set({
-				lifecycleState: params.lifecycleState,
-				lifecycleEvaluatedAt,
-				salesEnabled: params.lifecycleState === "ready" ? undefined : false,
-			})
-			.where(eq(Variant.id, params.variantId))
+		await db.transaction(async (tx) => {
+			await tx
+				.update(Variant)
+				.set({
+					lifecycleState: params.lifecycleState,
+					lifecycleEvaluatedAt,
+					salesEnabled: params.lifecycleState === "ready" ? undefined : false,
+				})
+				.where(eq(Variant.id, params.variantId))
+			if (params.lifecycleState === "archived") {
+				await tx.execute(sql`SELECT set_config('fastt.preparation_write_version', '2', true)`)
+				await tx
+					.update(ProviderOptionPreparationSession)
+					.set({ status: "abandoned", writeVersion: 2, updatedAt: lifecycleEvaluatedAt })
+					.where(
+						and(
+							eq(ProviderOptionPreparationSession.variantId, params.variantId),
+							eq(ProviderOptionPreparationSession.status, "active")
+						)
+					)
+			}
+		})
 	}
 
 	async setVariantSalesEnabled(params: { variantId: string; salesEnabled: boolean }) {

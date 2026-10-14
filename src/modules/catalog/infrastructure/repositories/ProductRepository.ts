@@ -1,3 +1,4 @@
+import { experienceThemeCompatibility } from "@/shared/domain/experience-theme-compatibility"
 import { evaluateExperienceClassification } from "@/shared/domain/experience-classification"
 import {
 	experienceProgramMomentCount,
@@ -195,6 +196,15 @@ export class ProductRepository implements ProductRepositoryPort {
 					400,
 					"additionalThemeIds"
 				)
+			if (modern) {
+				const compatibility = experienceThemeCompatibility(activity, themes, themeIds)
+				if (compatibility.invalidIds.length)
+					throw new TourPresentationError(
+						"Estas temáticas no corresponden a la actividad seleccionada. Revisa los temas adicionales.",
+						400,
+						"additionalThemeIds"
+					)
+			}
 			const oldThemes = modern
 				? await tx
 						.select()
@@ -213,6 +223,20 @@ export class ProductRepository implements ProductRepositoryPort {
 					.map((row) => row.categoryId)
 					.sort()
 					.join() === [...themeIds].sort().join()
+			if (modern && activity && themeIds.length && !unchangedSelection) {
+				if (input.expectedThemeCompatibilityRevision === undefined)
+					throw new TourPresentationError(
+						"Actualiza el formulario para revisar los temas disponibles.",
+						400,
+						"additionalThemeIds"
+					)
+				if (input.expectedThemeCompatibilityRevision !== activity.themeCompatibilityRevision)
+					throw new TourPresentationError(
+						"Las temáticas disponibles cambiaron. Conservamos tus datos; actualiza la selección.",
+						409,
+						"additionalThemeIds"
+					)
+			}
 			if (
 				modern &&
 				classification &&

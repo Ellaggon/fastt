@@ -1,3 +1,4 @@
+import { productTypeLabel } from "@/lib/catalog/productVerticalRegistry"
 import { asc, db, eq, Product, Variant } from "@/shared/infrastructure/db/compat"
 import { cacheKeys, cacheTtls } from "@/lib/cache/cacheKeys"
 import { readThrough } from "@/lib/cache/readThrough"
@@ -43,7 +44,7 @@ async function queryProviderRatePlanVariants(
 	return rows.map((row) => {
 		const productType = String(row.productType ?? "")
 		const isTour = productType.trim().toLowerCase() === "tour"
-		const productFallback = isTour ? "Tour" : "Alojamiento"
+		const productFallback = productTypeLabel(productType, isTour ? "Experiencia" : "Alojamiento")
 		const variantFallback = isTour ? "Salida" : "Habitación"
 		return {
 			variantId: String(row.variantId),

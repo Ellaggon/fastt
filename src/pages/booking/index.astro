@@ -11,7 +11,7 @@ import Select from "@/components/ui/Select.astro"
 import TabsOutsidePanel from "@/components/ui/TabsOutsidePanel.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { routes } from "@/lib/routes"
-import { getVerticalOpsVocabulary } from "@/lib/verticalVocabulary"
+import { getVerticalOpsVocabulary, getVerticalVocabulary } from "@/lib/verticalVocabulary"
 import { loadProviderOperationalDay } from "@/lib/booking/providerOperationalDay"
 import { resolveWorkspaceScope } from "@/lib/workspace/resolveWorkspaceScope"
 import { workspaceScopeInvalidResponse } from "@/lib/workspace/workspaceScopeInvalidResponse"
@@ -78,6 +78,10 @@ const availableVerticals =
 const selectedVertical = workspaceResolution.vertical
 const initialVertical = selectedVertical ?? "all"
 const ops = getVerticalOpsVocabulary(selectedVertical ?? "generic")
+const bookingProductFallbacks = {
+	tour: getVerticalVocabulary("tour").scopeProduct,
+	hotel: getVerticalVocabulary("hotel").scopeProduct,
+}
 const bookingMetricCardClass = "fastt-card border border-white/10 bg-white/5 p-5 text-white"
 const entityLabel =
 	selectedVertical === "tour"
@@ -458,6 +462,7 @@ if (hasTourRequests) {
 			metricDeparturesDetail: ops.metricDeparturesDetail,
 			metricInProgress: ops.metricInProgress,
 			metricInProgressDetail: ops.metricInProgressDetail,
+			bookingProductFallbacks,
 		}}
 	>
 		;(function () {
@@ -757,7 +762,9 @@ if (hasTourRequests) {
 							const [label, badge] = statusCopy(item)
 							const stay = stayLabel(item)
 							const isTour = String(item?.vertical || "").toLowerCase() === "tour"
-							const productFallback = isTour ? "Tour" : "Alojamiento"
+							const productFallback = isTour
+								? bookingProductFallbacks.tour
+								: bookingProductFallbacks.hotel
 							const variantFallback = isTour ? "Salida" : "Habitación"
 							const accommodation = `${String(item?.productName || productFallback)} · ${String(item?.variantName || variantFallback)}`
 							const when =
@@ -811,7 +818,7 @@ if (hasTourRequests) {
 								</div>
 								<span class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${badge}">${label}</span>
 							</div>
-							<p class="mt-3 text-sm text-slate-700">${String(item?.productName || (isTour ? "Tour" : "Alojamiento"))} · ${String(item?.variantName || (isTour ? "Salida" : "Habitación"))}</p>
+							<p class="mt-3 text-sm text-slate-700">${String(item?.productName || (isTour ? bookingProductFallbacks.tour : bookingProductFallbacks.hotel))} · ${String(item?.variantName || (isTour ? "Salida" : "Habitación"))}</p>
 							<p class="mt-1 text-sm text-slate-600">${stay}${item?.departureTime ? ` · ${String(item.departureTime)}` : ""} · ${String(item?.ratePlanName || "Tarifa")}</p>
 							<p class="mt-3 text-sm font-medium text-slate-900">${paymentLabel(item)}</p>
 							${action}

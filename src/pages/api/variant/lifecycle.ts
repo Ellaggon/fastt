@@ -28,7 +28,9 @@ export const POST: APIRoute = async ({ request }) => {
 			{ repo: variantManagementRepository },
 			{ variantId, lifecycleState: lifecycleState as VariantLifecycleState }
 		)
-		await invalidateVariant(variantId, variant.productId)
+		await invalidateVariant(variantId, variant.productId).catch((error) =>
+			console.error("variant_lifecycle_cache", error)
+		)
 		return new Response(JSON.stringify(result), { status: 200 })
 	} catch (error) {
 		if (error instanceof ZodError) {

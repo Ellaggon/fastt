@@ -23,11 +23,7 @@ export async function loadTourPresentationForm(productId?: string) {
 			.from(GeoPlace)
 			.where(eq(GeoPlace.status, "active"))
 			.orderBy(asc(GeoPlace.canonicalName)),
-		db
-			.select()
-			.from(ProductCategory)
-			.where(and(eq(ProductCategory.vertical, "tour"), eq(ProductCategory.dataClass, "production")))
-			.orderBy(asc(ProductCategory.sortOrder), asc(ProductCategory.name)),
+		readExperienceCategories(),
 		productId
 			? db
 					.select({
@@ -55,5 +51,20 @@ export async function loadTourPresentationForm(productId?: string) {
 			.filter((row) => row.assignmentKind === "additional_theme")
 			.map((row) => row.categoryId),
 		linkedIds: links.map((link) => link.categoryId),
+	}
+}
+
+function readExperienceCategories() {
+	return db
+		.select()
+		.from(ProductCategory)
+		.where(and(eq(ProductCategory.vertical, "tour"), eq(ProductCategory.dataClass, "production")))
+		.orderBy(asc(ProductCategory.sortOrder), asc(ProductCategory.name))
+}
+export async function loadExperienceActivityOptions() {
+	const categories = await readExperienceCategories()
+	return {
+		activities: categories.filter((row) => row.classificationKind === "activity"),
+		families: categories.filter((row) => row.classificationKind === "family"),
 	}
 }

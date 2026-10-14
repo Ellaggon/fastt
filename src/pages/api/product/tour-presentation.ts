@@ -34,6 +34,9 @@ export const POST: APIRoute = async ({ request }) => {
 			primaryActivityCategoryId: form.has("primaryActivityCategoryId")
 				? String(form.get("primaryActivityCategoryId") ?? "").trim() || null
 				: undefined,
+			expectedThemeCompatibilityRevision: form.has("expectedThemeCompatibilityRevision")
+				? Number(form.get("expectedThemeCompatibilityRevision"))
+				: undefined,
 			additionalThemeIds: form.getAll("additionalThemeId").map(String),
 			expectedClassificationRevision: form.has("expectedClassificationRevision")
 				? Number(form.get("expectedClassificationRevision"))

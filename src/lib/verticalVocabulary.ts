@@ -102,7 +102,7 @@ const VOCABULARY: Record<ProviderVertical, VerticalVocabulary> = {
 		variantPlural: "salidas",
 		ratePlan: "tarifa",
 		ratePlanPlural: "tarifas",
-		scopeProduct: "Tour",
+		scopeProduct: "Experiencia",
 		scopeVariant: "Salida",
 		scopeRatePlan: "Tarifa",
 		contextLine:

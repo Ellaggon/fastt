@@ -84,7 +84,7 @@ it.each([
 		if (experienceFormat)
 			expect(select).toMatch(new RegExp(`value="${experienceFormat}" selected[^>]*>\\s*${label}`))
 		else expect(select).not.toMatch(/value="(?:guided_tour|workshop|class|tasting)" selected/)
-		expect(html).toContain("Otras temáticas relacionadas")
+		expect(html).toContain("Temas adicionales")
 		expect(html).toContain("Nombre de la experiencia")
 		for (const format of ["guided_tour", "workshop", "class", "tasting"]) expect(select).toContain(`value="${format}"`)
 	}

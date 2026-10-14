@@ -2,6 +2,7 @@
 import Button from "@/components/ui/Button.astro"
 import TourPresentationForm from "@/components/tours/TourPresentationForm.astro"
 import { loadTourPresentationForm } from "@/lib/tours/loadTourPresentationForm"
+import { copyTourCreateCommercialQuery } from "@/lib/tours/tourCreateQueryPassthrough"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
@@ -80,6 +81,22 @@ const selectedProductType = vertical.productType ?? ""
 const isLaunchHotelFlow = isHotelLaunch
 const tourPresentationOptions =
 	selectedVertical === "tour" ? await loadTourPresentationForm() : null
+if (tourPresentationOptions) {
+	const activityId = Astro.url.searchParams.get("activityId")
+	const activity = tourPresentationOptions.activities.find(
+		(row) => row.id === activityId && row.isActive
+	)
+	if (!activity) {
+		const target = new URL("/product/create/activity", Astro.url)
+		copyTourCreateCommercialQuery(Astro.url, target)
+		if (activityId) target.searchParams.set("selection", "invalid")
+		return Astro.redirect(target.pathname + target.search)
+	}
+	tourPresentationOptions.classification = {
+		...tourPresentationOptions.classification,
+		primaryActivityCategoryId: activity.id,
+	} as typeof tourPresentationOptions.classification
+}
 const destinations =
 	isChooser || selectedVertical === "tour"
 		? []

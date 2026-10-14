@@ -251,8 +251,7 @@ export const productVerticalRegistry = {
 		},
 		routes: {
 			workspaceListHref: "/catalog/tours",
-			workspaceCreateHref:
-				"/product/create?type=Tour&playbook=launch-tour&step=create&flow=create&tourFlowVersion=2",
+			workspaceCreateHref: "/product/create/activity",
 			workspaceFilteredHref: "/catalog/tours",
 			publicCollectionHref: "/tours",
 			publicSearchHref: "/buscar/tours",

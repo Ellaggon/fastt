@@ -3,6 +3,7 @@ import ContextSwitcher, {
 	type ContextSwitcherGroup,
 	type ContextSwitcherOption,
 } from "@/components/ui/ContextSwitcher.astro"
+import { productTypeLabel } from "@/lib/catalog/productVerticalRegistry"
 import { listRatePlansWithArrivalException } from "@/lib/policies/ratePlanArrivalException"
 import { routes } from "@/lib/routes"
 import {
@@ -60,7 +61,7 @@ const resolvedName =
 		: String(currentRow?.name || currentName || "Servicio")
 const isHotel = type === "hotel"
 const isTour = type === "tour"
-const label = isHotel ? "Alojamiento" : isTour ? "Tour" : "Servicio"
+const label = type ? productTypeLabel(type, "Servicio") : "Servicio"
 const icon = isHotel ? "accommodation" : isTour ? "tour" : "service"
 const hrefFor = (id: string) => {
 	if (target === "rooms") return routes.productRoomsForProduct(id)

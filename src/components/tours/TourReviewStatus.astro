@@ -2,8 +2,28 @@
 import { summarizeTourDiagnostic, type TourDiagnostic } from "@/lib/tours/tourDiagnosticContract"
 import { presentTourDiagnostic } from "@/lib/tours/tourDiagnosticPresentation"
 import { projectTourPublicationTasks } from "@/lib/tours/tourPublicationTasks"
+import {
+	tourPublicationTaskHeadline,
+	tourPublicationTaskIconId,
+	tourPublicationTaskImpact,
+	tourPublicationTaskStatus,
+} from "@/lib/tours/tourPublicationTaskPresentation"
+import { readinessIconWellClass, readinessRowClass } from "@/lib/ui/readinessPresentation"
 import { buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
+import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
+import {
+	ChevronRight,
+	CircleCheck,
+	ClipboardList,
+	Image,
+	Layers,
+	ListChecks,
+	MapPin,
+	ShieldCheck,
+	Users,
+} from "@lucide/astro"
+
 interface Props {
 	diagnosis: TourDiagnostic
 	reviewHref: string
@@ -13,6 +33,7 @@ const { diagnosis, reviewHref, published } = Astro.props
 const summary = summarizeTourDiagnostic(diagnosis)
 const presentation = presentTourDiagnostic(diagnosis, { previewHref: reviewHref, published })
 const { tasks, waiting, completed } = projectTourPublicationTasks(diagnosis)
+const openTasks = [...tasks, ...waiting]
 const selection = diagnosis.context.selection
 const edit = new URL(
 	buildTourPlaybookHref(
@@ -26,90 +47,112 @@ if (selection.state === "resolved") {
 	edit.searchParams.set("variantId", selection.variantId)
 	edit.searchParams.set("ratePlanId", selection.ratePlanId)
 }
+
+const taskDetail = (task: (typeof openTasks)[number]) => {
+	const impact = tourPublicationTaskImpact(task)
+	const rest = task.messages.filter((message) => message !== impact)
+	return rest.length ? rest.join(" ") : null
+}
+
+const taskIcon = (task: (typeof openTasks)[number]) => {
+	const id = tourPublicationTaskIconId(task)
+	if (id === "location") return MapPin
+	if (id === "photos") return Image
+	if (id === "participants") return Users
+	if (id === "logistics") return ListChecks
+	if (id === "option") return Layers
+	if (id === "authorization") return ShieldCheck
+	return ClipboardList
+}
 ---
 
 <div class="space-y-5" data-tour-review-status>
 	{
-		!published && tasks.length ? (
+		!published && openTasks.length ? (
 			<div class="space-y-3" data-tour-publication-tasks>
-				<h2 class="text-sm font-semibold text-slate-950">
-					{`${tasks.length} ${tasks.length === 1 ? "tarea pendiente" : "tareas pendientes"}`}
-				</h2>
-				<ul class="list-none divide-y divide-slate-200 p-0">
-					{tasks.map((task, index) => (
-						<li
-							class="flex flex-col gap-3 py-4 first:pt-0 sm:flex-row sm:items-center sm:justify-between"
+				{openTasks.map((task) => {
+					const status = tourPublicationTaskStatus(task)
+					const Icon = taskIcon(task)
+					const href = task.href ?? reviewHref
+					const actionLabel = "unknown" in task && task.unknown ? "Reintentar" : "Completar"
+					return (
+						<a
+							href={href}
+							class={readinessRowClass(status)}
 							data-tour-publication-task={task.key}
+							aria-label={`${actionLabel}: ${task.label}`}
+							data-astro-reload={"unknown" in task && task.unknown ? true : undefined}
 						>
-							<div class="min-w-0 space-y-1">
-								<h3 class="text-sm font-semibold text-slate-950">{task.label}</h3>
-								{task.messages.map((message) => (
-									<p class="text-sm leading-6 text-slate-600">{message}</p>
-								))}
+							<span class={readinessIconWellClass(status)} data-tour-publication-task-icon>
+								<Icon class="size-4" aria-hidden="true" />
+							</span>
+							<div class="min-w-0 flex-1">
+								<p class="text-sm font-semibold text-slate-950">
+									{tourPublicationTaskHeadline(task)}
+								</p>
+								<p class="mt-1 text-sm leading-5 text-slate-500">
+									{tourPublicationTaskImpact(task)}
+								</p>
+								{taskDetail(task) ? (
+									<p class="mt-1 text-sm leading-5 text-slate-600">{taskDetail(task)}</p>
+								) : null}
 							</div>
-							<Button
-								href={task.href ?? reviewHref}
-								variant={index === 0 ? "primary" : "secondary"}
-								aria-label={`${task.unknown ? "Reintentar" : "Completar"}: ${task.label}`}
-								size="sm"
-								class="shrink-0"
-								reload={task.unknown}
-							>
-								{task.unknown ? "Reintentar" : "Completar"}
-							</Button>
-						</li>
-					))}
-				</ul>
+							<div class="flex flex-wrap items-center gap-2 sm:justify-end">
+								<Badge variant={status.variant}>{status.label}</Badge>
+								<ChevronRight
+									class="size-4 shrink-0 text-slate-400 transition group-hover:text-[var(--fastt-color-selection)]"
+									aria-hidden="true"
+								/>
+							</div>
+						</a>
+					)
+				})}
 			</div>
 		) : null
 	}
+
 	{
-		!published && waiting.length ? (
-			<aside class="space-y-3 border-t border-slate-200 pt-5" data-tour-publication-waiting>
-				<h2 class="text-sm font-semibold text-slate-950">
-					{waiting.some((task) => /in_review|under_review/.test(task.code))
-						? "En revisión por Fastt"
-						: "Pendiente de Fastt"}
-				</h2>
-				{waiting.map((task) => (
-					<div class="space-y-1">
-						<h3 class="text-sm font-semibold text-slate-950">{task.label}</h3>
-						{task.messages.map((message) => (
-							<p class="text-sm leading-6 text-slate-600">{message}</p>
-						))}
-					</div>
-				))}
-				<Button href={reviewHref} reload variant="secondary" size="sm">
-					Comprobar estado
-				</Button>
-			</aside>
-		) : null
-	}
-	<details class="fastt-soft-box group" data-tour-publication-completed>
-		<summary
-			class="tour-preparation-summary cursor-pointer list-none px-4 py-3 text-xs font-semibold tracking-wide text-slate-600 uppercase [&::-webkit-details-marker]:hidden"
-			>Requisitos cumplidos ({completed.length})</summary
-		>
-		<ul class="list-none space-y-2 border-t border-slate-200 px-4 py-3 text-sm text-slate-700">
-			{
-				completed.map((item) => (
-					<li class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+		completed.length ? (
+			<details class="group border-t border-slate-200 pt-4" data-tour-publication-completed>
+				<summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-sky-50 [&::-webkit-details-marker]:hidden">
+					<span class="inline-flex items-center gap-2">
+						<CircleCheck class="size-4 text-emerald-600" aria-hidden="true" />
+						Requisitos cumplidos ({completed.length})
+					</span>
+					<span class="text-xs font-medium text-slate-500 group-open:hidden">Mostrar</span>
+					<span class="hidden text-xs font-medium text-slate-500 group-open:inline">Ocultar</span>
+				</summary>
+				<div class="space-y-3 border-t border-slate-100 p-3">
+					{completed.map((item) => (
 						<a
 							href={item.href}
-							class="font-medium text-slate-900 underline-offset-4 hover:underline"
+							class={readinessRowClass({ variant: "success" }, true)}
+							data-tour-publication-completed-item={item.id}
 						>
-							{item.label}
+							<span class={readinessIconWellClass({ variant: "success" }, true)}>
+								<CircleCheck class="size-4" aria-hidden="true" />
+							</span>
+							<div class="min-w-0 flex-1">
+								<p class="text-sm font-semibold text-slate-950">{item.label}</p>
+								<p class="mt-1 text-sm leading-5 text-slate-500">Sin bloqueos directos</p>
+							</div>
+							<div class="flex flex-wrap items-center gap-2 sm:justify-end">
+								<Badge variant="success">Completo</Badge>
+								<ChevronRight
+									class="size-4 shrink-0 text-slate-400 transition group-hover:text-[var(--fastt-color-selection)]"
+									aria-hidden="true"
+								/>
+							</div>
 						</a>
-						<span class="text-xs font-semibold text-emerald-700">Completo</span>
-					</li>
-				))
-			}
-		</ul>
-	</details>
+					))}
+				</div>
+			</details>
+		) : null
+	}
+
 	{
 		!published &&
-		!tasks.length &&
-		!waiting.length &&
+		!openTasks.length &&
 		!summary.activation.complete &&
 		presentation.activation.allowed &&
 		selection.state === "resolved" ? (
@@ -132,6 +175,7 @@ if (selection.state === "resolved") {
 			</div>
 		) : null
 	}
+
 	{
 		!published ? (
 			<div class="flex justify-end border-t border-slate-200 pt-4">
