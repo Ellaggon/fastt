@@ -406,6 +406,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 			"Canal de soporte del proveedor para consultas de verificación, cobros históricos y operación de cuenta.",
 	},
 	{
+		pattern: "/provider/compliance/requests",
+		status: "transitional",
+		context: "governance",
+		owner: "Provider Setup",
+		rationale:
+			"Canal piloto para responder solicitudes de información publicadas por el equipo de revisión.",
+	},
+	{
 		pattern: "/provider/settings/**",
 		status: "canonical",
 		context: "governance",
