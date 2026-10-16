@@ -24,7 +24,7 @@ it("projects five rail stages aligned with the active step", () => {
 	const stages = projectOptionWizardStages(context, "price")
 	expect(stages).toHaveLength(5)
 	expect(stages.map((stage) => stage.label)).toEqual([
-		"Configurar opción",
+		"Opción y horario",
 		"Precio",
 		"Condiciones",
 		"Fechas y cupos",
@@ -53,6 +53,9 @@ it("uses five explicit steps and preserves commercial selection in every destina
 		expect(optionWizardContext(url)).toEqual(context)
 		expect(url.searchParams.get("step")).toBe(step.id)
 	}
+	expect(new URL(optionWizardHref(context, "price"), "http://localhost").pathname).toBe(
+		"/rates/plans/manage"
+	)
 	expect(optionWizardHref(context, "calendar")).toContain("schedule=1")
 	expect(optionWizardHref(context, "review")).toContain("/departures/option-a/review")
 })

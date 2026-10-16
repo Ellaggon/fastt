@@ -418,7 +418,7 @@ if (!isTour) {
 	variantId={previewVariantId}
 	ratePlanId={previewRatePlanId}
 	productDisplayName={aggregate.displayName}
-	hideFooter={playbook.active && stepId === "preview"}
+	hideFooter={playbook.active && stepId === "preview" && playbookId !== "complete-to-publish"}
 >
 	<section class="space-y-7">
 		{
@@ -544,6 +544,19 @@ if (!isTour) {
 							</p>
 						</div>
 					)
+				}
+
+				{
+					isTour && !isPublished && tourPresentation && !(readyToPublish && publicationEligible) ? (
+						<div class="flex justify-end">
+							<Button
+								href={`${routes.productDetail(productId)}?${new URLSearchParams({ ...(previewVariantId ? { variantId: previewVariantId } : {}), ...(previewRatePlanId ? { ratePlanId: previewRatePlanId } : {}) })}`}
+								variant="secondary"
+							>
+								{playbook.active ? "Salir y volver a la ficha" : "Volver a la ficha"}
+							</Button>
+						</div>
+					) : null
 				}
 
 				{

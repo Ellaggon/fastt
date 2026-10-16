@@ -94,7 +94,11 @@ it("preserves complete existing rows, closed dates and cancellations; concurrent
 		.select()
 		.from(DailyInventory)
 		.where(eq(DailyInventory.variantId, input.variantId))
-	for (const row of before) expect(after.find((item) => item.id === row.id)).toEqual(row)
+	const jan1 = after.find((item) => item.date === "2099-01-01")
+	const jan2 = after.find((item) => item.date === "2099-01-02")
+	expect(jan1?.totalInventory).toBe(8)
+	expect(jan1?.reservedCount).toBe(3)
+	expect(jan2).toEqual(before.find((item) => item.date === "2099-01-02"))
 	expect(after).toHaveLength(3)
 	await expect(
 		programTourDepartures(providerId, { ...input, capacity: 9 }, preview.token, key)
@@ -172,4 +176,60 @@ it("a failed availability refresh remains saved and an identical retry completes
 	expect(
 		await db.select().from(DailyInventory).where(eq(DailyInventory.variantId, input.variantId))
 	).toHaveLength(4)
+})
+
+it("keeps a proposed capacity separate until confirmation and preserves reservations and out-of-range dates", async () => {
+	const { providerId, input } = await fixture()
+	const variantId = input.variantId
+	await db.insert(DailyInventory).values([
+		{
+			id: crypto.randomUUID(),
+			variantId,
+			date: "2099-01-01",
+			totalInventory: 10,
+			reservedCount: 3,
+		},
+		{ id: crypto.randomUUID(), variantId, date: "2099-01-02", totalInventory: 0, reservedCount: 0 },
+		{
+			id: crypto.randomUUID(),
+			variantId,
+			date: "2099-01-05",
+			totalInventory: 10,
+			reservedCount: 2,
+		},
+	])
+	const proposed = { ...input, capacity: 12 }
+	const before = await db
+		.select()
+		.from(DailyInventory)
+		.where(eq(DailyInventory.variantId, variantId))
+	const preview = await previewTourDepartures(providerId, proposed)
+	expect(
+		await db.select().from(DailyInventory).where(eq(DailyInventory.variantId, variantId))
+	).toEqual(before)
+	await programTourDepartures(providerId, proposed, preview.token, crypto.randomUUID())
+	const rows = await db.select().from(DailyInventory).where(eq(DailyInventory.variantId, variantId))
+	expect(rows.find((row) => row.date === "2099-01-01")).toMatchObject({
+		totalInventory: 12,
+		reservedCount: 3,
+	})
+	expect(rows.find((row) => row.date === "2099-01-02")).toMatchObject({
+		totalInventory: 0,
+		reservedCount: 0,
+	})
+	expect(rows.find((row) => row.date === "2099-01-03")).toMatchObject({
+		totalInventory: 12,
+		reservedCount: 0,
+	})
+	expect(rows.find((row) => row.date === "2099-01-05")).toEqual(
+		before.find((row) => row.date === "2099-01-05")
+	)
+	const invalidReduction = { ...proposed, capacity: 2 }
+	const reductionPreview = await previewTourDepartures(providerId, invalidReduction)
+	await expect(
+		programTourDepartures(providerId, invalidReduction, reductionPreview.token, crypto.randomUUID())
+	).rejects.toThrow(/reservas/)
+	expect(
+		await db.select().from(DailyInventory).where(eq(DailyInventory.variantId, variantId))
+	).toEqual(rows)
 })

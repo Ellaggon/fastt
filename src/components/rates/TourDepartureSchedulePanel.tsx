@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from "react"
 import {
 	tourScheduleSchema,
+	tourScheduleConfirmation,
 	type TourScheduleContext,
 	type TourScheduleInput,
 	type TourSchedulePreview,
@@ -12,17 +13,30 @@ import {
 	calendarRecoveryReturnTo,
 	CalendarReadError,
 } from "@/lib/rates/calendarClientRequest"
-import { Button, DatesModal } from "@/components/ui-react"
+import { Button, DatesModal, Notice } from "@/components/ui-react"
 import { cn } from "@/components/ui-react/utils"
 
 const endpoint = "/api/inventory/program-tour-departures"
 const weekdays = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"]
 const weekdayShort = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
+const weekdayLetter: Record<number, string> = {
+	0: "D",
+	1: "L",
+	2: "M",
+	3: "X",
+	4: "J",
+	5: "V",
+	6: "S",
+}
 const weekdayOrder = [1, 2, 3, 4, 5, 6, 0] as const
 const formatDate = (date: string) =>
 	new Intl.DateTimeFormat("es", { dateStyle: "medium", timeZone: "UTC" }).format(
 		new Date(`${date}T12:00:00Z`)
 	)
+const formatPreviewChip = (date: string) => {
+	const day = new Date(`${date}T12:00:00Z`).getUTCDay()
+	return `${weekdayShort[day]} · ${formatDate(date)}`
+}
 export default function TourDepartureSchedulePanel({
 	variantId,
 	onSaved,
@@ -58,6 +72,7 @@ export default function TourDepartureSchedulePanel({
 	const [retryLoad, setRetryLoad] = useState(0)
 	const [auth, setAuth] = useState(false)
 	const [excludedDate, setExcludedDate] = useState("")
+	const [excludePanelOpen, setExcludePanelOpen] = useState(false)
 	const identity = useRef("")
 	const heading = useRef<HTMLHeadingElement>(null)
 	const inFlight = useRef(false)
@@ -67,6 +82,9 @@ export default function TourDepartureSchedulePanel({
 		onPendingChange(hasChanges || busy || result?.refresh === "pending")
 	}, [hasChanges, busy, result, onPendingChange])
 	useEffect(() => () => onPendingChange(false), [onPendingChange])
+	useEffect(() => {
+		if (input.excluded.length > 0 || fields.excluded) setExcludePanelOpen(true)
+	}, [input.excluded.length, fields.excluded])
 	useEffect(() => {
 		if (!open) return
 		heading.current?.focus()
@@ -214,8 +232,8 @@ export default function TourDepartureSchedulePanel({
 		<section
 			className={
 				embedded
-					? "fastt-workspace-panel overflow-visible border border-slate-200 bg-white p-5 text-slate-950 md:p-6"
-					: "rounded-xl border border-slate-200 bg-white p-5 text-slate-950"
+					? "fastt-workspace-panel overflow-visible border border-slate-200 bg-white p-3 text-slate-950 sm:p-5 md:p-6"
+					: "rounded-xl border border-slate-200 bg-white p-3 text-slate-950 sm:p-5"
 			}
 		>
 			{embedded ? null : (
@@ -329,7 +347,7 @@ export default function TourDepartureSchedulePanel({
 										<div
 											role="group"
 											aria-labelledby="tour-schedule-weekdays-label"
-											className="grid grid-cols-2 gap-2.5 min-[520px]:grid-cols-4 xl:grid-cols-7"
+											className="grid grid-cols-7 gap-1 sm:gap-2"
 										>
 											{weekdayOrder.map((day) => {
 												const active = input.weekdays.includes(day)
@@ -342,10 +360,11 @@ export default function TourDepartureSchedulePanel({
 														aria-pressed={active}
 														aria-label={weekdays[day]}
 														title={weekdays[day]}
-														className="fastt-button tour-schedule-weekday min-h-12 w-full cursor-pointer rounded-xl px-3 py-2.5 text-center text-sm font-semibold tracking-tight disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+														className="fastt-button tour-schedule-weekday min-h-10 w-full cursor-pointer rounded-lg px-0 py-2 text-center text-xs font-semibold tracking-tight disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none sm:min-h-12 sm:rounded-xl sm:px-2 sm:py-2.5 sm:text-sm"
 														onClick={() => toggleWeekday(day)}
 													>
-														{weekdayShort[day]}
+														<span className="sm:hidden">{weekdayLetter[day]}</span>
+														<span className="hidden sm:inline">{weekdayShort[day]}</span>
 													</button>
 												)
 											})}
@@ -355,120 +374,193 @@ export default function TourDepartureSchedulePanel({
 												{fields.weekdays}
 											</p>
 										)}
+										<p className="text-sm text-slate-500">
+											Sólo se aplicará a las fechas del periodo y los días seleccionados. Las fechas
+											no seleccionadas conservarán su cupo actual.
+										</p>
 									</div>
-									<div className="space-y-3 pt-2">
-										<div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-											<div className="min-w-0">
-												<p className="fastt-prompt-field__label">Excluir fechas</p>
-												<p className="mt-0.5 text-sm text-slate-500">
-													Opcional. Días concretos del rango que no quieres programar.
+									<div className="pt-2">
+										<details
+											className="fastt-card group rounded-xl border border-slate-200 bg-slate-50/70 p-0 open:bg-white"
+											open={excludePanelOpen}
+											onToggle={(event) => setExcludePanelOpen(event.currentTarget.open)}
+										>
+											<summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 [&::-webkit-details-marker]:hidden">
+												<span className="min-w-0 text-sm font-semibold text-slate-900">
+													¿Quieres excluir alguna fecha?
+												</span>
+												<span className="flex shrink-0 items-center gap-2 text-xs font-medium text-slate-500">
+													{input.excluded.length > 0
+														? `${input.excluded.length} excluida${input.excluded.length === 1 ? "" : "s"}`
+														: "Opcional"}
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														viewBox="0 0 20 20"
+														fill="currentColor"
+														aria-hidden="true"
+														className={cn(
+															"size-4 text-slate-400 transition-transform motion-reduce:transition-none",
+															excludePanelOpen && "rotate-180"
+														)}
+													>
+														<path
+															fillRule="evenodd"
+															d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z"
+															clipRule="evenodd"
+														/>
+													</svg>
+												</span>
+											</summary>
+											<div className="space-y-3 border-t border-slate-200 px-3 pt-3 pb-3">
+												<p className="text-sm text-slate-500">
+													Días concretos del rango que no quieres programar.
 												</p>
-											</div>
-											{input.excluded.length > 0 && (
-												<p className="shrink-0 text-xs font-medium text-slate-500">
-													{input.excluded.length} excluida
-													{input.excluded.length === 1 ? "" : "s"}
-												</p>
-											)}
-										</div>
-										{input.excluded.length > 0 && (
-											<ul className="flex flex-wrap gap-2">
-												{input.excluded.map((date) => (
-													<li key={date}>
-														<span className="inline-flex max-w-full items-center gap-0.5 rounded-md bg-slate-100 py-1 pr-1 pl-2.5 text-sm text-slate-800">
-															<span className="truncate">{formatDate(date)}</span>
-															<Button
-																type="button"
-																variant="ghost"
-																size="sm"
-																className="h-8 shrink-0 px-2 text-slate-600"
-																disabled={busy || !!result}
-																aria-label={`Incluir nuevamente ${formatDate(date)}`}
-																onClick={() =>
-																	change({
-																		excluded: input.excluded.filter((value) => value !== date),
-																	})
-																}
-															>
-																Quitar
-															</Button>
-														</span>
-													</li>
-												))}
-											</ul>
-										)}
-										{fields.excluded && (
-											<p className="text-xs text-red-600" role="alert">
-												{fields.excluded}
-											</p>
-										)}
-										{preview && (
-											<div role="status" className="rounded-lg bg-slate-50 p-4">
-												<p className="font-semibold">
-													Se añadirán {preview.newDates.length} salidas
-												</p>
-												<p>
-													{preview.preservedDates.length} fechas configuradas se conservan sin
-													cambios.
-												</p>
-												{preview.blockedDates.length > 0 && (
-													<p>
-														{preview.blockedDates.length} fechas excluidas por cancelación, bloqueo
-														externo o retención.
+												{input.excluded.length > 0 && (
+													<ul className="flex flex-wrap gap-2">
+														{input.excluded.map((date) => (
+															<li key={date}>
+																<span className="inline-flex max-w-full items-center gap-0.5 rounded-md bg-slate-100 py-1 pr-1 pl-2.5 text-sm text-slate-800">
+																	<span className="truncate">{formatDate(date)}</span>
+																	<Button
+																		type="button"
+																		variant="ghost"
+																		size="sm"
+																		className="h-8 shrink-0 px-2 text-slate-600"
+																		disabled={busy || !!result}
+																		aria-label={`Incluir nuevamente ${formatDate(date)}`}
+																		onClick={() =>
+																			change({
+																				excluded: input.excluded.filter((value) => value !== date),
+																			})
+																		}
+																	>
+																		Quitar
+																	</Button>
+																</span>
+															</li>
+														))}
+													</ul>
+												)}
+												{fields.excluded && (
+													<p className="text-xs text-red-600" role="alert">
+														{fields.excluded}
 													</p>
 												)}
-												<details>
-													<summary className="cursor-pointer py-2">Ver fechas nuevas</summary>
-													<p>
-														{preview.newDates.map(formatDate).join(", ") ||
-															"Todas las fechas seleccionadas ya existen o están excluidas."}
+												{!result && (
+													<div className="flex min-w-0 items-end gap-2">
+														<DatesModal
+															id="tour-schedule-exclude"
+															label="Fecha a excluir"
+															placeholder="Seleccionar fecha"
+															compact
+															className="min-w-0 flex-1"
+															value={excludedDate}
+															min={String(input.from || context.today)}
+															max={String(input.to || "") || undefined}
+															disabled={busy || !!result}
+															onChange={setExcludedDate}
+														/>
+														<Button
+															type="button"
+															variant="secondary"
+															size="lg"
+															className="h-11 shrink-0 px-4"
+															disabled={!excludedDate || busy || !!result}
+															onClick={() => {
+																if (!input.excluded.includes(excludedDate))
+																	change({
+																		excluded: [...input.excluded, excludedDate],
+																	})
+																setExcludedDate("")
+															}}
+														>
+															Añadir
+														</Button>
+													</div>
+												)}
+											</div>
+										</details>
+										{preview && (
+											<div role="status" className="mt-8 space-y-3 sm:mt-10" data-schedule-preview>
+												<div className="space-y-1">
+													<p className="text-base font-semibold text-slate-900">
+														{preview.newDates.length}{" "}
+														{preview.newDates.length === 1 ? "fecha nueva" : "fechas nuevas"} para
+														programar
 													</p>
-												</details>
+													<p className="text-sm leading-6 text-slate-600">
+														Se revisarán {preview.preservedDates.length} fechas existentes del
+														periodo. Las abiertas pasarán a {input.capacity} cupos totales; las
+														cerradas con 0 cupos no se reabren.
+													</p>
+													{preview.blockedDates.length > 0 && (
+														<p className="text-sm leading-6 text-slate-600">
+															{preview.blockedDates.length} fechas excluidas por cancelación,
+															bloqueo externo o retención.
+														</p>
+													)}
+												</div>
+												{preview.newDates.length > 0 ? (
+													<details className="group">
+														<summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-1 text-sm font-semibold text-slate-900 [&::-webkit-details-marker]:hidden">
+															<span>Ver fechas nuevas</span>
+															<span className="flex shrink-0 items-center gap-2 text-xs font-medium text-slate-500">
+																{preview.newDates.length}
+																<svg
+																	xmlns="http://www.w3.org/2000/svg"
+																	viewBox="0 0 20 20"
+																	fill="currentColor"
+																	aria-hidden="true"
+																	className="size-4 text-slate-400 transition-transform group-open:rotate-180 motion-reduce:transition-none"
+																>
+																	<path
+																		fillRule="evenodd"
+																		d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z"
+																		clipRule="evenodd"
+																	/>
+																</svg>
+															</span>
+														</summary>
+														<ul className="flex flex-wrap gap-1.5 pt-2 pb-1">
+															{preview.newDates.map((date) => (
+																<li key={date}>
+																	<span className="inline-flex max-w-full items-center rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-800 sm:text-sm">
+																		<span className="truncate">{formatPreviewChip(date)}</span>
+																	</span>
+																</li>
+															))}
+														</ul>
+													</details>
+												) : (
+													<p className="text-sm text-slate-600">
+														Todas las fechas seleccionadas ya existen o están excluidas.
+													</p>
+												)}
 											</div>
 										)}
 										{!result && (
-											<div className="grid items-end gap-4 sm:grid-cols-3">
-												<DatesModal
-													id="tour-schedule-exclude"
-													label="Fecha a excluir"
-													placeholder="Seleccionar fecha"
-													className="min-w-0"
-													value={excludedDate}
-													min={String(input.from || context.today)}
-													max={String(input.to || "") || undefined}
-													disabled={busy || !!result}
-													onChange={setExcludedDate}
-												/>
-												<div className="flex justify-start">
-													<Button
-														type="button"
-														variant="secondary"
-														size="lg"
-														className="h-11 shrink-0 px-4"
-														disabled={!excludedDate || busy || !!result}
-														onClick={() => {
-															if (!input.excluded.includes(excludedDate))
-																change({ excluded: [...input.excluded, excludedDate] })
-															setExcludedDate("")
-														}}
+											<div className={cn("space-y-3", preview ? "mt-6 pt-2" : "mt-4 pt-2")}>
+												{hasChanges && !preview ? (
+													<Notice
+														variant="warning"
+														title="Programación sin guardar."
+														className="px-3 py-2.5 text-sm leading-6"
+														data-schedule-draft-status
 													>
-														Añadir
-													</Button>
-												</div>
-												<div className="flex justify-end sm:col-start-3">
+														{input.capacity} cupos totales por fecha seleccionada. Revisa las fechas
+														y confirma para aplicar el cambio.
+													</Notice>
+												) : null}
+												<div className="flex justify-stretch sm:justify-end">
 													<Button
 														type="button"
 														variant="selection"
 														size="lg"
 														className="fastt-playbook-cta w-full min-w-[10rem] shrink-0 sm:w-auto"
-														disabled={busy || (!!preview && !preview.newDates.length)}
+														disabled={tourScheduleConfirmation(preview, busy).disabled}
 														onClick={() => void submit(!!preview)}
 													>
-														{busy
-															? "Procesando…"
-															: preview
-																? `Programar ${preview.newDates.length} salidas`
-																: "Revisar fechas"}
+														{tourScheduleConfirmation(preview, busy).label}
 													</Button>
 												</div>
 											</div>
@@ -478,7 +570,8 @@ export default function TourDepartureSchedulePanel({
 										<div role="status">
 											<p>
 												{result.createdDates.length} salidas guardadas;{" "}
-												{result.preservedDates.length} fechas conservadas.
+												{result.preservedDates.length} fechas existentes revisadas. Los cupos
+												reservados y los cierres se conservan.
 											</p>
 											{result.refresh === "pending" ? (
 												<>

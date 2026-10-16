@@ -1,5 +1,9 @@
 import { expect, it } from "vitest"
-import { scheduleDates, tourScheduleSchema } from "@/lib/tours/tourScheduleContract"
+import {
+	scheduleDates,
+	tourScheduleSchema,
+	tourScheduleConfirmation,
+} from "@/lib/tours/tourScheduleContract"
 const input = {
 	variantId: "option",
 	from: "2027-01-01",
@@ -31,4 +35,25 @@ it("rejects impossible dates, absent weekdays, unknown weekdays and excessive ra
 		{ excluded: ["2026-12-31"] },
 	])
 		expect(tourScheduleSchema.safeParse({ ...input, ...change }).success).toBe(false)
+})
+
+it("allows changing existing capacity without requiring new dates and blocks empty or busy confirmation", () => {
+	const preview = {
+		token: "preview",
+		context: {} as any,
+		newDates: [],
+		preservedDates: ["2027-01-04"],
+		blockedDates: [],
+	}
+	expect(tourScheduleConfirmation(preview, false)).toEqual({
+		disabled: false,
+		label: "Confirmar programación",
+	})
+	expect(tourScheduleConfirmation(preview, true).disabled).toBe(true)
+	expect(
+		tourScheduleConfirmation(
+			{ ...preview, preservedDates: [], blockedDates: ["2027-01-04"] },
+			false
+		).disabled
+	).toBe(true)
 })

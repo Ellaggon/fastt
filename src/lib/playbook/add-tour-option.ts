@@ -83,9 +83,11 @@ export function optionWizardHref(context: OptionWizardContext, step: OptionStep)
 				? `/product/${product}/departures/${encodeURIComponent(context.variantId)}/review`
 				: step === "calendar"
 					? "/rates/calendar"
-					: context.ratePlanId
-						? `/rates/plans/${encodeURIComponent(context.ratePlanId)}`
-						: "/rates/plans/manage"
+					: step === "price"
+						? "/rates/plans/manage"
+						: context.ratePlanId
+							? `/rates/plans/${encodeURIComponent(context.ratePlanId)}`
+							: "/rates/plans/manage"
 	const params = new URLSearchParams({
 		playbook: ADD_TOUR_OPTION,
 		step,

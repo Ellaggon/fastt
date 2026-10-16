@@ -1,4 +1,8 @@
-import { persistOptionDestination } from "@/lib/forms/tourOptionNavigation"
+import { navigateOptionDestination } from "@/lib/forms/tourOptionNavigation"
+import {
+	setPlaybookFooterContinueBusy,
+	setPlaybookNavigationBusy,
+} from "@/lib/forms/playbookFormBusy"
 import { optionWizardContext, optionWizardHref } from "@/lib/playbook/add-tour-option"
 import {
 	CalendarReadError,
@@ -113,6 +117,7 @@ function tourGuidedPlaybookContinueHref(
 }
 
 const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+const WEEKDAYS_COMPACT = ["L", "M", "X", "J", "V", "S", "D"]
 const RANGE_PRESETS = [
 	["visible_weekend", "Fin de semana"],
 	["visible_month", "Vista visible"],
@@ -140,6 +145,14 @@ async function fetchCalendarSurface(
 	if (request.variantId) query.set("variantId", request.variantId)
 	const body = await readCalendarResponse(`/api/rates/calendar?${query.toString()}`, signal)
 	const surface = body.surface as SingleCalendarSurface
+	if (
+		(request.variantId && surface.selectedVariantId !== request.variantId) ||
+		(request.ratePlanId && surface.selectedRatePlanId !== request.ratePlanId)
+	) {
+		throw new CalendarReadError(
+			"El calendario recibido no corresponde a la opción seleccionada. Vuelve a intentarlo."
+		)
+	}
 	surfaceCache.set(
 		surfaceCacheKey(surface.selectedRatePlanId, surface.selectedVariantId, surface.month),
 		surface
@@ -219,8 +232,8 @@ function cellPresentation(
 		const hasOpenInventory = day.totalUnits > 0 && day.availableUnits > 0
 		return {
 			primary: showInventoryDetail
-				? `${day.availableUnits}/${day.totalUnits} libres`
-				: `${day.availableUnits}/${day.totalUnits} cupos`,
+				? `${day.availableUnits} de ${day.totalUnits} libres`
+				: `${day.availableUnits} de ${day.totalUnits} disponibles`,
 			secondary: showInventoryDetail
 				? `${day.bookedUnits} reservados · ${day.heldUnits} retenidos`
 				: hasOpenInventory
@@ -366,6 +379,9 @@ export default function SingleCalendarWorkspace({
 	const activeRequest = useRef<AbortController | null>(null)
 	const requestSequence = useRef(0)
 	const mounted = useRef(true)
+	const savedCalendarPanelRef = useRef<HTMLDivElement>(null)
+	const savedCalendarRevealTimer = useRef<number | null>(null)
+	const [savedCalendarReveal, setSavedCalendarReveal] = useState(false)
 	const today = guidedAvailability
 		? providerCalendarDate(guidedAvailability.timezone)
 		: localIsoDate()
@@ -424,16 +440,18 @@ export default function SingleCalendarWorkspace({
 			saving: !!guidedApplyingRange,
 			hasAvailability: guidedIsReady,
 		})
-		button.textContent = schedulePending
-			? "Confirma la programación para continuar"
-			: guidedAvailability.playbook === "add-tour-option" && !state.disabled
-				? "Continuar a revisión"
-				: state.label
-		button.disabled = state.disabled || schedulePending
+		if (button.getAttribute("aria-busy") !== "true") {
+			button.textContent = schedulePending
+				? "Confirma la programación para continuar"
+				: guidedAvailability.playbook === "add-tour-option" && !state.disabled
+					? "Continuar a revisión"
+					: state.label
+			button.disabled = state.disabled || schedulePending
+		}
 		button.removeAttribute("title")
 		const continueToPublication = () => {
 			if (schedulePending) return
-			void finalizeGuidedRate()
+			void finalizeGuidedRate(button)
 		}
 		button.addEventListener("click", continueToPublication)
 		return () => button.removeEventListener("click", continueToPublication)
@@ -488,7 +506,11 @@ export default function SingleCalendarWorkspace({
 	) {
 		const requestedRatePlanId =
 			params.ratePlanId || surface?.selectedRatePlanId || initialRatePlanId
-		const requestedVariantId = params.variantId || surface?.selectedVariantId || initialVariantId
+		const requestedVariantId =
+			params.variantId ||
+			(params.ratePlanId && params.ratePlanId !== surface?.selectedRatePlanId
+				? ""
+				: surface?.selectedVariantId || initialVariantId)
 		const requestedMonth = params.month || surface?.month || initialMonth
 		setGridDirection(
 			surface && requestedMonth < surface.month
@@ -518,6 +540,7 @@ export default function SingleCalendarWorkspace({
 			if (options.updateUrl !== false) {
 				const nextUrl = new URL(window.location.href)
 				nextUrl.searchParams.set("ratePlanId", cached.selectedRatePlanId)
+				nextUrl.searchParams.set("variantId", cached.selectedVariantId)
 				nextUrl.searchParams.set("month", cached.month)
 				nextUrl.searchParams.set("focus", mode)
 				window.history.replaceState(null, "", nextUrl)
@@ -552,6 +575,7 @@ export default function SingleCalendarWorkspace({
 			if (options.updateUrl !== false) {
 				const nextUrl = new URL(window.location.href)
 				nextUrl.searchParams.set("ratePlanId", nextSurface.selectedRatePlanId)
+				nextUrl.searchParams.set("variantId", nextSurface.selectedVariantId)
 				nextUrl.searchParams.set("month", nextSurface.month)
 				nextUrl.searchParams.set("focus", mode)
 				window.history.replaceState(null, "", nextUrl)
@@ -633,6 +657,30 @@ export default function SingleCalendarWorkspace({
 		return () => window.clearTimeout(timeout)
 	}, [updatedDates])
 
+	useEffect(
+		() => () => {
+			if (savedCalendarRevealTimer.current) window.clearTimeout(savedCalendarRevealTimer.current)
+		},
+		[]
+	)
+
+	function revealSavedAvailabilityCalendar() {
+		const target = savedCalendarPanelRef.current
+		if (!target) return
+		const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+		target.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" })
+		if (savedCalendarRevealTimer.current) window.clearTimeout(savedCalendarRevealTimer.current)
+		if (reducedMotion) {
+			setSavedCalendarReveal(false)
+			return
+		}
+		setSavedCalendarReveal(true)
+		savedCalendarRevealTimer.current = window.setTimeout(() => {
+			setSavedCalendarReveal(false)
+			savedCalendarRevealTimer.current = null
+		}, 1400)
+	}
+
 	const recovery = readError ? (
 		<Notice variant="error">
 			<p role="alert">{readError.message}</p>
@@ -665,6 +713,10 @@ export default function SingleCalendarWorkspace({
 					setGuidedInventoryDays((count) => count + saved.createdDates.length)
 					surfaceCache.clear()
 					await loadSurface({}, { force: true })
+					if (saved.createdDates.length) setUpdatedDates(new Set(saved.createdDates))
+					window.requestAnimationFrame(() => {
+						window.requestAnimationFrame(() => revealSavedAvailabilityCalendar())
+					})
 				}}
 			/>
 		) : null
@@ -917,14 +969,17 @@ export default function SingleCalendarWorkspace({
 		}
 	}
 
-	async function finalizeGuidedRate() {
+	async function finalizeGuidedRate(trigger: HTMLElement) {
+		if (trigger.getAttribute("aria-busy") === "true") return
 		if (isTourGuidedAvailability && guidedAvailability) {
 			if (loading || readError || saveInFlight.current) return
 			const wizard = optionWizardContext(new URL(window.location.href))
 			if (wizard) {
+				setGuidedFeedback("")
 				try {
-					window.location.assign(await persistOptionDestination(optionWizardHref(wizard, "review")))
+					await navigateOptionDestination(optionWizardHref(wizard, "review"), trigger)
 				} catch (error) {
+					setGuidedFeedbackVariant("error")
 					setGuidedFeedback(
 						error instanceof Error ? error.message : "No pudimos guardar la continuación."
 					)
@@ -936,13 +991,27 @@ export default function SingleCalendarWorkspace({
 				readySurface.selectedVariantId,
 				readySurface.selectedRatePlanId ?? ""
 			)
-			if (href)
-				await continueCalendarAfterSave({
-					dirty: guidedDirty,
-					save: applyGuidedAvailability,
-					href,
-					navigate: (target) => window.location.assign(target),
-				})
+			if (href) {
+				setPlaybookFooterContinueBusy(trigger, true, guidedDirty ? "Guardando…" : "Cargando…")
+				try {
+					const continued = await continueCalendarAfterSave({
+						dirty: guidedDirty,
+						save: applyGuidedAvailability,
+						href,
+						navigate: (target) => {
+							setPlaybookNavigationBusy(trigger)
+							window.location.assign(target)
+						},
+					})
+					if (!continued) setPlaybookFooterContinueBusy(trigger, false)
+				} catch (error) {
+					setPlaybookFooterContinueBusy(trigger, false)
+					setGuidedFeedbackVariant("error")
+					setGuidedFeedback(
+						error instanceof Error ? error.message : "No pudimos continuar. Reintenta."
+					)
+				}
+			}
 			return
 		}
 		if ((!isAddRoomGuidedAvailability && !isTourGuidedAvailability) || !guidedIsReady) {
@@ -1265,6 +1334,10 @@ export default function SingleCalendarWorkspace({
 					? closedDays === 0
 					: readySurface.conditions.complete
 	const guidedNights = guidedNightCount()
+	const isTourSchedulingAvailability = tourScheduling && mode === "availability"
+	const workspaceSpacing = isTourSchedulingAvailability
+		? "space-y-5 sm:space-y-7"
+		: "space-y-3 sm:space-y-5"
 	const tourGuidedSummary: TourGuidedAvailabilitySnapshot | null =
 		guidedSavedConfig ??
 		(isTourGuidedAvailability && guidedIsReady && guidedNights > 0 && guidedAvailability
@@ -1280,9 +1353,14 @@ export default function SingleCalendarWorkspace({
 				}
 			: null)
 	return (
-		<div className="space-y-5" aria-busy={loading}>
+		<div className={workspaceSpacing} aria-busy={loading}>
 			{recovery}
 			{tourSchedulePanel}
+			{tourScheduling && guidedFeedback && (
+				<Notice variant={guidedFeedbackVariant}>
+					<p role="alert">{guidedFeedback}</p>
+				</Notice>
+			)}
 			{isGuidedAvailability && guidedAvailability && !tourScheduling && (
 				<Card as="section" className="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
 					{tourGuidedCollapsed && tourGuidedSummary ? (
@@ -1495,7 +1573,7 @@ export default function SingleCalendarWorkspace({
 												{isAddRoomGuidedAvailability && guidedIsReady && !guidedTerminalHref ? (
 													<Button
 														type="button"
-														onClick={() => void finalizeGuidedRate()}
+														onClick={(event) => void finalizeGuidedRate(event.currentTarget)}
 														disabled={loading || guidedFinalizing}
 														variant="selection"
 														className="fastt-playbook-cta"
@@ -1755,250 +1833,270 @@ export default function SingleCalendarWorkspace({
 				</Card>
 			) : null}
 
-			<Card
-				as="section"
-				className="fastt-workspace-panel relative overflow-hidden p-0 text-slate-900"
+			<div
+				ref={savedCalendarPanelRef}
+				className={isTourSchedulingAvailability ? "scroll-mt-20 sm:scroll-mt-24" : undefined}
+				data-tour-saved-calendar-anchor={isTourSchedulingAvailability ? "true" : undefined}
 			>
-				{loading && isGuidedAvailability && (
-					<span className="calendar-loading-frame" aria-hidden="true">
-						<span className="calendar-loading-bar" />
-					</span>
-				)}
-				<div className="flex flex-wrap items-center gap-3 px-4 pt-4 pb-2 sm:justify-between">
-					{isGuidedAvailability ? (
-						<div className="flex items-center gap-2">
-							<IconButton
-								onClick={() => void loadSurface({ month: readySurface.previousMonth })}
-								label="Mes anterior"
-								size="sm"
-							>
-								‹
-							</IconButton>
-							<h2 className="text-base font-semibold text-slate-950">
-								{monthLabel(readySurface.month)}
-							</h2>
-							<IconButton
-								onClick={() => void loadSurface({ month: readySurface.nextMonth })}
-								label="Mes siguiente"
-								size="sm"
-							>
-								›
-							</IconButton>
-						</div>
-					) : (
-						<div className="min-w-0">
-							<p className="font-semibold text-slate-950">
-								{selection.count
-									? formatRange(selection.from, selection.to, true)
-									: mode === "conditions"
-										? readySurface.conditions.summary
-										: "Selecciona una fecha o rango"}
-							</p>
-							{selection.count > 0 && (
-								<p className="text-xs text-slate-500">
-									{selection.count} {selection.count === 1 ? "noche" : "noches"} ·{" "}
-									{readySurface.selectedRatePlanName}
-								</p>
-							)}
-						</div>
+				<Card
+					as="section"
+					data-calendar-month-panel
+					className={`fastt-workspace-panel relative overflow-hidden text-slate-900 max-sm:!p-3 md:!p-6 max-sm:rounded-lg${
+						savedCalendarReveal ? "calendar-month-panel--saved-reveal" : ""
+					}`}
+				>
+					{loading && isGuidedAvailability && (
+						<span className="calendar-loading-frame" aria-hidden="true">
+							<span className="calendar-loading-bar" />
+						</span>
 					)}
-					{isGuidedAvailability ? (
+					{isTourSchedulingAvailability && (
 						<p
-							className={`text-xs font-medium ${
-								summaryIsHealthy ? "text-slate-500" : "text-amber-700"
-							}`}
+							className="px-0 pt-1 pb-1 text-sm font-semibold text-slate-600 sm:px-4 sm:pt-2"
+							data-saved-availability-label
 						>
-							{summary}
+							Cupos guardados por fecha
 						</p>
-					) : (
-						<>
-							<div className="hidden flex-wrap gap-1.5 sm:flex" aria-label="Atajos de rango">
-								{RANGE_PRESETS.map(([id, label]) => (
-									<button
-										key={id}
-										type="button"
-										onClick={() => applyPreset(id)}
-										className="inline-flex h-8 items-center rounded-full px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-									>
-										{label}
-									</button>
-								))}
+					)}
+					<div className="flex items-center justify-between gap-2 px-0 pt-2 pb-1 sm:flex-wrap sm:gap-3 sm:px-4 sm:pt-4 sm:pb-2">
+						{isGuidedAvailability ? (
+							<div className="flex min-w-0 flex-1 items-center gap-0.5 sm:flex-initial sm:gap-2">
+								<IconButton
+									onClick={() => void loadSurface({ month: readySurface.previousMonth })}
+									label="Mes anterior"
+									size="sm"
+									className="max-sm:size-7 max-sm:min-w-7 max-sm:shrink-0"
+								>
+									‹
+								</IconButton>
+								<h2 className="truncate text-sm font-semibold text-slate-950 sm:text-base">
+									{monthLabel(readySurface.month)}
+								</h2>
+								<IconButton
+									onClick={() => void loadSurface({ month: readySurface.nextMonth })}
+									label="Mes siguiente"
+									size="sm"
+									className="max-sm:size-7 max-sm:min-w-7 max-sm:shrink-0"
+								>
+									›
+								</IconButton>
 							</div>
-							<details className="relative sm:hidden">
-								<summary className="fastt-button inline-flex min-h-8 cursor-pointer list-none items-center rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600">
-									Rangos
-								</summary>
-								<div className="fastt-soft-box absolute top-full right-0 z-30 mt-2 w-44 space-y-1 border border-slate-200 bg-white p-1.5 shadow-lg">
+						) : (
+							<div className="min-w-0">
+								<p className="font-semibold text-slate-950">
+									{selection.count
+										? formatRange(selection.from, selection.to, true)
+										: mode === "conditions"
+											? readySurface.conditions.summary
+											: "Selecciona una fecha o rango"}
+								</p>
+								{selection.count > 0 && (
+									<p className="text-xs text-slate-500">
+										{selection.count} {selection.count === 1 ? "noche" : "noches"} ·{" "}
+										{readySurface.selectedRatePlanName}
+									</p>
+								)}
+							</div>
+						)}
+						{isGuidedAvailability ? (
+							<p
+								className={`shrink-0 text-right text-xs leading-tight font-medium ${
+									summaryIsHealthy ? "text-slate-500" : "text-amber-700"
+								}`}
+							>
+								{summary}
+							</p>
+						) : (
+							<>
+								<div className="hidden flex-wrap gap-1.5 sm:flex" aria-label="Atajos de rango">
 									{RANGE_PRESETS.map(([id, label]) => (
-										<Button
+										<button
 											key={id}
 											type="button"
-											onClick={(event) => {
-												applyPreset(id)
-												event.currentTarget.closest("details")?.removeAttribute("open")
-											}}
-											variant="ghost"
-											size="sm"
-											className="w-full justify-start"
+											onClick={() => applyPreset(id)}
+											className="inline-flex h-8 items-center rounded-full px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
 										>
 											{label}
-										</Button>
+										</button>
 									))}
 								</div>
-							</details>
-						</>
-					)}
-				</div>
-				<div className="px-4 pb-4">
-					{(externalDays.length > 0 || conflictDays.length > 0) && (
-						<div
-							className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-600"
-							aria-label="Leyenda de calendarios externos"
-						>
-							<span className="inline-flex items-center gap-2">
-								<span className="size-2 rounded-full bg-sky-500" aria-hidden="true" />
-								Bloqueo externo
-							</span>
-							{conflictDays.length > 0 && (
-								<span className="inline-flex items-center gap-2">
-									<span className="size-2 rounded-full bg-amber-500" aria-hidden="true" />
-									Conflicto por revisar
-								</span>
-							)}
-						</div>
-					)}
-
-					<div className="mt-3 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold text-slate-400 md:gap-2 md:text-xs">
-						{WEEKDAYS.map((weekday) => (
-							<div key={weekday}>{weekday}</div>
-						))}
-					</div>
-					<div
-						key={`${readySurface.selectedRatePlanId}:${readySurface.month}:${showInventoryDetail ? "detail" : "summary"}`}
-						data-direction={gridDirection}
-						data-inventory-detail={showInventoryDetail ? "true" : undefined}
-						aria-busy={guidedApplyingRange ? true : undefined}
-						aria-live={guidedApplyingRange ? "polite" : undefined}
-						className="calendar-grid-enter mt-1 grid grid-cols-7 gap-1 md:gap-2"
-					>
-						{Array.from({ length: readySurface.leadingBlankDays }).map((_, index) => (
-							<div key={`blank-${index}`} className="min-h-20 md:min-h-28" />
-						))}
-						{readySurface.days.map((day) => {
-							const inApplyingRange = Boolean(
-								guidedApplyingRange &&
-								!day.isPast &&
-								day.date >= guidedApplyingRange.from &&
-								day.date <= guidedApplyingRange.to
-							)
-							const presentation = inApplyingRange
-								? guidedOpeningDayPresentation()
-								: {
-										...cellPresentation(mode, day, showComparison, showInventoryDetail),
-										guidedOpening: false as const,
-									}
-							const external = day.externalCalendar
-							const isSelected = selectedDates.has(day.date)
-							const isToday = day.date === today
-							const selectionEdge = !isSelected
-								? undefined
-								: selection.count === 1
-									? "single"
-									: day.date === selection.from
-										? "start"
-										: day.date === selection.to
-											? "end"
-											: "middle"
-							return (
-								<button
-									key={day.date}
-									type="button"
-									disabled={day.isPast || isGuidedAvailability}
-									onClick={() => {
-										if (!isGuidedAvailability) selectDate(day)
-									}}
-									aria-label={`${formatDate(day.date, true)}${
-										inApplyingRange
-											? " · Abriendo cupo"
-											: presentation.primary
-												? ` · ${presentation.primary}`
-												: ""
-									}${external?.eventCount ? ` · ${external.eventCount} bloqueo externo` : ""}${external?.conflictCount ? ` · ${external.conflictCount} conflicto` : ""}`}
-									aria-pressed={isSelected}
-									data-external-calendar-day={external?.eventCount ? "true" : undefined}
-									data-external-calendar-conflict={external?.conflictCount ? "true" : undefined}
-									data-selected={isSelected}
-									data-selection-edge={selectionEdge}
-									data-today={isToday}
-									data-guided-opening={inApplyingRange ? "true" : undefined}
-									className={`calendar-cell fastt-calendar-cell min-h-20 border p-1.5 text-left disabled:cursor-default md:min-h-28 md:p-2 ${updatedDates.has(day.date) ? "calendar-updated" : ""} ${inApplyingRange ? "calendar-cell-guided-opening" : ""} ${external?.conflictCount ? "ring-1 ring-amber-400" : external?.eventCount ? "border-sky-300" : ""} ${toneClass(presentation.tone)}`}
-								>
-									<div className="flex items-start justify-end gap-1.5">
-										{isToday && (
-											<span
-												className="mt-1.5 size-1.5 rounded-full bg-slate-950"
-												aria-label="Hoy"
-											/>
-										)}
-										<span
-											className={`text-sm font-semibold md:text-base ${isToday ? "text-sky-700" : ""}`}
-										>
-											{day.day}
-										</span>
+								<details className="relative sm:hidden">
+									<summary className="fastt-button inline-flex min-h-8 cursor-pointer list-none items-center rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600">
+										Rangos
+									</summary>
+									<div className="fastt-soft-box absolute top-full right-0 z-30 mt-2 w-44 space-y-1 border border-slate-200 bg-white p-1.5 shadow-lg">
+										{RANGE_PRESETS.map(([id, label]) => (
+											<Button
+												key={id}
+												type="button"
+												onClick={(event) => {
+													applyPreset(id)
+													event.currentTarget.closest("details")?.removeAttribute("open")
+												}}
+												variant="ghost"
+												size="sm"
+												className="w-full justify-start"
+											>
+												{label}
+											</Button>
+										))}
 									</div>
-									{!day.isPast && (inApplyingRange || presentation.primary) && (
-										<div key={mode} className="calendar-cell-content">
-											{inApplyingRange ? (
-												<>
-													<div
-														className="calendar-cell-guided-opening-bar mt-2 h-3.5 w-[4.75rem] max-w-full rounded bg-slate-200/90"
-														aria-hidden="true"
-													/>
-													<p className="mt-1 line-clamp-2 text-[9px] leading-4 text-slate-500 md:text-[11px]">
-														{presentation.secondary}
-													</p>
-												</>
-											) : (
-												<>
-													<p className="mt-2 truncate text-[11px] font-semibold md:text-sm">
-														{presentation.primary}
-													</p>
-													{presentation.secondary && (
-														<p
-															className={`mt-1 line-clamp-2 text-[9px] leading-4 opacity-65 md:text-[11px] ${
-																showInventoryDetail || isGuidedAvailability
-																	? "block"
-																	: "hidden sm:block"
-															}`}
-														>
-															{presentation.secondary}
-														</p>
-													)}
-												</>
+								</details>
+							</>
+						)}
+					</div>
+					<div className="px-0 pb-2 sm:px-4 sm:pb-4">
+						{(externalDays.length > 0 || conflictDays.length > 0) && (
+							<div
+								className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-600"
+								aria-label="Leyenda de calendarios externos"
+							>
+								<span className="inline-flex items-center gap-2">
+									<span className="size-2 rounded-full bg-sky-500" aria-hidden="true" />
+									Bloqueo externo
+								</span>
+								{conflictDays.length > 0 && (
+									<span className="inline-flex items-center gap-2">
+										<span className="size-2 rounded-full bg-amber-500" aria-hidden="true" />
+										Conflicto por revisar
+									</span>
+								)}
+							</div>
+						)}
+
+						<div className="mt-1 grid grid-cols-7 gap-px text-center text-[9px] font-semibold text-slate-400 sm:mt-3 sm:gap-1 sm:text-[10px] md:gap-2 md:text-xs">
+							{WEEKDAYS.map((weekday, index) => (
+								<div key={weekday}>
+									<span className="sm:hidden">{WEEKDAYS_COMPACT[index]}</span>
+									<span className="hidden sm:inline">{weekday}</span>
+								</div>
+							))}
+						</div>
+						<div
+							key={`${readySurface.selectedRatePlanId}:${readySurface.month}:${showInventoryDetail ? "detail" : "summary"}`}
+							data-direction={gridDirection}
+							data-inventory-detail={showInventoryDetail ? "true" : undefined}
+							aria-busy={guidedApplyingRange ? true : undefined}
+							aria-live={guidedApplyingRange ? "polite" : undefined}
+							className="calendar-grid-enter mt-0.5 grid grid-cols-7 gap-px sm:mt-1 sm:gap-1 md:gap-2"
+						>
+							{Array.from({ length: readySurface.leadingBlankDays }).map((_, index) => (
+								<div key={`blank-${index}`} className="min-h-[3.25rem] md:min-h-28" />
+							))}
+							{readySurface.days.map((day) => {
+								const inApplyingRange = Boolean(
+									guidedApplyingRange &&
+									!day.isPast &&
+									day.date >= guidedApplyingRange.from &&
+									day.date <= guidedApplyingRange.to
+								)
+								const presentation = inApplyingRange
+									? guidedOpeningDayPresentation()
+									: {
+											...cellPresentation(mode, day, showComparison, showInventoryDetail),
+											guidedOpening: false as const,
+										}
+								const external = day.externalCalendar
+								const isSelected = selectedDates.has(day.date)
+								const isToday = day.date === today
+								const selectionEdge = !isSelected
+									? undefined
+									: selection.count === 1
+										? "single"
+										: day.date === selection.from
+											? "start"
+											: day.date === selection.to
+												? "end"
+												: "middle"
+								return (
+									<button
+										key={day.date}
+										type="button"
+										disabled={day.isPast || isGuidedAvailability}
+										onClick={() => {
+											if (!isGuidedAvailability) selectDate(day)
+										}}
+										aria-label={`${formatDate(day.date, true)}${
+											inApplyingRange
+												? " · Abriendo cupo"
+												: presentation.primary
+													? ` · ${presentation.primary}`
+													: ""
+										}${external?.eventCount ? ` · ${external.eventCount} bloqueo externo` : ""}${external?.conflictCount ? ` · ${external.conflictCount} conflicto` : ""}`}
+										aria-pressed={isSelected}
+										data-external-calendar-day={external?.eventCount ? "true" : undefined}
+										data-external-calendar-conflict={external?.conflictCount ? "true" : undefined}
+										data-selected={isSelected}
+										data-selection-edge={selectionEdge}
+										data-today={isToday}
+										data-guided-opening={inApplyingRange ? "true" : undefined}
+										className={`calendar-cell fastt-calendar-cell min-h-[3.25rem] border px-0 py-0.5 text-left disabled:cursor-default sm:min-h-20 sm:px-1.5 sm:py-1.5 md:min-h-28 md:p-2 ${updatedDates.has(day.date) ? "calendar-updated" : ""} ${inApplyingRange ? "calendar-cell-guided-opening" : ""} ${external?.conflictCount ? "ring-1 ring-amber-400" : external?.eventCount ? "border-sky-300" : ""} ${toneClass(presentation.tone)}`}
+									>
+										<div className="flex items-start justify-end gap-0.5 sm:gap-1.5">
+											{isToday && (
+												<span
+													className="mt-0.5 size-1 rounded-full bg-slate-950 sm:mt-1.5 sm:size-1.5"
+													aria-label="Hoy"
+												/>
 											)}
-										</div>
-									)}
-									{!day.isPast && external?.eventCount ? (
-										<div className="mt-1 flex items-center gap-1 overflow-hidden">
 											<span
-												className={`size-1.5 shrink-0 rounded-full ${
-													external.conflictCount ? "bg-amber-500" : "bg-sky-500"
-												}`}
-												aria-hidden="true"
-											/>
-											<span className="truncate text-[9px] font-semibold text-slate-600 md:text-[10px]">
-												{external.conflictCount
-													? `${external.conflictCount} conflicto${external.conflictCount === 1 ? "" : "s"}`
-													: `${external.eventCount} externo${external.eventCount === 1 ? "" : "s"}`}
+												className={`text-xs font-semibold sm:text-sm md:text-base ${isToday ? "text-sky-700" : ""}`}
+											>
+												{day.day}
 											</span>
 										</div>
-									) : null}
-								</button>
-							)
-						})}
+										{!day.isPast && (inApplyingRange || presentation.primary) && (
+											<div key={mode} className="calendar-cell-content">
+												{inApplyingRange ? (
+													<>
+														<div
+															className="calendar-cell-guided-opening-bar mt-1 h-2.5 w-full max-w-[4.75rem] rounded bg-slate-200/90 sm:mt-2 sm:h-3.5"
+															aria-hidden="true"
+														/>
+														<p className="mt-0.5 line-clamp-1 text-[8px] leading-3 text-slate-500 sm:mt-1 sm:line-clamp-2 sm:text-[9px] sm:leading-4 md:text-[11px]">
+															{presentation.secondary}
+														</p>
+													</>
+												) : (
+													<>
+														<p className="mt-0.5 truncate text-[9px] leading-tight font-semibold sm:mt-2 sm:text-[11px] md:text-sm">
+															{presentation.primary}
+														</p>
+														{presentation.secondary && (
+															<p
+																className={`mt-0.5 line-clamp-1 text-[8px] leading-3 opacity-65 sm:mt-1 sm:line-clamp-2 sm:text-[9px] sm:leading-4 md:text-[11px] ${
+																	showInventoryDetail ? "block" : "hidden sm:block"
+																}`}
+															>
+																{presentation.secondary}
+															</p>
+														)}
+													</>
+												)}
+											</div>
+										)}
+										{!day.isPast && external?.eventCount ? (
+											<div className="mt-1 flex items-center gap-1 overflow-hidden">
+												<span
+													className={`size-1.5 shrink-0 rounded-full ${
+														external.conflictCount ? "bg-amber-500" : "bg-sky-500"
+													}`}
+													aria-hidden="true"
+												/>
+												<span className="truncate text-[9px] font-semibold text-slate-600 md:text-[10px]">
+													{external.conflictCount
+														? `${external.conflictCount} conflicto${external.conflictCount === 1 ? "" : "s"}`
+														: `${external.eventCount} externo${external.eventCount === 1 ? "" : "s"}`}
+												</span>
+											</div>
+										) : null}
+									</button>
+								)
+							})}
+						</div>
 					</div>
-				</div>
-			</Card>
+				</Card>
+			</div>
 
 			{feedback && !drawerAction && !readError && (
 				<p className="text-sm font-medium text-slate-600">{feedback}</p>

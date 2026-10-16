@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import {
-	distinctRatePlanOffers,
-	findReusableRatePlan,
-} from "@/lib/rates/distinctRatePlanOffers"
+import { distinctRatePlanOffers, findReusableRatePlan } from "@/lib/rates/distinctRatePlanOffers"
 
 const offer = (
 	ratePlanId: string,
@@ -29,7 +26,7 @@ describe("distinct rate plan offers", () => {
 		expect(rows.map((row) => row.ratePlanId)).toEqual(["b", "e"])
 	})
 
-	it("shows only the first currency saved for a tariff", () => {
+	it("keeps the explicitly selected currency of the same tariff", () => {
 		const rows = distinctRatePlanOffers(
 			[
 				{
@@ -44,10 +41,10 @@ describe("distinct rate plan offers", () => {
 			"usd"
 		)
 
-		expect(rows.map((row) => row.ratePlanId)).toEqual(["bob"])
+		expect(rows.map((row) => row.ratePlanId)).toEqual(["usd"])
 	})
 
-	it("collapses departures that share the same visible name and tariff", () => {
+	it("keeps independent departures even when their visible names and tariffs match", () => {
 		const rows = distinctRatePlanOffers([
 			{
 				...offer("a", "Tarifa estándar · BOB", { isDefault: true }),
@@ -62,12 +59,15 @@ describe("distinct rate plan offers", () => {
 			},
 		])
 
-		expect(rows.map((row) => row.ratePlanId)).toEqual(["a"])
+		expect(rows.map((row) => row.ratePlanId)).toEqual(["a", "b"])
 	})
 
 	it("keeps an explicitly selected duplicate so the open calendar stays on that tariff", () => {
 		const rows = distinctRatePlanOffers(
-			[offer("a", "Tarifa estándar · BOB", { isDefault: true }), offer("b", "Tarifa estándar · BOB")],
+			[
+				offer("a", "Tarifa estándar · BOB", { isDefault: true }),
+				offer("b", "Tarifa estándar · BOB"),
+			],
 			"b"
 		)
 
@@ -76,12 +76,21 @@ describe("distinct rate plan offers", () => {
 
 	it("reuses the preferred existing offer instead of creating another copy", () => {
 		const reusable = findReusableRatePlan(
-			[offer("a", "Tarifa estándar · BOB"), offer("b", "Tarifa estándar · BOB", { isDefault: true })],
+			[
+				offer("a", "Tarifa estándar · BOB"),
+				offer("b", "Tarifa estándar · BOB", { isDefault: true }),
+			],
 			"departure-1",
 			"Tarifa estándar · BOB"
 		)
 
 		expect(reusable?.ratePlanId).toBe("b")
-		expect(findReusableRatePlan([offer("a", "Tarifa estándar · USD")], "departure-1", "Tarifa estándar · BOB")).toBeNull()
+		expect(
+			findReusableRatePlan(
+				[offer("a", "Tarifa estándar · USD")],
+				"departure-1",
+				"Tarifa estándar · BOB"
+			)
+		).toBeNull()
 	})
 })
