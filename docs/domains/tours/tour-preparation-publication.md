@@ -3,7 +3,7 @@
 Status: active  
 Document type: canonical  
 Owner: Tours / Provider Experience  
-Last verified: 2026-10-12
+Last verified: 2026-10-15
 Scope: contrato objetivo de experiencia, navegación y continuidad entre Preparar tour y Publicar tour  
 Source of truth: requerimiento de separación del proveedor; diagnóstico en `src/lib/tours/tourDiagnosticContract.ts` y contrato compartido de playbooks de tours  
 Related code/tests: `src/layouts/PlaybookLayout.astro`, `src/lib/playbook/launch-tour.ts`, `src/lib/playbook/complete-to-publish.ts`, `src/lib/tours/tourDiagnosticContract.ts`, `tests/playbook/`, `tests/render/tour-preparation-progress.test.ts`  
@@ -163,6 +163,21 @@ opción/tarifa sin activar ni publicar. Puede consultarse publicación con pendi
 La sesión sigue activa: transferir navegación no acredita activación. Al reanudar vuelve a
 publicación; editar una etapa elimina esa marca y recupera el asistente. Añadir una opción o
 horario a un tour publicado conserva su salida a gestión y activación independiente.
+
+
+### Respuesta durante guardado y navegación
+
+Los formularios usan `playbookFormBusy.ts`: «Guardando…» durante persistencia,
+«Cargando…» al abrir el siguiente destino y un estado anunciado con `role="status"`.
+Guardar y salir también muestra progreso; un error restaura los controles y conserva los datos.
+Los enlaces y botones del asistente de opciones comparten la misma navegación: muestran
+«Guardando continuación…» al persistir la sesión y «Cargando…» al abrir el destino. El calendario
+también utiliza este mecanismo cuando sustituye el enlace del pie por un botón del editor.
+Los enlaces guardan primero la continuación, antes del enrutador,
+sin saltarse la protección de cambios pendientes. Sus errores son visibles, no contenido oculto.
+Una navegación que no termina devuelve el enlace a un estado reintentable sin reenviar formularios.
+Al regresar mediante historial se retira el estado transitorio; no se modifica el avance guardado.
+
 
 ## Playbook B — Publicar tour
 
