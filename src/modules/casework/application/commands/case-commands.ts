@@ -1,3 +1,4 @@
+import { afterPostgresCommit, withPostgresTransaction } from "@/shared/infrastructure/db/client"
 import {
 	and,
 	CaseActivityEvent,
@@ -15,6 +16,7 @@ import {
 	isNull,
 	or,
 	SavedCaseView,
+	sql,
 } from "@/shared/infrastructure/db/compat"
 import { providerV2Repository } from "@/container"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
@@ -85,7 +87,8 @@ export async function proposeCaseDecision(input: {
 		throw commandError("decision_not_supported_for_domain", 422)
 	if (Number(current.version) !== input.expectedVersion)
 		throw commandError("case_version_conflict", 409)
-	if (!["open", "in_review", "waiting_information", "blocked"].includes(current.status))
+	if (current.status === "waiting_information") throw commandError("case_waiting_information", 409)
+	if (!["open", "in_review", "blocked"].includes(current.status))
 		throw commandError("case_not_actionable", 409)
 
 	const reasons = await db
@@ -128,7 +131,13 @@ export async function proposeCaseDecision(input: {
 			.where(
 				and(
 					eq(CaseDecision.caseId, input.caseId),
-					inArray(CaseDecision.status, ["pending_approval", "approved", "applying", "failed"])
+					inArray(CaseDecision.status, [
+						"proposed",
+						"pending_approval",
+						"approved",
+						"applying",
+						"failed",
+					])
 				)
 			)
 			.limit(1)
@@ -197,7 +206,11 @@ export async function assignCase(input: {
 	await db.transaction(async (tx) => {
 		const claimed = await tx
 			.update(ComplianceCase)
-			.set({ status: "in_review", version: nextVersion, updatedAt: now })
+			.set({
+				status: sql`CASE WHEN ${ComplianceCase.status} = 'waiting_information' THEN 'waiting_information' ELSE 'in_review' END`,
+				version: nextVersion,
+				updatedAt: now,
+			})
 			.where(
 				and(
 					eq(ComplianceCase.id, input.caseId),
@@ -316,8 +329,10 @@ async function applyCanonicalDomainDecision(params: {
 			reason: comment ?? undefined,
 		})
 	}
-	await invalidateProvider(caseRow.providerId)
-	await invalidateProviderGovernance(caseRow.providerId, "casework_decision_applied")
+	await afterPostgresCommit(async () => {
+		await invalidateProvider(caseRow.providerId)
+		await invalidateProviderGovernance(caseRow.providerId, "casework_decision_applied")
+	})
 	return { deferred: false }
 }
 
@@ -365,11 +380,18 @@ export async function deleteCaseView(input: { id: string; ownerUserId: string })
 }
 
 /**
- * Applies a persisted proposal through the existing canonical domain service.
- * Case state uses CAS around the external/domain effect; failures remain visible
- * and retryable instead of being silently reported as completed.
+ * Applies the canonical domain effect and case resolution in one database unit of work.
+ * Historical failed/applying decisions require explicit reconciliation, never blind replay.
  */
-export async function applyCaseDecision(input: {
+export function applyCaseDecision(input: {
+	decisionId: string
+	expectedCaseVersion: number
+	actorUserId: string
+}) {
+	return withPostgresTransaction(() => applyCaseDecisionAtomically(input))
+}
+
+async function applyCaseDecisionAtomically(input: {
 	decisionId: string
 	expectedCaseVersion: number
 	actorUserId: string
@@ -382,12 +404,11 @@ export async function applyCaseDecision(input: {
 	const decision = decisions[0]
 	if (!decision) throw commandError("case_decision_not_found", 404)
 	if (decision.status === "pending_approval") throw commandError("second_control_required", 409)
-	if (decision.status === "applied")
-		return { caseVersion: input.expectedCaseVersion, applied: true, replayed: true }
+
 	if (
 		decision.status !== "proposed" &&
 		decision.status !== "approved" &&
-		decision.status !== "failed"
+		decision.status !== "applied"
 	)
 		throw commandError("case_decision_not_actionable", 409)
 	const cases = await db
@@ -397,6 +418,14 @@ export async function applyCaseDecision(input: {
 		.limit(1)
 	const caseRow = cases[0]
 	if (!caseRow) throw commandError("case_not_found", 404)
+	if (decision.status === "applied")
+		return {
+			caseVersion: caseRow.version,
+			applied: decision.decision !== "request_information",
+			caseStatus: caseRow.status,
+			replayed: true,
+		}
+
 	if (Number(caseRow.version) !== input.expectedCaseVersion)
 		throw commandError("case_version_conflict", 409)
 
@@ -470,8 +499,8 @@ export async function applyCaseDecision(input: {
 			await tx
 				.update(CaseDecision)
 				.set({
-					status: domainResult.deferred ? "proposed" : "applied",
-					appliedAt: domainResult.deferred ? undefined : now,
+					status: "applied",
+					appliedAt: now,
 					updatedAt: now,
 				})
 				.where(eq(CaseDecision.id, decision.id))
@@ -481,7 +510,7 @@ export async function applyCaseDecision(input: {
 				eventType: domainResult.deferred ? "information_requested" : "decision_applied",
 				actorUserId: input.actorUserId,
 				summary: domainResult.deferred
-					? "La decisión requiere información antes de aplicarse"
+					? "Solicitud registrada; pendiente de publicación al proveedor"
 					: "Decisión aplicada a la fuente canónica",
 				metadataJson: { decisionId: decision.id, decision: decision.decision },
 				createdAt: now,
@@ -528,7 +557,16 @@ export async function applyCaseDecision(input: {
 	}
 }
 
-export async function approveAndApplyCaseDecision(input: {
+export function approveAndApplyCaseDecision(input: {
+	decisionId: string
+	expectedCaseVersion: number
+	actorUserId: string
+	reason?: string | null
+}) {
+	return withPostgresTransaction(() => approveAndApplyCaseDecisionAtomically(input))
+}
+
+async function approveAndApplyCaseDecisionAtomically(input: {
 	decisionId: string
 	expectedCaseVersion: number
 	actorUserId: string

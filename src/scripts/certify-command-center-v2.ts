@@ -8,6 +8,7 @@ import {
 	CommandIdempotency,
 	ComplianceCase,
 	db,
+	desc,
 	eq,
 	inArray,
 	Provider,
@@ -271,10 +272,13 @@ async function prepare() {
 
 async function verify() {
 	await assertFixtureClassification()
-	const cases = await db
+	const providerCases = await db
 		.select({
 			id: ComplianceCase.id,
 			domain: ComplianceCase.domain,
+			summary: ComplianceCase.summary,
+			sourceRef: ComplianceCase.sourceRef,
+			sourceType: ComplianceCase.sourceType,
 			status: ComplianceCase.status,
 			resolutionCode: ComplianceCase.resolutionCode,
 			version: ComplianceCase.version,
@@ -283,7 +287,28 @@ async function verify() {
 		.where(eq(ComplianceCase.providerId, PROVIDER_ID))
 		.orderBy(asc(ComplianceCase.domain))
 
+	const cases = providerCases.filter((row) =>
+		fixtureCases.some(
+			(fixture) =>
+				fixture.domain === row.domain &&
+				fixture.sourceRef === row.sourceRef &&
+				fixture.sourceType === row.sourceType &&
+				fixture.summary === row.summary
+		)
+	)
+	const additionalActiveCases = providerCases
+		.filter(
+			(row) =>
+				!cases.some((item) => item.id === row.id) &&
+				["open", "in_review", "waiting_information", "blocked"].includes(row.status)
+		)
+		.map((row) => row.id)
+
 	assertion(cases.length === fixtureCases.length, "CERTIFICATION_CASES_MISSING")
+	assertion(
+		fixtureCases.every((fixture) => cases.some((item) => item.domain === fixture.domain)),
+		"CERTIFICATION_DOMAINS_MISSING"
+	)
 	const decisionRows = await db
 		.select({
 			caseId: CaseDecision.caseId,
@@ -322,18 +347,30 @@ async function verify() {
 				)
 			)
 		)
-	const idempotencyRows = await db
-		.select({
-			scope: CommandIdempotency.scope,
-			status: CommandIdempotency.status,
-			requestId: CommandIdempotency.requestId,
-		})
-		.from(CommandIdempotency)
-		.where(eq(CommandIdempotency.scope, "case.decision.propose"))
+	const successfulRequestIds = auditRows
+		.filter((row) => row.outcome === "succeeded")
+		.map((row) => row.requestId)
+	const idempotencyRows = successfulRequestIds.length
+		? await db
+				.select({
+					scope: CommandIdempotency.scope,
+					status: CommandIdempotency.status,
+					requestId: CommandIdempotency.requestId,
+				})
+				.from(CommandIdempotency)
+				.where(
+					and(
+						eq(CommandIdempotency.scope, "case.decision.propose"),
+						inArray(CommandIdempotency.requestId, successfulRequestIds)
+					)
+				)
+		: []
 	const [verification] = await db
 		.select({ status: ProviderVerification.status })
 		.from(ProviderVerification)
-		.where(eq(ProviderVerification.id, `verification_${PROVIDER_ID}`))
+		.where(eq(ProviderVerification.providerId, PROVIDER_ID))
+		.orderBy(desc(ProviderVerification.createdAt), desc(ProviderVerification.id))
+		.limit(1)
 	const [fiscal] = await db
 		.select({ status: ProviderTaxConfiguration.status })
 		.from(ProviderTaxConfiguration)
@@ -358,6 +395,23 @@ async function verify() {
 		(domain === "documents" && ["verified", "rejected"].includes(String(status))) ||
 		(domain === "payments" && ["verified", "requires_attention"].includes(String(status)))
 
+	const canonicalMatchesDecision = (
+		domain: string,
+		status: string | undefined,
+		decision: string | null
+	) => {
+		if (decision !== "approved" && decision !== "rejected" && decision !== "requires_attention")
+			return false
+		const expected =
+			domain === "verification"
+				? decision
+				: decision === "approved"
+					? "verified"
+					: domain === "documents"
+						? "rejected"
+						: "requires_attention"
+		return status === expected
+	}
 	const result = cases.map((item) => {
 		const decisions = decisionRows.filter((row) => row.caseId === item.id)
 		const activities = activityRows
@@ -369,8 +423,16 @@ async function verify() {
 			.map((row) => row.requestId)
 		return {
 			...item,
-			decisionApplied: decisions.some((row) => row.status === "applied"),
+			decisionApplied: decisions.filter((row) => row.status === "applied").length === 1,
+			decisionMatchesResolution: decisions.some(
+				(row) => row.status === "applied" && row.decision === item.resolutionCode
+			),
 			canonicalResolution: item.status === "resolved",
+			canonicalMatchesDecision: canonicalMatchesDecision(
+				item.domain,
+				canonicalStatus[item.domain as keyof typeof canonicalStatus],
+				item.resolutionCode
+			),
 			canonicalSourceStatus: canonicalStatus[item.domain as keyof typeof canonicalStatus] ?? null,
 			canonicalSourceUpdated: canonicalWasUpdated(
 				item.domain,
@@ -384,23 +446,37 @@ async function verify() {
 			),
 		}
 	})
-	const passed = result.every(
-		(item) =>
-			item.decisionApplied &&
-			item.canonicalResolution &&
-			item.canonicalSourceUpdated &&
-			item.activityApplied &&
-			item.auditAttempted &&
-			item.auditSucceeded &&
-			item.idempotencyReserved
-	)
+	const passed =
+		additionalActiveCases.length === 0 &&
+		result.every(
+			(item) =>
+				item.decisionApplied &&
+				item.decisionMatchesResolution &&
+				item.canonicalResolution &&
+				item.canonicalMatchesDecision &&
+				item.canonicalSourceUpdated &&
+				item.activityApplied &&
+				item.auditAttempted &&
+				item.auditSucceeded &&
+				item.idempotencyReserved
+		)
 	console.log(
 		JSON.stringify(
 			{
 				passed,
+				coverage:
+					"Four isolated domain decisions, canonical sources, audit and successful idempotency records",
+				adoptionCertified: false,
+				notCovered: [
+					"human_observation",
+					"high_risk_second_control",
+					"partial_failure_recovery",
+					"information_request_lifecycle",
+				],
 				providerId: PROVIDER_ID,
 				cases: result,
 				idempotencyReservations: idempotencyRows.length,
+				additionalActiveCases,
 			},
 			null,
 			2

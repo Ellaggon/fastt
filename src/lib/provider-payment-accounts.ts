@@ -1,3 +1,4 @@
+import { parseReviewDate } from "@/lib/provider-review-date"
 import { createHmac } from "node:crypto"
 import {
 	first,
@@ -82,6 +83,7 @@ export type PayoutVerificationTimeline = {
 }
 
 export type ProviderPaymentAccountRecord = {
+	reviewedAt: Date | null
 	id: string
 	providerId: string
 	status: ProviderPaymentAccountStatus
@@ -406,6 +408,7 @@ function mapRow(
 		payoutScheduleLabel: scheduleLabels[payoutSchedule],
 		microDeposit: readMicroDepositChallenge(meta),
 		verifiedAt: row.verifiedAt ?? null,
+		reviewedAt: parseReviewDate(row.metadataJson) ?? row.verifiedAt ?? null,
 		createdAt: row.createdAt ?? null,
 		updatedAt: row.updatedAt ?? null,
 	}

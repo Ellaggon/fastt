@@ -1,3 +1,4 @@
+import { isInPostgresTransaction } from "@/shared/infrastructure/db/client"
 import { db, ProviderAuditLog } from "@/shared/infrastructure/db/compat"
 import { redactAuditPayload } from "@/lib/audit/audit-events"
 
@@ -47,6 +48,7 @@ export async function writeProviderAuditLog(params: WriteProviderAuditLogParams)
 			createdAt: new Date(),
 		})
 		.catch((error) => {
+			if (isInPostgresTransaction()) throw error
 			const message = error instanceof Error ? error.message : String(error)
 			// Never block the host mutation on audit storage / statement timeouts.
 			if (

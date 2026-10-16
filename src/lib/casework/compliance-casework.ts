@@ -1,6 +1,8 @@
 import {
 	and,
 	CaseAssignmentEvent,
+	CaseDecision,
+	CaseActivityEvent,
 	CaseSlaTimer,
 	CaseTask,
 	ComplianceCase,
@@ -92,7 +94,7 @@ export async function listCurrentComplianceCaseSources(): Promise<ComplianceCase
 			summary: "Revisión de identidad y negocio del proveedor",
 		})),
 		...taxConfigurations
-			.filter((row) => row.status === "pending" || row.status === "requires_attention")
+			.filter((row) => row.status === "pending")
 			.map((row) => ({
 				providerId: row.providerId,
 				domain: "fiscal" as const,
@@ -256,7 +258,7 @@ export async function synchronizeComplianceCase(source: ComplianceCaseSource) {
 
 export async function resolveComplianceCaseForSource(
 	source: Pick<ComplianceCaseSource, "providerId" | "domain" | "sourceType" | "sourceRef">,
-	resolutionCode = "requirements_satisfied"
+	resolutionCode = "source_no_longer_pending"
 ) {
 	const rows = await db
 		.select({ id: ComplianceCase.id, version: ComplianceCase.version })
@@ -271,9 +273,39 @@ export async function resolveComplianceCaseForSource(
 			)
 		)
 	const now = new Date()
+	let resolved = 0
 	for (const row of rows) {
 		const version = Number(row.version) + 1
-		await db.transaction(async (tx) => {
+		const completed = await db.transaction(async (tx) => {
+			const [locked] = await tx
+				.select({ version: ComplianceCase.version, status: ComplianceCase.status })
+				.from(ComplianceCase)
+				.where(eq(ComplianceCase.id, row.id))
+				.for("update")
+			if (
+				!locked ||
+				locked.status === "waiting_information" ||
+				locked.version !== row.version ||
+				!ACTIVE_CASE_STATUSES.includes(locked.status as (typeof ACTIVE_CASE_STATUSES)[number])
+			)
+				return false
+			const pending = await tx
+				.select({ id: CaseDecision.id })
+				.from(CaseDecision)
+				.where(
+					and(
+						eq(CaseDecision.caseId, row.id),
+						inArray(CaseDecision.status, [
+							"proposed",
+							"pending_approval",
+							"approved",
+							"applying",
+							"failed",
+						])
+					)
+				)
+				.limit(1)
+			if (pending.length) return false
 			await tx
 				.update(ComplianceCase)
 				.set({
@@ -303,6 +335,15 @@ export async function resolveComplianceCaseForSource(
 						inArray(CaseSlaTimer.status, ["running", "paused", "breached"])
 					)
 				)
+			await tx.insert(CaseActivityEvent).values({
+				id: crypto.randomUUID(),
+				caseId: row.id,
+				eventType: "source_reconciled",
+				summary:
+					"La fuente ya no está pendiente; cierre por reconciliación, sin nueva decisión humana",
+				metadataJson: { resolutionCode },
+				createdAt: now,
+			})
 			await tx.insert(DomainEventOutbox).values({
 				id: crypto.randomUUID(),
 				eventType: "case.resolved",
@@ -321,9 +362,11 @@ export async function resolveComplianceCaseForSource(
 				availableAt: now,
 				createdAt: now,
 			})
+			return true
 		})
+		if (completed) resolved++
 	}
-	return rows.length
+	return resolved
 }
 
 function isPreCaseworkDeployment(error: unknown) {
@@ -402,8 +445,10 @@ export async function synchronizeCaseAssignment(params: {
 	return ensured
 }
 
-export async function reconcileComplianceCases() {
-	const sources = await listCurrentComplianceCaseSources()
+export async function reconcileComplianceCases(options: { providerId?: string } = {}) {
+	const sources = (await listCurrentComplianceCaseSources()).filter(
+		(source) => !options.providerId || source.providerId === options.providerId
+	)
 	const keys = new Set(
 		sources.map(
 			(source) => `${source.providerId}:${source.domain}:${source.sourceType}:${source.sourceRef}`
@@ -419,7 +464,12 @@ export async function reconcileComplianceCases() {
 			sourceRef: ComplianceCase.sourceRef,
 		})
 		.from(ComplianceCase)
-		.where(inArray(ComplianceCase.status, [...ACTIVE_CASE_STATUSES]))
+		.where(
+			and(
+				inArray(ComplianceCase.status, [...ACTIVE_CASE_STATUSES]),
+				options.providerId ? eq(ComplianceCase.providerId, options.providerId) : undefined
+			)
+		)
 	let resolved = 0
 	for (const row of activeCases) {
 		const key = `${row.providerId}:${row.domain}:${row.sourceType}:${row.sourceRef}`

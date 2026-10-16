@@ -1,3 +1,4 @@
+import { evaluateEvidenceValidity } from "../../evidence-validity"
 import type { SQL } from "drizzle-orm"
 
 import {
@@ -69,6 +70,8 @@ export type ProviderOperationalArea = {
 	statusLabel: string
 	source: string
 	sourceUpdatedAt: Date | null
+	sourceEvaluatedAt?: Date | null
+	validityReason?: string
 	reason: string
 	missingEvidence: string[]
 }
@@ -78,10 +81,6 @@ function latestDate(values: Array<Date | null | undefined>) {
 		if (!value || (latest && latest >= value)) return latest
 		return value
 	}, null)
-}
-
-function isStaleTerminalSource(status: string, updatedAt: Date | null) {
-	return ["verified", "approved"].includes(status) && !updatedAt
 }
 
 /** Read-only contract backed by owned source records, never account status or case counts. */
@@ -106,15 +105,11 @@ export async function getProviderOperationalSnapshot(providerId: string) {
 			loadProviderVerificationResolution(providerId),
 		])
 	const verification = verificationRows[0] ?? null
-	const verificationDate = verification?.reviewedAt ?? verification?.createdAt ?? null
-	const fiscalDate = tax?.updatedAt ?? null
+	const verificationDate = verification?.reviewedAt ?? null
+	const fiscalDate = tax?.reviewedAt ?? null
 	const taxDocument = documents.find((document) => document.type === "tax_document") ?? null
-	const documentsDate = latestDate(
-		documents.map((document) => document.reviewedAt ?? document.updatedAt)
-	)
-	const paymentsDate = latestDate(
-		paymentAccounts.map((account) => account.verifiedAt ?? account.updatedAt)
-	)
+	const documentsDate = latestDate(documents.map((document) => document.reviewedAt))
+	const paymentsDate = latestDate(paymentAccounts.map((account) => account.reviewedAt))
 	const kyc = evaluateRequiredKycDocumentsComplete(documents, {
 		taxDocumentSatisfiedByFiscal: Boolean(
 			tax?.businessRegistrationNumber && tax.status === "verified"
@@ -138,10 +133,29 @@ export async function getProviderOperationalSnapshot(providerId: string) {
 				? "Registro mercantil"
 				: "Documento fiscal"
 	const stale = {
-		verification: isStaleTerminalSource(String(verification?.status ?? ""), verificationDate),
-		fiscal: isStaleTerminalSource(String(tax?.status ?? ""), fiscalDate),
-		documents: kyc.complete && !documentsDate,
-		payments: verifiedPaymentAccounts.length > 0 && !paymentsDate,
+		verification:
+			verification?.status === "approved" &&
+			evaluateEvidenceValidity({ reviewedAt: verificationDate }).status !== "current",
+		fiscal:
+			tax?.status === "verified" &&
+			evaluateEvidenceValidity({ reviewedAt: fiscalDate, updatedAt: tax.updatedAt }).status !==
+				"current",
+		documents:
+			kyc.complete &&
+			documents.some(
+				(document) =>
+					document.status === "verified" &&
+					evaluateEvidenceValidity({
+						reviewedAt: document.reviewedAt,
+						updatedAt: document.updatedAt,
+						expiresAt: document.expiresAt,
+					}).status !== "current"
+			),
+		payments: verifiedPaymentAccounts.some(
+			(account) =>
+				evaluateEvidenceValidity({ reviewedAt: account.reviewedAt, updatedAt: account.updatedAt })
+					.status !== "current"
+		),
 	}
 	const taxDocumentConflict = tax?.status === "verified" && taxDocument?.status === "rejected"
 	const payoutConflict = governance.risks.some(
@@ -234,7 +248,7 @@ export async function getProviderOperationalSnapshot(providerId: string) {
 			stale.fiscal || taxDocumentConflict,
 			taxDocumentConflict
 				? "El documento fiscal fue rechazado mientras el registro fiscal figura verificado; confirma cuál evidencia prevalece."
-				: "La evaluación fiscal no tiene fecha verificable; confirma su vigencia."
+				: "La evaluación fiscal no tiene fecha verificable o la fuente cambió después de revisarse; confirma su vigencia."
 		),
 		documents: reconcile(
 			kyc.complete
@@ -281,7 +295,7 @@ export async function getProviderOperationalSnapshot(providerId: string) {
 								missingEvidence: kyc.missingRequiredTypes.map(labelDocument),
 							},
 			stale.documents,
-			"La evidencia documental no tiene fecha verificable; confirma su vigencia."
+			"Hay evidencia documental sin revisión verificable, modificada después de revisarse o vencida; confirma su vigencia."
 		),
 		payments: reconcile(
 			verifiedPaymentAccounts.length
@@ -322,9 +336,26 @@ export async function getProviderOperationalSnapshot(providerId: string) {
 			stale.payments || payoutConflict,
 			payoutConflict
 				? "El perfil de cobros contradice la ausencia de una cuenta verificada; reconcilia las fuentes."
-				: "La validación de cuenta no tiene fecha verificable; confirma su vigencia."
+				: "La cuenta cambió después de revisarse o no tiene fecha verificable; confirma su vigencia."
 		),
 	}
+	const sourceUpdates = {
+		verification: verification?.createdAt ?? null,
+		fiscal: tax?.updatedAt ?? null,
+		documents: latestDate(documents.map((document) => document.updatedAt)),
+		payments: latestDate(paymentAccounts.map((account) => account.updatedAt)),
+	}
+	const evaluatedAreas = Object.fromEntries(
+		Object.entries(areas).map(([domain, area]) => [
+			domain,
+			{
+				...area,
+				sourceEvaluatedAt: area.sourceUpdatedAt,
+				sourceUpdatedAt: sourceUpdates[domain as keyof typeof sourceUpdates],
+			},
+		])
+	) as Record<keyof typeof areas, ProviderOperationalArea>
+
 	const capabilityReason = (capability: "publish" | "booking" | "payments") => {
 		const blockers = governance.blockers.filter((blocker) =>
 			blocker.capabilities.includes(capability)
@@ -335,15 +366,26 @@ export async function getProviderOperationalSnapshot(providerId: string) {
 	}
 	return {
 		evaluatedAt: new Date(),
-		areas,
+		areas: evaluatedAreas,
 		capabilities: {
 			collections: {
-				available: governance.capabilities.payments,
+				available: Object.values(evaluatedAreas).some(
+					(area) => area.status === "reconciliation_needed"
+				)
+					? null
+					: governance.capabilities.payments,
 				source: "Evaluación de gobernanza",
-				reason: capabilityReason("payments"),
+				reason: Object.values(evaluatedAreas).some(
+					(area) => area.status === "reconciliation_needed"
+				)
+					? "Hay fuentes pendientes de reconciliación. No se confirma la disponibilidad de cobros hasta revisarlas."
+					: capabilityReason("payments"),
 			},
 			payoutAccount: {
-				available: verifiedPaymentAccounts.length > 0,
+				available:
+					evaluatedAreas.payments.status === "reconciliation_needed"
+						? null
+						: verifiedPaymentAccounts.length > 0,
 				source: areas.payments.source,
 				reason: areas.payments.reason,
 				evaluatedAt: areas.payments.sourceUpdatedAt,
@@ -829,49 +871,66 @@ export async function getCaseWorkspace(caseId: string) {
 		.limit(1)
 	const item = rows[0]
 	if (!item) return null
-	const [tasks, timers, activities, decisions, approvals, reasons] = await Promise.all([
-		db.select().from(CaseTask).where(eq(CaseTask.caseId, caseId)).orderBy(asc(CaseTask.createdAt)),
-		db.select().from(CaseSlaTimer).where(eq(CaseSlaTimer.caseId, caseId)),
-		db
-			.select()
-			.from(CaseActivityEvent)
-			.where(eq(CaseActivityEvent.caseId, caseId))
-			.orderBy(desc(CaseActivityEvent.createdAt))
-			.limit(100),
-		db
-			.select()
-			.from(CaseDecision)
-			.where(eq(CaseDecision.caseId, caseId))
-			.orderBy(desc(CaseDecision.createdAt)),
-		db
-			.select({
-				decisionId: CaseDecisionApproval.decisionId,
-				actorUserId: CaseDecisionApproval.actorUserId,
-				vote: CaseDecisionApproval.vote,
-				reason: CaseDecisionApproval.reason,
-				createdAt: CaseDecisionApproval.createdAt,
-			})
-			.from(CaseDecisionApproval)
-			.innerJoin(CaseDecision, eq(CaseDecisionApproval.decisionId, CaseDecision.id))
-			.where(eq(CaseDecision.caseId, caseId))
-			.orderBy(desc(CaseDecisionApproval.createdAt)),
-		item.policyVersionId
-			? db
-					.select()
-					.from(ComplianceDecisionReason)
-					.where(
-						and(
-							eq(ComplianceDecisionReason.policyVersionId, item.policyVersionId),
-							eq(ComplianceDecisionReason.active, true),
-							or(
-								isNull(ComplianceDecisionReason.domain),
-								eq(ComplianceDecisionReason.domain, item.domain)
+	const [tasks, timers, activities, decisions, approvals, reasons, informationEvents] =
+		await Promise.all([
+			db
+				.select()
+				.from(CaseTask)
+				.where(eq(CaseTask.caseId, caseId))
+				.orderBy(asc(CaseTask.createdAt)),
+			db.select().from(CaseSlaTimer).where(eq(CaseSlaTimer.caseId, caseId)),
+			db
+				.select()
+				.from(CaseActivityEvent)
+				.where(eq(CaseActivityEvent.caseId, caseId))
+				.orderBy(desc(CaseActivityEvent.createdAt))
+				.limit(100),
+			db
+				.select()
+				.from(CaseDecision)
+				.where(eq(CaseDecision.caseId, caseId))
+				.orderBy(desc(CaseDecision.createdAt)),
+			db
+				.select({
+					decisionId: CaseDecisionApproval.decisionId,
+					actorUserId: CaseDecisionApproval.actorUserId,
+					vote: CaseDecisionApproval.vote,
+					reason: CaseDecisionApproval.reason,
+					createdAt: CaseDecisionApproval.createdAt,
+				})
+				.from(CaseDecisionApproval)
+				.innerJoin(CaseDecision, eq(CaseDecisionApproval.decisionId, CaseDecision.id))
+				.where(eq(CaseDecision.caseId, caseId))
+				.orderBy(desc(CaseDecisionApproval.createdAt)),
+			item.policyVersionId
+				? db
+						.select()
+						.from(ComplianceDecisionReason)
+						.where(
+							and(
+								eq(ComplianceDecisionReason.policyVersionId, item.policyVersionId),
+								eq(ComplianceDecisionReason.active, true),
+								or(
+									isNull(ComplianceDecisionReason.domain),
+									eq(ComplianceDecisionReason.domain, item.domain)
+								)
 							)
 						)
+				: Promise.resolve([]),
+			db
+				.select()
+				.from(CaseActivityEvent)
+				.where(
+					and(
+						eq(CaseActivityEvent.caseId, caseId),
+						inArray(CaseActivityEvent.eventType, [
+							"information_request_published",
+							"information_request_responded",
+						])
 					)
-			: Promise.resolve([]),
-	])
-	return { case: item, tasks, timers, activities, decisions, approvals, reasons }
+				),
+		])
+	return { case: item, tasks, timers, activities, decisions, approvals, reasons, informationEvents }
 }
 
 export async function getProvider360(providerId: string) {

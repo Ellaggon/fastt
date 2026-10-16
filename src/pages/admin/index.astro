@@ -1,5 +1,6 @@
 ---
 import CaseTable from "@/components/admin/cases/CaseTable.astro"
+import InternalAccessDenied from "@/components/admin/InternalAccessDenied.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
@@ -12,6 +13,8 @@ try {
 	authorized = true
 } catch (response) {
 	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
+	if (response instanceof Response && response.status === 403) Astro.response.status = 403
+	else throw response
 }
 const summary = authorized ? await getCommandCenterSummary() : null
 const domainLabels: Record<string, string> = {
@@ -45,12 +48,7 @@ const domainLabels: Record<string, string> = {
 
 		{
 			!authorized || !summary ? (
-				<Card>
-					<>
-						<h2 class="font-semibold">Acceso restringido</h2>
-						<p class="mt-2 text-sm text-slate-600">Se requiere provider.compliance.read.</p>
-					</>
-				</Card>
+				<InternalAccessDenied />
 			) : (
 				<>
 					<div
