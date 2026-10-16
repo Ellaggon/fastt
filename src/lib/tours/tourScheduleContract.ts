@@ -68,3 +68,12 @@ export function scheduleDates(input: TourScheduleInput): string[] {
 	}
 	return days
 }
+
+/** Existing dates can change capacity even when recurrence adds no new dates. */
+export function tourScheduleConfirmation(preview: TourSchedulePreview | null, busy: boolean) {
+	return {
+		disabled:
+			busy || Boolean(preview && !preview.newDates.length && !preview.preservedDates.length),
+		label: busy ? "Procesando…" : preview ? "Confirmar programación" : "Revisar fechas",
+	}
+}

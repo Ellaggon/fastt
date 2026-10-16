@@ -4,6 +4,7 @@ import {
 	db,
 	eq,
 	gte,
+	inArray,
 	lte,
 	gt,
 	sql,
@@ -159,7 +160,7 @@ export async function previewTourDepartures(
 	}
 }
 
-/** Inventory and durable replay result commit together; retries never edit existing dates. */
+/** Inventory and durable replay result commit together; retries replay the same persisted outcome. */
 export async function programTourDepartures(
 	providerId: string,
 	input: TourScheduleInput,
@@ -206,6 +207,49 @@ export async function programTourDepartures(
 					.returning({ date: DailyInventory.date })
 			: []
 		const createdDates = created.map((row) => row.date)
+		if (preview.preservedDates.length) {
+			const preservedRows = await tx
+				.select({
+					date: DailyInventory.date,
+					totalInventory: DailyInventory.totalInventory,
+					reservedCount: DailyInventory.reservedCount,
+				})
+				.from(DailyInventory)
+				.where(
+					and(
+						eq(DailyInventory.variantId, input.variantId),
+						inArray(DailyInventory.date, preview.preservedDates)
+					)
+				)
+			for (const row of preservedRows) {
+				const totalInventory = Number(row.totalInventory ?? 0)
+				const reservedCount = Number(row.reservedCount ?? 0)
+				if (totalInventory <= 0) continue
+				if (reservedCount > input.capacity) {
+					throw new TourScheduleError(
+						422,
+						`El ${row.date} ya tiene ${reservedCount} reservas; el cupo no puede bajar a ${input.capacity}.`
+					)
+				}
+				if (totalInventory === input.capacity) continue
+				await tx
+					.update(DailyInventory)
+					.set({ totalInventory: input.capacity, updatedAt: new Date() })
+					.where(
+						and(eq(DailyInventory.variantId, input.variantId), eq(DailyInventory.date, row.date))
+					)
+			}
+		}
+		await tx
+			.insert(VariantInventoryConfig)
+			.values({
+				variantId: input.variantId,
+				defaultTotalUnits: input.capacity,
+			})
+			.onConflictDoUpdate({
+				target: VariantInventoryConfig.variantId,
+				set: { defaultTotalUnits: input.capacity },
+			})
 		const response: TourScheduleResult = {
 			createdDates,
 			preservedDates: [
