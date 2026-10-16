@@ -19,9 +19,7 @@ function commercialRateName(name: string) {
 
 function offerKey(row: RatePlanOfferIdentity) {
 	const rateName = commercialRateName(String(row.ratePlanName ?? ""))
-	const productId = String(row.productId ?? "").trim()
-	const variantName = String(row.variantName ?? "").trim()
-	if (productId && variantName) return `${productId}\0${variantName}\0${rateName}`
+	// Names describe an option; only its ID owns inventory and reservations.
 	return `${row.variantId}\0${rateName}`
 }
 
@@ -59,13 +57,8 @@ export function distinctRatePlanOffers<T extends RatePlanOfferIdentity>(
 			return offerRank(row) > offerRank(best) ? row : best
 		})
 		const requested = selected ? bucket.find((row) => row.ratePlanId === selected) : undefined
-		// A repeated save of the same currency can stay open. Another currency of the same tariff cannot.
-		if (
-			requested &&
-			String(requested.ratePlanName ?? "").trim() === String(original.ratePlanName ?? "").trim()
-		) {
-			return requested
-		}
+		// Grouping currencies for display must never replace an explicit offer.
+		if (requested) return requested
 		return original
 	})
 }

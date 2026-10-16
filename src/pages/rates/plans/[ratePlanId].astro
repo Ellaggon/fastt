@@ -508,7 +508,7 @@ logRoutePerformance({
 						title="Condiciones de la tarifa"
 						lead={
 							isTourContext
-								? "Define qué ocurre al cancelar o no presentarse. Las preguntas al reservar son opcionales."
+								? "Cancelación, pago al proveedor y qué ocurre si el viajero no se presenta. El viajero ve estas reglas antes de confirmar."
 								: "Creamos condiciones iniciales para esta tarifa. Revísalas o ajústalas antes de abrir disponibilidad."
 						}
 					/>
@@ -590,16 +590,7 @@ logRoutePerformance({
 					isPlaybookMode && isTourContext ? (
 						<div class="grid gap-6">
 							<section class="fastt-card overflow-hidden rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white text-slate-950">
-								<header class="flex gap-4 border-b border-slate-100 bg-slate-50/80 px-5 py-4">
-									<div class="min-w-0">
-										<h2 class="text-lg font-semibold text-slate-950">Condiciones de esta tarifa</h2>
-										<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-											Cancelación, pago al proveedor y qué ocurre si el viajero no se presenta. El
-											viajero ve estas reglas antes de confirmar.
-										</p>
-									</div>
-								</header>
-								<div class="px-2 sm:px-3">
+								<div class="px-2 py-4 sm:px-3">
 									<RatePlanPoliciesSurface
 										title={viewTitles.conditions}
 										description=""

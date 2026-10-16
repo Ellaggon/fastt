@@ -61,6 +61,35 @@ async function render(part: "prepare" | "publish") {
 	})
 }
 describe("two tour playbooks rendered in their actual layout", () => {
+	it("publication review owns its actions without a contradictory terminal footer", async () => {
+		const container = await AstroContainer.create()
+		const html = await container.renderToString(PlaybookLayout, {
+			request: new Request(
+				"https://fastt.test/product/tour/preview?playbook=complete-to-publish&step=preview&variantId=option&ratePlanId=rate"
+			),
+			props: {
+				active: true,
+				playbookId: "complete-to-publish",
+				stepId: "preview",
+				productId: "tour",
+				productDisplayName: "Experiencia guardada",
+				variantId: "option",
+				ratePlanId: "rate",
+				playbookVertical: "tour",
+				isHotel: false,
+			},
+			slots: {
+				default:
+					'<main><button>Publicar experiencia</button><a href="/product/tour?variantId=option&amp;ratePlanId=rate">Volver a la ficha</a></main>',
+			},
+		})
+		expect(html).not.toContain("Usa el botón Publicar en la vista previa")
+		expect(html).not.toContain("Ir al panel")
+		expect(html).not.toContain('<footer class="fastt-playbook-footer')
+		expect(html).toContain("Publicar experiencia")
+		expect(html).toContain("variantId=option&amp;ratePlanId=rate")
+	})
+
 	it("shows all five stages before a product exists without links to unsaved forms", async () => {
 		const container = await AstroContainer.create()
 		const html = await container.renderToString(PlaybookLayout, {

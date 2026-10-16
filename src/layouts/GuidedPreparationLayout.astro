@@ -1,13 +1,28 @@
 ---
 import Layout from "@/layouts/Layout.astro"
 
+export interface GuidedPreparationOfferContext {
+	productLabel: string
+	productName: string
+	variantLabel?: string
+	variantName?: string
+	/** Shown on etapa 1 instead of a saved option name (e.g. “Añadir opción”). */
+	playbookLine?: string
+}
+
 interface Props {
 	title?: string
 	playbookTitle?: string
 	stepLabel?: string
+	offerContext?: GuidedPreparationOfferContext | null
 }
 
-const { title = "Preparar servicio", playbookTitle = "Preparación", stepLabel = "" } = Astro.props
+const {
+	title = "Preparar servicio",
+	playbookTitle = "Preparación",
+	stepLabel = "",
+	offerContext = null,
+} = Astro.props
 ---
 
 <Layout title={title}>
@@ -27,9 +42,41 @@ const { title = "Preparar servicio", playbookTitle = "Preparación", stepLabel =
 				>
 					Fastt
 				</a>
-				<div class="min-w-0 text-right">
-					<p class="truncate text-sm font-medium text-slate-200">{playbookTitle}</p>
-					{stepLabel ? <p class="hidden text-xs text-slate-400 sm:block">{stepLabel}</p> : null}
+				<div class="min-w-0 max-w-[min(100%,12rem)] text-right sm:max-w-md">
+					{
+						offerContext ? (
+							<div class="space-y-1 text-sm leading-snug">
+								<p class="flex min-w-0 items-baseline justify-end gap-1 font-medium text-slate-200">
+									<span class="shrink-0 text-slate-400">{offerContext.productLabel}:</span>
+									<span class="min-w-0 max-sm:truncate" title={offerContext.productName}>
+										{offerContext.productName}
+									</span>
+								</p>
+								{offerContext.variantLabel && offerContext.variantName ? (
+									<p class="flex min-w-0 items-baseline justify-end gap-1 font-medium text-slate-200">
+										<span class="shrink-0 text-slate-400">{offerContext.variantLabel}:</span>
+										<span class="min-w-0 max-sm:truncate" title={offerContext.variantName}>
+											{offerContext.variantName}
+										</span>
+									</p>
+								) : offerContext.playbookLine ? (
+									<p
+										class="font-medium text-slate-400 max-sm:truncate"
+										title={offerContext.playbookLine}
+									>
+										{offerContext.playbookLine}
+									</p>
+								) : null}
+							</div>
+						) : (
+							<>
+								<p class="truncate text-sm font-medium text-slate-200">{playbookTitle}</p>
+								{stepLabel ? (
+									<p class="hidden text-xs text-slate-400 sm:block">{stepLabel}</p>
+								) : null}
+							</>
+						)
+					}
 				</div>
 			</div>
 		</header>

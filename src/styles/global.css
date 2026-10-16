@@ -1469,6 +1469,26 @@ html:has(.fastt-workspace-shell) {
 	animation: calendar-loading 1.15s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
+.calendar-month-panel--saved-reveal {
+	animation: calendar-month-panel-saved-reveal 1.35s var(--fastt-ease-standard) both;
+}
+
+@keyframes calendar-month-panel-saved-reveal {
+	0% {
+		box-shadow: 0 0 0 0 rgb(59 130 246 / 0);
+	}
+
+	22% {
+		box-shadow:
+			0 0 0 3px rgb(59 130 246 / 0.12),
+			0 14px 36px rgb(15 23 42 / 0.07);
+	}
+
+	100% {
+		box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+	}
+}
+
 .calendar-backdrop {
 	animation: calendar-backdrop-enter var(--fastt-motion-standard) ease both;
 	backdrop-filter: blur(2px);
@@ -1675,6 +1695,7 @@ html:has(.fastt-workspace-shell) {
 	.calendar-backdrop,
 	.calendar-drawer,
 	.calendar-loading-bar::after,
+	.calendar-month-panel--saved-reveal,
 	.calendar-dialog {
 		animation: none !important;
 		transition-duration: 0.01ms !important;

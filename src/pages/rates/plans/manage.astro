@@ -533,6 +533,14 @@ const layoutProps = optionWizard
 			playbookVertical: "tour" as const,
 			hideFooter: true,
 			lightweight: true,
+			guidedNavOfferContext: matchedVariant
+				? {
+						productLabel: tourScopeLabels.scopeProduct,
+						productName: matchedVariant.productName,
+						variantLabel: tourScopeLabels.scopeVariant,
+						variantName: matchedVariant.variantName,
+					}
+				: null,
 		}
 	: activePlaybook === "add-room"
 		? {
@@ -710,6 +718,9 @@ const tourRateSaveHref = isTourRateContext
 
 									<div class="grid gap-4 md:grid-cols-2">
 										{isTourPlaybookRateStep ? (
+											<input type="hidden" name="variantId" value={requestedVariantId} />
+										) : null}
+										{isTourPlaybookRateStep && !optionWizard ? (
 											<>
 												<label class="block space-y-1.5 text-sm">
 													<span class="font-medium text-slate-800">
@@ -723,13 +734,12 @@ const tourRateSaveHref = isTourRateContext
 													<span class="font-medium text-slate-800">
 														{tourScopeLabels.scopeVariant}
 													</span>
-													<input type="hidden" name="variantId" value={requestedVariantId} />
 													<div class="fastt-soft-box border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900">
 														{matchedVariant?.variantName ?? "Opción seleccionada"}
 													</div>
 												</label>
 											</>
-										) : (
+										) : !isTourPlaybookRateStep ? (
 											<label class="block space-y-1.5 text-sm md:col-span-2">
 												<span class="font-medium text-slate-800">Habitación</span>
 												<input type="hidden" name="variantId" value={requestedVariantId} />
@@ -737,7 +747,7 @@ const tourRateSaveHref = isTourRateContext
 													{matchedVariant?.label ?? "Habitación seleccionada"}
 												</div>
 											</label>
-										)}
+										) : null}
 
 										{isTourPlaybookRateStep ? (
 											<div class="fastt-soft-box border border-emerald-200 bg-emerald-50/60 p-4 text-sm md:col-span-2">
