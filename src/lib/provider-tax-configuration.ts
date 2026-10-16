@@ -1,3 +1,4 @@
+import { parseReviewDate } from "@/lib/provider-review-date"
 import {
 	first,
 	and,
@@ -55,6 +56,7 @@ export type ProviderTaxBureauSnapshot = {
 }
 
 export type ProviderTaxConfigurationRecord = {
+	reviewedAt: Date | null
 	providerId: string
 	status: ProviderTaxConfigurationStatus
 	statusLabel: string
@@ -252,6 +254,7 @@ function mapRow(row: {
 			row.taxRegime
 		),
 		tinBureau: readTinBureauSnapshot(row.metadataJson),
+		reviewedAt: parseReviewDate(row.metadataJson),
 	}
 }
 

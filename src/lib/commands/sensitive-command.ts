@@ -1,6 +1,8 @@
+import { withPostgresTransaction } from "@/shared/infrastructure/db/client"
 import { writeAuditEvent, type AuditRiskLevel } from "@/lib/audit/audit-events"
 import {
 	completeCommandIdempotency,
+	lockCommandIdempotency,
 	failCommandIdempotency,
 	reserveCommandIdempotency,
 } from "@/lib/commands/command-idempotency"
@@ -79,6 +81,8 @@ async function recordOutcome(
  */
 export async function executeSensitiveCommand<T>(params: {
 	audit: SensitiveCommandAudit
+	/** Commit domain effects, successful audit and replay response together. */
+	atomic?: boolean
 	idempotency?: { scope: string; key: string; payload: unknown; ttlMs?: number }
 	/** Authorization and MFA happen before an idempotency lease is acquired. */
 	authorize?: () => Promise<void>
@@ -92,6 +96,7 @@ export async function executeSensitiveCommand<T>(params: {
 		if (params.idempotency) {
 			reservation = await reserveCommandIdempotency<T>({
 				...params.idempotency,
+				ttlMs: params.idempotency.ttlMs ?? (params.atomic ? 60_000 : undefined),
 				requestId: params.audit.requestId,
 				actorUserId: params.audit.actorUserId,
 			})
@@ -105,21 +110,34 @@ export async function executeSensitiveCommand<T>(params: {
 			if (reservation.kind === "in_progress") throw new CommandAlreadyInProgressError()
 		}
 
-		const result = await params.execute()
-		if (reservation?.kind === "execute") {
-			await completeCommandIdempotency({ id: reservation.id, response: result.response })
-			completed = true
+		const execute = async () => {
+			if (params.atomic && reservation?.kind === "execute")
+				await lockCommandIdempotency({ id: reservation.id, requestId: params.audit.requestId })
+			const result = await params.execute()
+			if (reservation?.kind === "execute")
+				await completeCommandIdempotency({ id: reservation.id, response: result.response })
+			if (!params.atomic) completed = true
+			await recordOutcome(params.audit, {
+				outcome: "succeeded",
+				beforeJson: result.beforeJson,
+				afterJson: result.afterJson,
+				contextJson: result.contextJson,
+			})
+			return { response: result.response, replayed: false }
 		}
-		await recordOutcome(params.audit, {
-			outcome: "succeeded",
-			beforeJson: result.beforeJson,
-			afterJson: result.afterJson,
-			contextJson: result.contextJson,
-		})
-		return { response: result.response, replayed: false }
+		const result = params.atomic ? await withPostgresTransaction(execute) : await execute()
+		completed = true
+		return result
 	} catch (error) {
-		if (reservation?.kind === "execute" && !completed) {
-			await failCommandIdempotency({ id: reservation.id }).catch(() => undefined)
+		if (
+			reservation?.kind === "execute" &&
+			!completed &&
+			!(error instanceof Error && error.message === "idempotency_lease_changed")
+		) {
+			await failCommandIdempotency({
+				id: reservation.id,
+				...(params.atomic ? { requestId: params.audit.requestId } : {}),
+			}).catch(() => undefined)
 		}
 		await recordOutcome(params.audit, {
 			outcome: outcomeForError(error),

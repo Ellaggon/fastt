@@ -1,5 +1,6 @@
 ---
 import CaseStatusBadge from "@/components/admin/cases/CaseStatusBadge.astro"
+import InternalAccessDenied from "@/components/admin/InternalAccessDenied.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
@@ -101,14 +102,7 @@ function availabilityLabel(value: boolean | null) {
 	{
 		accessRestricted ? (
 			<section class="space-y-6">
-				<Card class="bg-slate-100">
-					<>
-						<h1 class="text-xl font-semibold text-slate-900">Acceso restringido</h1>
-						<p class="mt-2 text-sm text-slate-600">
-							Tu cuenta no tiene permiso para consultar la ficha de este proveedor.
-						</p>
-					</>
-				</Card>
+				<InternalAccessDenied />
 			</section>
 		) : (
 			view && (
@@ -250,7 +244,16 @@ function availabilityLabel(value: boolean | null) {
 																<dd class="inline">{area.source}</dd>
 															</div>
 															<div>
-																<dt class="inline font-semibold text-slate-600">Evaluada: </dt>
+																<dt class="inline font-semibold text-slate-600">
+																	Revisión registrada:{" "}
+																</dt>
+																<dd class="inline">
+																	{sourceDateLabel(area.sourceEvaluatedAt ?? null)}
+																</dd>
+																<dt class="inline font-semibold text-slate-600">
+																	{" "}
+																	· Fuente actualizada:{" "}
+																</dt>
 																<dd class="inline">{sourceDateLabel(area.sourceUpdatedAt)}</dd>
 															</div>
 														</dl>

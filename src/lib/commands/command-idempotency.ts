@@ -83,15 +83,21 @@ export async function reserveCommandIdempotency<T = unknown>(params: {
 			requestHash: CommandIdempotency.requestHash,
 			status: CommandIdempotency.status,
 			responseJson: CommandIdempotency.responseJson,
+			expiresAt: CommandIdempotency.expiresAt,
+			actorUserId: CommandIdempotency.actorUserId,
 		})
 		.from(CommandIdempotency)
 		.where(and(eq(CommandIdempotency.scope, scope), eq(CommandIdempotency.key, key)))
 		.then((rows) => rows[0])
 
 	if (existing) {
+		if (existing.actorUserId && existing.actorUserId !== params.actorUserId)
+			throw new IdempotencyConflictError()
 		if (existing.requestHash !== requestHash) throw new IdempotencyConflictError()
 		if (existing.status === "succeeded")
 			return { kind: "replay", response: existing.responseJson as T | null }
+
+		if (existing.status === "started" && existing.expiresAt > now) return { kind: "in_progress" }
 
 		// Failed commands and stale leases may be retried with exactly the same
 		// command payload. The conditional update prevents two retries from
@@ -109,12 +115,13 @@ export async function reserveCommandIdempotency<T = unknown>(params: {
 			.where(
 				and(
 					eq(CommandIdempotency.id, existing.id),
+					inArray(CommandIdempotency.status, ["started", "failed"]),
 					or(eq(CommandIdempotency.status, "failed"), lt(CommandIdempotency.expiresAt, now))
 				)
 			)
 			.returning({ id: CommandIdempotency.id })
 		if (reclaimed[0]) return { kind: "execute", id: existing.id }
-		return reserveCommandIdempotency<T>(params)
+		return { kind: "in_progress" }
 	}
 
 	const id = crypto.randomUUID()
@@ -141,21 +148,46 @@ export async function reserveCommandIdempotency<T = unknown>(params: {
 	}
 }
 
+/** Locks a lease until its atomic effect and replay response commit together. */
+export async function lockCommandIdempotency(params: { id: string; requestId: string }) {
+	const [row] = await db
+		.select({ status: CommandIdempotency.status, requestId: CommandIdempotency.requestId })
+		.from(CommandIdempotency)
+		.where(eq(CommandIdempotency.id, params.id))
+		.for("update")
+	if (!row || row.status !== "started" || row.requestId !== params.requestId)
+		throw Object.assign(new Error("idempotency_lease_changed"), { status: 409 })
+}
+
 export async function completeCommandIdempotency(params: {
 	id: string
 	response: unknown
 }): Promise<void> {
 	await db
 		.update(CommandIdempotency)
-		.set({ status: "succeeded", responseJson: params.response, updatedAt: new Date() })
+		.set({
+			status: "succeeded",
+			responseJson: params.response,
+			expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+			updatedAt: new Date(),
+		})
 		.where(eq(CommandIdempotency.id, params.id))
 }
 
-export async function failCommandIdempotency(params: { id: string }): Promise<void> {
+export async function failCommandIdempotency(params: {
+	id: string
+	requestId?: string
+}): Promise<void> {
 	await db
 		.update(CommandIdempotency)
 		.set({ status: "failed", updatedAt: new Date() })
-		.where(eq(CommandIdempotency.id, params.id))
+		.where(
+			and(
+				eq(CommandIdempotency.id, params.id),
+				eq(CommandIdempotency.status, "started"),
+				params.requestId ? eq(CommandIdempotency.requestId, params.requestId) : undefined
+			)
+		)
 }
 
 /**
@@ -166,6 +198,7 @@ export async function failCommandIdempotency(params: { id: string }): Promise<vo
 export async function cleanupExpiredCommandIdempotency(params?: {
 	now?: Date
 	limit?: number
+	scope?: string
 }): Promise<number> {
 	const now = params?.now ?? new Date()
 	const limit = Math.min(Math.max(params?.limit ?? 250, 1), 1_000)
@@ -175,7 +208,8 @@ export async function cleanupExpiredCommandIdempotency(params?: {
 		.where(
 			and(
 				lt(CommandIdempotency.expiresAt, now),
-				inArray(CommandIdempotency.status, ["succeeded", "failed"])
+				inArray(CommandIdempotency.status, ["succeeded", "failed"]),
+				params?.scope ? eq(CommandIdempotency.scope, params.scope) : undefined
 			)
 		)
 		.orderBy(asc(CommandIdempotency.expiresAt))

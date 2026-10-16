@@ -3,7 +3,7 @@
 Status: active
 Document type: runbook
 Owner: Operations / Engineering
-Last verified: 2026-10-01
+Last verified: 2026-10-16
 Scope: certificación, observación humana, cohortes y reversión del Centro de Mando
 Source of truth: contrato operativo, pruebas y certificador enlazados
 Review trigger: cambio de contrato, controles o procedimiento; revisar evidencia del entorno antes de ejecutar
@@ -109,15 +109,89 @@ No declarar esta fase cerrada hasta adjuntar al ticket o registro de release:
 
 La comprobación de solo lectura contra Supabase devolvió `passed: false`: los cuatro casos de certificación siguen abiertos, sin decisiones aplicadas, eventos de aplicación ni reservas de idempotencia exitosas. La comprobación de navegación en Codex fue realizada por el agente, no por administradores participantes. No existen métricas de observación humana que permitan cerrar la adopción. Esta observación es histórica: no certifica el estado del entorno actual.
 
-## Pendientes conservados de la auditoría del 7 de septiembre
+## Revalidación y recuperación
 
-Estos hallazgos requieren comprobar código y entorno antes de declararse resueltos. La limpieza documental no los certifica.
+La verificación de solo lectura del 15 de octubre de 2026 devolvió `passed: true`
+para los cuatro casos de `provider_command_center_v2_certification`: decisiones de
+rechazo aplicadas, casos resueltos, fuentes canónicas actualizadas, actividad,
+auditoría y cuatro reservas exitosas de idempotencia. Sustituye el diagnóstico de
+«cuatro casos sin ejecutar», pero no acredita adopción ni segundo control humano.
+El certificador declara el alcance y `adoptionCertified: false`.
 
-- **Recuperación transaccional:** la auditoría observó aplicación de la fuente y cierre del caso en transacciones separadas. Certificar reconciliación por decisión, efecto ya aplicado y reintento idempotente; una operación incierta no admite otra propuesta.
-- **Persistencia real:** usar dos proveedores fixture en base aislada, más de 100 casos cerrados y uno activo antiguo. Verificar consulta, permisos, maker/checker, reemplazo documental, MFA, conflicto y respuesta perdida después de persistir. Registrar decisiones, eventos y número de efectos.
-- **Vigencia de evidencia:** distinguir fecha de revisión de actualización; decidir vigencia por política, sujeto y documento. No imponer caducidad universal de 90 días.
-- **Solicitudes de información:** acreditar destinatario autorizado, canal, entrega y respuesta correlacionada. Sin fuente persistida, mostrar «sin confirmación registrada».
-- **Observación humana:** ejecutar T1–T5 con participantes reales y un checker distinto del maker cuando corresponda. Comprobar teclado, foco, zoom 200% y ancho de 375 px. El recorrido de un agente no sustituye esas sesiones.
-- **Adopción:** demostrar paridad de permisos, evidencia, auditoría, MFA y segundo control antes de habilitar escritura legacy o ampliar cohortes. No simular un segundo aprobador cuando trabaja una sola persona.
+Antes de ampliar la cohorte, ejecutar ambos comandos y conservar sus salidas:
 
-La auditoría histórica registró 38 pruebas aprobadas con cobertura parcialmente simulada y una certificación Supabase negativa. Esos resultados no deben presentarse como checks actuales ni como aprobación operativa.
+```sh
+pnpm test:command-center:recovery
+pnpm certify:command-center:v2 --verify
+```
+
+El reconciliador abre fiscalidad solo para fuentes enviadas (`pending`), no por el
+resultado `requires_attention`. No cierra propuestas pendientes o inciertas. Un cierre
+por fuente ya no pendiente se registra como reconciliación, sin afirmar aprobación.
+El verificador distingue los cuatro expedientes preparados de su historial y rechaza
+cualquier expediente activo adicional de la fixture.
+
+La primera suite usa exclusivamente la base aislada de `.env.test`, validada por
+fingerprint. Requiere las migraciones existentes de seguridad, casework y decisiones.
+No sustituirla por la base operativa si falta esquema. Sus fixtures llevan
+`integration_certification`, `fixture` e `inactive` y se revierten al terminar cada
+escenario. Incluye dos proveedores, 101 casos cerrados y uno activo anterior,
+rollback de fuentes por área, repetición de decisión y separación maker/checker.
+Las pruebas de servicios no sustituyen una sesión autenticada con dos personas.
+
+### Recuperación de comandos
+
+Los comandos v2 de propuesta y segundo control guardan efecto de dominio, cierre,
+actividad, outbox, auditoría de éxito y respuesta de idempotencia en una transacción.
+La reserva se bloquea durante el efecto. Las reservas de comandos atómicos sin
+confirmación pueden reclamarse tras 60 segundos, con control del propietario de la
+reserva y el mismo cuerpo; el resultado exitoso se conserva 24 horas para reintentos. Un fallo anterior al commit revierte los
+cambios; una respuesta perdida se consulta con la misma clave y cuerpo. Una reserva
+exitosa no se degrada a fallida por un error posterior. Una operación en curso
+responde conflicto y no se ejecuta de nuevo. Las invalidaciones de caché ocurren
+después del commit y no convierten una decisión confirmada en un fallo de negocio.
+
+Las decisiones históricas `failed` o `applying` previas a este contrato permanecen
+bloqueadas: comparar snapshot, fuente, auditoría y actor antes de cualquier reparación.
+No asumir que el estado actual de la fuente prueba qué decisión lo produjo. No
+reaplicar ni crear otra propuesta para «desatascar» una aplicación parcial antigua.
+Si no hay trazabilidad suficiente, requiere reconciliación operativa explícita.
+
+### Solicitudes dentro de la plataforma
+
+1. Registrar la solicitud mediante la decisión y, si corresponde, segundo control.
+2. Revisar y publicar un mensaje específico para el proveedor desde el expediente.
+   El comentario interno no se copia automáticamente.
+3. La publicación persiste en el buzón `/provider/compliance/requests`; únicamente
+   miembros actuales con permiso del área pueden verla y responder. No envía correo.
+4. Mostrar publicación y respuesta con fechas propias y correlación a la decisión.
+   Publicación no equivale a lectura; no hay confirmación de lectura ni de correo.
+5. La respuesta autenticada devuelve el caso a revisión sin aprobar evidencia ni
+   cambiar la fuente. Los archivos se cargan en su sección segura.
+
+No ensayar con destinatarios comerciales ni enviar mensajes externos para certificar.
+La cohorte y la bandera de comandos se validan también en las APIs de publicación y
+respuesta. La reversión conserva lectura, mensajes, decisiones y auditoría.
+
+### Vigencia y fechas
+
+La ficha separa revisión registrada de actualización de la fuente. `updatedAt` no
+suple una revisión ausente. Una fuente aprobada que cambió después de revisarse o
+sin fecha verificable requiere reconciliación. Documentos respetan su vencimiento
+explícito. No hay caducidad universal por antigüedad. Los plazos adicionales de
+revisión requieren política aprobada y fecha explícita; no inventar plazos ni
+considerar universal una regla de otro sujeto o tipo documental.
+
+### Observación pendiente y gate de adopción
+
+Operaciones coordina participantes; el agente prepara el protocolo, pero no firma
+sus resultados. Usar T1–T5 anteriores, dos sesiones ciegas satisfactorias por rol y
+un checker distinto del maker. Registrar también teclado/foco, zoom 200% y 375 px.
+Mantener las columnas: participante, rol, tarea, inicio, fin, resultado, ayuda,
+error de contexto, comprensión del efecto, recuperación sin duplicado, mensaje
+falso, URL inicial/final, request ID, auditoría, hallazgo y responsable.
+
+No calcular porcentajes sobre filas vacías ni considerar «no observado» como éxito.
+Sin estas sesiones, no ampliar el piloto ni retirar el panel anterior. La paridad de
+permisos, MFA, evidencia y segundo control sigue siendo obligatoria en cualquier
+ruta de compatibilidad o reversión.

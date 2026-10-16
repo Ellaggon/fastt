@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks"
+
 import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
 
@@ -56,12 +58,46 @@ export function getRuntimePostgresDb() {
 	return runtimeDb
 }
 
-export const postgresDb = new Proxy({} as ReturnType<typeof createPostgresDb>, {
-	get(_target, property, receiver) {
-		return Reflect.get(getRuntimePostgresDb(), property, receiver)
+type RuntimeDb = ReturnType<typeof createPostgresDb>
+type TransactionContext = { executor: RuntimeDb; afterCommit: Array<() => Promise<void>> }
+const transactionContext = new AsyncLocalStorage<TransactionContext>()
+
+export function isInPostgresTransaction() {
+	return Boolean(transactionContext.getStore())
+}
+
+/** Joins a caller's unit of work; all compatibility repositories share this connection. */
+export async function withPostgresTransaction<T>(
+	work: () => Promise<T>,
+	options?: { savepoint?: boolean }
+): Promise<T> {
+	const parent = transactionContext.getStore()
+	if (parent && !options?.savepoint) return work()
+	const afterCommit: TransactionContext["afterCommit"] = []
+	const executor = parent?.executor ?? getRuntimePostgresDb()
+	const result = await executor.transaction(
+		(tx) => transactionContext.run({ executor: tx as unknown as RuntimeDb, afterCommit }, work),
+		parent ? undefined : { isolationLevel: "repeatable read" }
+	)
+	if (parent) parent.afterCommit.push(...afterCommit)
+	else await Promise.allSettled(afterCommit.map((effect) => Promise.resolve().then(effect)))
+	return result
+}
+
+export async function afterPostgresCommit(effect: () => Promise<void>): Promise<void> {
+	const context = transactionContext.getStore()
+	if (context) context.afterCommit.push(effect)
+	else await effect()
+}
+
+export const postgresDb = new Proxy({} as RuntimeDb, {
+	get(_target, property) {
+		const executor = transactionContext.getStore()?.executor ?? getRuntimePostgresDb()
+		const value = Reflect.get(executor, property)
+		return typeof value === "function" ? value.bind(executor) : value
 	},
 	has(_target, property) {
-		return property in getRuntimePostgresDb()
+		return property in (transactionContext.getStore()?.executor ?? getRuntimePostgresDb())
 	},
 })
 

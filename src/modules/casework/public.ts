@@ -38,3 +38,12 @@ export {
 	rejectCaseDecisionApproval,
 	saveCaseView,
 } from "./application/commands/case-commands"
+
+export {
+	assertInformationRecipient,
+	informationRequestContext,
+	publishInformationRequest,
+	respondToInformationRequest,
+	listProviderInformationRequests,
+	reviewPermissionByDomain,
+} from "./application/commands/information-requests"

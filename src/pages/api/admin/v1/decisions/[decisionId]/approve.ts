@@ -34,6 +34,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 			riskLevel: "critical",
 		}
 		const command = await executeSensitiveCommand({
+			atomic: true,
 			audit,
 			idempotency: {
 				scope: "case.decision.approve_high_risk",

@@ -1,0 +1,25 @@
+---
+import Card from "@/components/ui/Card.astro"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
+---
+
+<Card>
+	<h1 class="text-xl font-semibold text-slate-900">Acceso restringido</h1>
+	{
+		user?.email && (
+			<p class="mt-3 text-sm break-words text-slate-700">
+				Sesión iniciada como <strong>{user.email}</strong>.
+			</p>
+		)
+	}
+	<p class="mt-2 text-sm leading-6 text-slate-600">
+		Esta cuenta no tiene el permiso necesario para consultar esta sección del Centro de Mando. El
+		código temporal confirma tu identidad, pero no concede permisos internos.
+	</p>
+	<p class="mt-2 text-sm leading-6 text-slate-600">
+		Comprueba que estás usando la cuenta autorizada. Si es la correcta, solicita al responsable de
+		accesos que revise sus roles. Repetir el código temporal no resuelve este bloqueo.
+	</p>
+</Card>

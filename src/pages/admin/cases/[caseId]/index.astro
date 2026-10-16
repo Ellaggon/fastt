@@ -4,6 +4,7 @@ import Card from "@/components/ui/Card.astro"
 import Select from "@/components/ui/Select.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import CaseStatusBadge from "@/components/admin/cases/CaseStatusBadge.astro"
+import InternalAccessDenied from "@/components/admin/InternalAccessDenied.astro"
 import CaseEvidencePanel from "@/components/admin/cases/CaseEvidencePanel.astro"
 import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
@@ -136,18 +137,20 @@ const taskLabels: Record<string, string> = {
 const reasonById = new Map((workspace?.reasons ?? []).map((reason) => [reason.id, reason]))
 const pendingDecisionReview =
 	workspace?.decisions.some((decision) =>
-		["pending_approval", "approved", "applying", "failed"].includes(decision.status)
+		["proposed", "pending_approval", "approved", "applying", "failed"].includes(decision.status)
 	) ?? false
 const noticeMessage =
-	notice === "assigned"
-		? "El caso quedó asignado correctamente."
-		: notice === "decision_pending_second_control"
-			? "La propuesta se registró y quedó pendiente de segundo control."
-			: notice === "decision_waiting_information"
-				? "La solicitud quedó registrada. El expediente espera información antes de continuar."
-				: notice === "decision_returned"
-					? "La propuesta fue devuelta para revisión. El expediente sigue abierto."
-					: "La decisión se aplicó correctamente. El expediente quedó resuelto."
+	notice === "request_published"
+		? "La solicitud está disponible en el buzón seguro del proveedor. Su lectura todavía no está confirmada."
+		: notice === "assigned"
+			? "El caso quedó asignado correctamente."
+			: notice === "decision_pending_second_control"
+				? "La propuesta se registró y quedó pendiente de segundo control."
+				: notice === "decision_waiting_information"
+					? "La solicitud quedó registrada. El expediente espera información antes de continuar."
+					: notice === "decision_returned"
+						? "La propuesta fue devuelta para revisión. El expediente sigue abierto."
+						: "La decisión se aplicó correctamente. El expediente quedó resuelto."
 ---
 
 <InternalAdminLayout
@@ -156,12 +159,7 @@ const noticeMessage =
 	{
 		accessRestricted ? (
 			<section class="space-y-6">
-				<Card class="bg-slate-100">
-					<h1 class="text-xl font-semibold text-slate-900">Acceso restringido</h1>
-					<p class="mt-2 text-sm text-slate-600">
-						Tu cuenta no tiene permiso para consultar este expediente.
-					</p>
-				</Card>
+				<InternalAccessDenied />
 			</section>
 		) : (
 			workspace && (
@@ -172,8 +170,12 @@ const noticeMessage =
 					data-actor-id={principal?.user.id}
 				>
 					{notice &&
-						((notice === "assigned" &&
-							workspace.tasks.some((task) => task.assigneeUserId === principal?.user.id)) ||
+						((notice === "request_published" &&
+							workspace.informationEvents.some(
+								(event) => event.eventType === "information_request_published"
+							)) ||
+							(notice === "assigned" &&
+								workspace.tasks.some((task) => task.assigneeUserId === principal?.user.id)) ||
 							(notice === "decision_applied" && workspace.case.status === "resolved") ||
 							(notice === "decision_waiting_information" &&
 								workspace.case.status === "waiting_information") ||
@@ -400,6 +402,7 @@ const noticeMessage =
 								{commandsEnabled &&
 								caseInPilot &&
 								caseActionable &&
+								workspace.case.status !== "waiting_information" &&
 								canProposeDecision &&
 								!pendingDecisionReview ? (
 									<form
@@ -471,8 +474,8 @@ const noticeMessage =
 										) : null}
 										{evidence?.approvalWarnings.length ? (
 											<p class="text-sm text-amber-800">
-												La aprobación requiere un comentario que justifique la coincidencia probable
-												de titularidad.
+												La aprobación requiere justificar estas señales:{" "}
+												{evidence.approvalWarnings.join(" · ")}.
 											</p>
 										) : null}
 										<p
@@ -488,6 +491,11 @@ const noticeMessage =
 										Ya existe una decisión pendiente de control o de reconciliación. Revisa su
 										estado y la auditoría antes de registrar otra propuesta.
 									</p>
+								) : workspace.case.status === "waiting_information" ? (
+									<div class="fastt-notice mt-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
+										Revisa el estado de la solicitud abajo. El caso volverá a revisión cuando se
+										reciba una respuesta; no se creará otra propuesta mientras espera información.
+									</div>
 								) : !caseActionable ? (
 									<div
 										class="fastt-notice mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"
@@ -636,7 +644,8 @@ const noticeMessage =
 								{workspace.decisions
 									.filter(
 										(decision) =>
-											decision.decision === "request_information" && decision.status === "proposed"
+											decision.decision === "request_information" &&
+											["applied", "proposed"].includes(decision.status)
 									)
 									.map((decision) => (
 										<div class="fastt-notice mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
@@ -644,10 +653,85 @@ const noticeMessage =
 											<p class="mt-1">
 												Registrada: {fmt.format(decision.proposedAt ?? decision.createdAt)}.
 											</p>
-											<p class="mt-1">
-												Envío al proveedor: sin confirmación registrada. Respuesta: sin confirmación
-												registrada.
-											</p>
+											{(() => {
+												const events = workspace.informationEvents.filter(
+													(event) =>
+														(event.metadataJson as { decisionId?: string } | null)?.decisionId ===
+														decision.id
+												)
+												const published = events.find(
+													(event) => event.eventType === "information_request_published"
+												)
+												const responded = events.find(
+													(event) => event.eventType === "information_request_responded"
+												)
+												return (
+													<>
+														<p class="mt-2">
+															{published
+																? `Publicada en el buzón seguro: ${fmt.format(published.createdAt)}. Lectura no confirmada.`
+																: "Envío al proveedor: sin confirmación registrada. No hay publicación en el buzón."}
+														</p>
+														{published && (
+															<p class="mt-2 whitespace-pre-wrap">
+																{String(
+																	(published.metadataJson as { message?: string })?.message ?? ""
+																)}
+															</p>
+														)}
+														<p class="mt-2">
+															{responded
+																? `Respuesta recibida: ${fmt.format(responded.createdAt)}. Pendiente de revisión.`
+																: "Respuesta: sin confirmación registrada."}
+														</p>
+														{responded && (
+															<p class="mt-2 whitespace-pre-wrap">
+																{String(
+																	(responded.metadataJson as { message?: string })?.message ?? ""
+																)}
+															</p>
+														)}
+														{!published &&
+															decision.status === "applied" &&
+															workspace.case.status === "waiting_information" &&
+															commandsEnabled &&
+															caseInPilot &&
+															canProposeDecision && (
+																<form
+																	class="mt-3 space-y-3"
+																	data-case-command
+																	data-endpoint={`/api/admin/v1/decisions/${decision.id}/publish-request`}
+																>
+																	<input
+																		type="hidden"
+																		name="caseVersion"
+																		value={workspace.case.version}
+																	/>
+																	<label class="block font-semibold">
+																		Mensaje para el proveedor
+																		<Textarea
+																			name="message"
+																			rows="4"
+																			minlength="12"
+																			maxlength="4000"
+																			required
+																			class="mt-2"
+																		/>
+																	</label>
+																	<p>
+																		Solo este mensaje se publicará a miembros autorizados del
+																		proveedor. Indica qué corregir y dónde cargar la evidencia. No
+																		se enviará correo ni se compartirá el comentario interno.
+																	</p>
+																	<p data-command-message role="status" class="hidden" />
+																	<Button type="submit" size="sm">
+																		Publicar en buzón seguro
+																	</Button>
+																</form>
+															)}
+													</>
+												)
+											})()}
 										</div>
 									))}
 								{workspace.decisions
@@ -976,6 +1060,25 @@ const noticeMessage =
 			case_evidence_changed:
 				"La evidencia cambió mientras revisabas. Se conservó tu borrador para que lo confirmes contra la versión actual.",
 		})[code] ?? code
+
+	for (const form of forms) {
+		if (form === composer) continue
+		try {
+			const previous = JSON.parse(
+				storage.getItem(`casework:command:${actorId}:${form.dataset.endpoint}`) || "null"
+			) as PendingCaseCommand | null
+			if (!previous) continue
+			const values = JSON.parse(previous.body) as Record<string, string>
+			for (const field of form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+				"input[name],textarea[name]"
+			)) {
+				if (field.name !== "caseVersion" && values[field.name] != null)
+					field.value = values[field.name]
+			}
+		} catch {
+			/* No pending command to restore. */
+		}
+	}
 	for (const form of forms)
 		form.addEventListener("submit", async (event) => {
 			event.preventDefault()
@@ -1031,6 +1134,7 @@ const noticeMessage =
 					(!form.dataset.endpoint?.endsWith("/assign") &&
 						!body.pendingSecondControl &&
 						!body.rejected &&
+						!body.published &&
 						body.caseStatus !== "waiting_information" &&
 						body.applied !== true)
 				)
@@ -1049,15 +1153,17 @@ const noticeMessage =
 				const isDecisionReturn = form.dataset.endpoint?.endsWith("/reject")
 				destination.searchParams.set(
 					"notice",
-					isAssignment
-						? "assigned"
-						: body?.pendingSecondControl
-							? "decision_pending_second_control"
-							: isDecisionReturn || body?.rejected
-								? "decision_returned"
-								: body?.caseStatus === "waiting_information"
-									? "decision_waiting_information"
-									: "decision_applied"
+					body?.published
+						? "request_published"
+						: isAssignment
+							? "assigned"
+							: body?.pendingSecondControl
+								? "decision_pending_second_control"
+								: isDecisionReturn || body?.rejected
+									? "decision_returned"
+									: body?.caseStatus === "waiting_information"
+										? "decision_waiting_information"
+										: "decision_applied"
 				)
 				window.location.assign(`${destination.pathname}${destination.search}${destination.hash}`)
 			} catch (error) {
