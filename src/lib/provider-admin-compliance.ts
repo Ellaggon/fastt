@@ -3,6 +3,8 @@ import {
 	db,
 	desc,
 	eq,
+	and,
+	ComplianceCase,
 	Provider,
 	ProviderAuditLog,
 	ProviderVerification,
@@ -14,10 +16,17 @@ import {
 	assessExpiredDocumentOperationalImpact,
 	listExpiredProviderDocumentsForAdmin,
 	listPendingProviderDocumentsForAdmin,
+	listProviderDocuments,
 } from "@/lib/provider-documents"
-import { listPendingProviderPaymentAccountsForAdmin } from "@/lib/provider-payment-accounts"
+import {
+	listPendingProviderPaymentAccountsForAdmin,
+	listProviderPaymentAccounts,
+} from "@/lib/provider-payment-accounts"
 import { adminComplianceRejectTemplates } from "@/lib/provider-reject-categories"
-import { listProviderTaxConfigurationsForAdmin } from "@/lib/provider-tax-configuration"
+import {
+	getProviderTaxConfiguration,
+	listProviderTaxConfigurationsForAdmin,
+} from "@/lib/provider-tax-configuration"
 
 export { adminComplianceRejectTemplates } from "@/lib/provider-reject-categories"
 
@@ -449,7 +458,19 @@ export async function loadProviderComplianceDetail(providerId: string) {
 	const latestVerification = await getLatestProviderVerificationStatus(id)
 	const fiscal = consolePayload.fiscal.filter((row) => row.providerId === id)
 	const documents = consolePayload.documents.filter((row) => row.providerId === id)
+	const reviewedDocuments = (await listProviderDocuments(id)).filter(
+		(doc) => doc.status !== "pending"
+	)
+	const [taxConfiguration, paymentAccounts] = await Promise.all([
+		getProviderTaxConfiguration(id),
+		listProviderPaymentAccounts(id),
+	])
 	const payments = consolePayload.payments.filter((row) => row.providerId === id)
+	const paymentCases = await db
+		.select({ id: ComplianceCase.id, sourceRef: ComplianceCase.sourceRef })
+		.from(ComplianceCase)
+		.where(and(eq(ComplianceCase.providerId, id), eq(ComplianceCase.domain, "payments")))
+		.orderBy(desc(ComplianceCase.createdAt))
 	const audit = consolePayload.audit.filter((row) => row.providerId === id)
 
 	return {
@@ -469,32 +490,39 @@ export async function loadProviderComplianceDetail(providerId: string) {
 		verification,
 		fiscal,
 		documents,
+		reviewedDocuments,
 		payments,
+		paymentAccounts,
+		paymentCases: Object.fromEntries(
+			[...paymentCases].reverse().map((row) => [row.sourceRef, row.id])
+		),
 		audit,
 		checklist: [
 			{
 				id: "verification",
-				label: "Verificación global",
+				label: "Identidad y negocio",
 				complete: latestVerification?.status === "approved",
 				pending: latestVerification?.status === "pending" || !latestVerification,
 			},
 			{
 				id: "fiscal",
 				label: "Identidad fiscal",
-				complete: fiscal.length === 0 && latestVerification?.status !== undefined,
+				complete: taxConfiguration?.status === "verified",
 				pending: fiscal.length > 0,
 			},
 			{
 				id: "documents",
 				label: "Documentos de cumplimiento",
-				complete: documents.length === 0,
+				complete:
+					documents.length === 0 && reviewedDocuments.some((doc) => doc.status === "verified"),
 				pending: documents.length > 0,
 			},
 			{
 				id: "payments",
-				label: "Cuentas de payout",
-				complete: payments.length === 0,
+				label: "Cuentas bancarias",
+				complete: paymentAccounts.some((account) => account.status === "verified"),
 				pending: payments.length > 0,
+				empty: paymentAccounts.length === 0,
 			},
 		],
 		rejectTemplates: adminComplianceRejectTemplates,

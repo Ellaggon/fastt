@@ -21,6 +21,7 @@ import { listPendingProviderDocumentsForAdmin } from "@/lib/provider-documents"
 import { listPendingProviderPaymentAccountsForAdmin } from "@/lib/provider-payment-accounts"
 import { listPendingProviderVerificationsForAdmin } from "@/lib/provider-admin-compliance"
 import { listProviderTaxConfigurationsForAdmin } from "@/lib/provider-tax-configuration"
+import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
 
 export const CASE_DOMAINS = ["verification", "fiscal", "documents", "payments"] as const
 export type CaseDomain = (typeof CASE_DOMAINS)[number]
@@ -34,6 +35,63 @@ export type ComplianceCaseSource = {
 
 const ACTIVE_CASE_STATUSES = ["open", "in_review", "waiting_information", "blocked"] as const
 const POLICY_CONTEXT = { country: "BO", vertical: "accommodation", collectionModel: "intermediary" }
+
+/** Call within the review transaction, before changing the owned source record. */
+export async function assertLegacyComplianceReviewAllowed(
+	source: Pick<ComplianceCaseSource, "providerId" | "domain" | "sourceType" | "sourceRef">
+) {
+	const fail = (code: string, status = 409): never => {
+		throw Object.assign(new Error(code), { status })
+	}
+	if (!getFeatureFlag("COMMAND_CENTER_LEGACY_WRITE_ENABLED")) fail("legacy_review_disabled", 503)
+	const cases = await db
+		.select({
+			id: ComplianceCase.id,
+			status: ComplianceCase.status,
+			riskTier: ComplianceCase.riskTier,
+		})
+		.from(ComplianceCase)
+		.where(
+			and(
+				eq(ComplianceCase.providerId, source.providerId),
+				eq(ComplianceCase.domain, source.domain),
+				eq(ComplianceCase.sourceType, source.sourceType),
+				eq(ComplianceCase.sourceRef, source.sourceRef),
+				inArray(ComplianceCase.status, [...ACTIVE_CASE_STATUSES])
+			)
+		)
+		.for("update")
+	if (cases.length) {
+		const pending = await db
+			.select({ id: CaseDecision.id })
+			.from(CaseDecision)
+			.where(
+				and(
+					inArray(
+						CaseDecision.caseId,
+						cases.map((item) => item.id)
+					),
+					inArray(CaseDecision.status, [
+						"proposed",
+						"pending_approval",
+						"approved",
+						"applying",
+						"failed",
+					])
+				)
+			)
+			.limit(1)
+		if (pending.length) fail("casework_decision_pending")
+		if (cases.some((item) => item.status === "waiting_information"))
+			fail("case_waiting_information")
+		if (cases.some((item) => item.riskTier !== "standard")) fail("casework_review_required")
+	}
+	if (
+		getFeatureFlag("COMMAND_CENTER_V2_COMMANDS_ENABLED") &&
+		isCommandCenterV2PilotProvider(source.providerId)
+	)
+		fail("casework_review_required")
+}
 
 function caseNumber(id: string) {
 	return `CC-${id.replaceAll("-", "").slice(0, 12).toUpperCase()}`

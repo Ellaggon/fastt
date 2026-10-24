@@ -11,6 +11,7 @@ import {
 
 import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
 import { completeComplianceAssignment } from "@/lib/provider-compliance-ops"
+import { refreshProviderBankingReadiness } from "@/lib/provider-payment-accounts"
 import { resolveProviderPermissions } from "@/lib/provider-permissions"
 import { validateTaxpayerRegistrationNumber } from "@/lib/provider-tax-identity-validation"
 import {
@@ -500,6 +501,7 @@ export async function upsertProviderTaxConfiguration(params: {
 		riskLevel: inferSettingsRiskLevel({ domain: "fiscal" }),
 	})
 
+	await refreshProviderBankingReadiness(params.providerId)
 	return after!
 }
 
@@ -605,5 +607,6 @@ export async function reviewProviderTaxConfiguration(params: {
 		riskLevel: inferSettingsRiskLevel({ domain: "fiscal" }),
 	})
 
+	await refreshProviderBankingReadiness(params.providerId)
 	return after!
 }

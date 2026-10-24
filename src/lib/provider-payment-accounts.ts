@@ -1,20 +1,33 @@
 import { parseReviewDate } from "@/lib/provider-review-date"
-import { createHmac } from "node:crypto"
+import { createHash } from "node:crypto"
+import { withPostgresTransaction, afterPostgresCommit } from "@/shared/infrastructure/db/client"
 import {
 	first,
 	and,
 	db,
 	desc,
 	eq,
+	inArray,
 	ProviderFinancialProfile,
 	ProviderPaymentAccount,
 	ProviderTaxConfiguration,
 	ProviderUser,
+	Provider,
 } from "@/shared/infrastructure/db/compat"
 
 import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
 import { completeComplianceAssignment } from "@/lib/provider-compliance-ops"
-import { initiatePayoutRailMicroDeposit, confirmStripeConnectMicroDeposit } from "@/lib/payout-rail"
+import {
+	initiatePayoutRailMicroDeposit,
+	confirmStripeConnectMicroDeposit,
+	canVerifyBankAccountAutomatically,
+} from "@/lib/payout-rail"
+import {
+	synchronizeComplianceCaseCompat,
+	resolveComplianceCaseForSourceCompat,
+	assertLegacyComplianceReviewAllowed,
+} from "@/lib/casework/compliance-casework"
+import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
 	buildPaymentAccountMetadata,
 	readAccountIdentifierFromMetadata,
@@ -50,7 +63,7 @@ export type ProviderPayoutMethod = "bank_transfer" | "international_wire" | "oth
 export type ProviderPayoutSchedule = "manual" | "weekly" | "biweekly" | "monthly"
 
 export type ProviderMicroDepositChallenge = {
-	status: "none" | "initiated" | "confirmed" | "failed"
+	status: "none" | "initiating" | "initiated" | "confirmed" | "failed"
 	initiatedAt: string | null
 	expiresAt: string | null
 	attempts: number
@@ -97,8 +110,11 @@ export type ProviderPaymentAccountRecord = {
 	routingOrSwift: string | null
 	accountNumberLast4: string | null
 	accountReference: string | null
-	/** Full account/IBAN — only populated for admin review payloads. */
+	/** Always masked in read and mutation responses. Secrets use the case-bound reveal flow. */
 	accountIdentifier: string | null
+	reviewReason?: string | null
+	verificationMethod?: "manual" | "bank" | "unverified"
+	isPrimary?: boolean
 	payoutSchedule: ProviderPayoutSchedule
 	payoutScheduleLabel: string
 	microDeposit: ProviderMicroDepositChallenge
@@ -200,14 +216,6 @@ function maskAccountIdentifier(raw: string): { last4: string; reference: string 
 	return { last4, reference: `••••${last4}` }
 }
 
-function microDepositPepper(): string {
-	return String(process.env.PROVIDER_PAYOUT_SECRETS_KEY ?? "fastt-dev-payout-secrets-v1")
-}
-
-function hashMicroDepositAmount(accountId: string, cents: number): string {
-	return createHmac("sha256", microDepositPepper()).update(`${accountId}:${cents}`).digest("hex")
-}
-
 function readMicroDepositChallenge(
 	metadata: Record<string, unknown>
 ): ProviderMicroDepositChallenge {
@@ -223,6 +231,7 @@ function readMicroDepositChallenge(
 	const challenge = raw as Record<string, unknown>
 	const statusRaw = String(challenge.status ?? "none")
 	const status =
+		statusRaw === "initiating" ||
 		statusRaw === "initiated" ||
 		statusRaw === "confirmed" ||
 		statusRaw === "failed" ||
@@ -237,157 +246,147 @@ function readMicroDepositChallenge(
 	}
 }
 
-/**
- * Host-facing payout verification machine:
- * Enviada → Esperando depósitos → Confirmar montos → Lista
- */
+/** Status is authoritative; a historical challenge never overrides a later decision. */
 export function buildPayoutVerificationTimeline(
-	account: Pick<ProviderPaymentAccountRecord, "status" | "microDeposit" | "verifiedAt">
+	account: Pick<ProviderPaymentAccountRecord, "status" | "microDeposit" | "verifiedAt"> &
+		Partial<Pick<ProviderPaymentAccountRecord, "verificationMethod" | "reviewReason">>,
+	now = new Date()
 ): PayoutVerificationTimeline {
 	const challenge = account.microDeposit
 	const attemptsUsed = Math.max(0, Number(challenge.attempts) || 0)
-	const isReady =
-		account.status === "verified" || challenge.status === "confirmed" || Boolean(account.verifiedAt)
-	const isBlocked = account.status === "requires_attention" || challenge.status === "failed"
-	const depositsStarted =
-		challenge.status === "initiated" ||
-		challenge.status === "confirmed" ||
-		challenge.status === "failed" ||
-		isReady
-	const canConfirm = account.status === "pending" && challenge.status === "initiated"
-
-	let currentStepId: PayoutTimelineStepId | null = null
-	if (isReady) {
-		currentStepId = null
-	} else if (isBlocked) {
-		currentStepId = depositsStarted && challenge.status !== "none" ? "confirm" : "awaiting_deposits"
-	} else if (canConfirm) {
-		currentStepId = "confirm"
-	} else if (account.status === "pending" || account.status === "not_configured") {
-		currentStepId = depositsStarted ? "confirm" : "awaiting_deposits"
-	}
-
-	const stepState = (id: PayoutTimelineStepId): PayoutTimelineStepState => {
-		if (isReady) return "complete"
-		if (id === "submitted") return "complete"
-		if (id === "awaiting_deposits") {
-			if (depositsStarted || canConfirm) return "complete"
-			if (isBlocked) return "blocked"
-			return currentStepId === "awaiting_deposits" ? "current" : "upcoming"
-		}
-		if (id === "confirm") {
-			if (isReady) return "complete"
-			if (isBlocked && depositsStarted) return "blocked"
-			if (canConfirm || currentStepId === "confirm") return isBlocked ? "blocked" : "current"
-			return "upcoming"
-		}
-		// ready
-		if (isReady) return "complete"
-		if (isBlocked) return "blocked"
-		return "upcoming"
-	}
-
-	const attemptsRemaining = canConfirm
-		? Math.max(0, PAYOUT_MICRO_DEPOSIT_MAX_ATTEMPTS - attemptsUsed)
-		: null
-
-	const steps: PayoutTimelineStep[] = [
-		{
-			id: "submitted",
-			label: "Enviada",
-			description: "Datos de la cuenta recibidos.",
-			state: stepState("submitted"),
-		},
-		{
-			id: "awaiting_deposits",
-			label: "Esperando depósitos",
-			description: "Fastt envía dos montos pequeños de prueba a tu banco.",
-			state: stepState("awaiting_deposits"),
-		},
-		{
-			id: "confirm",
-			label: "Confirmar montos",
-			description: "Ingresas los dos montos en centavos para probar titularidad.",
-			state: stepState("confirm"),
-		},
-		{
-			id: "ready",
-			label: "Lista",
-			description: "Cuenta lista para liquidaciones.",
-			state: stepState("ready"),
-		},
-	]
-
-	let phaseLabel = "Enviada"
-	let helperText: string | null = null
-
-	if (isReady) {
-		phaseLabel = "Lista"
-		helperText = "Esta cuenta ya está verificada para recibir liquidaciones."
-	} else if (isBlocked) {
-		phaseLabel = "Requiere atención"
+	const deadline = challenge.expiresAt ? new Date(challenge.expiresAt).getTime() : NaN
+	const expired =
+		challenge.status === "initiated" && (!Number.isFinite(deadline) || deadline <= now.getTime())
+	const ready = account.status === "verified"
+	const replaced = account.status === "superseded"
+	const blocked =
+		account.status === "requires_attention" || (!ready && challenge.status === "failed")
+	const bankFlow = challenge.status !== "none" && account.verificationMethod === "bank"
+	const canConfirm =
+		account.status === "pending" &&
+		challenge.status === "initiated" &&
+		!expired &&
+		attemptsUsed < PAYOUT_MICRO_DEPOSIT_MAX_ATTEMPTS &&
+		account.verificationMethod === "bank"
+	let phaseLabel = "En revisión"
+	let helperText = "El equipo revisará los datos y te indicará si necesita un respaldo adicional."
+	if (replaced) {
+		phaseLabel = "Reemplazada"
+		helperText = "Se conserva como antecedente de una presentación anterior."
+	} else if (ready) {
+		phaseLabel = "Verificada"
+		helperText = "Datos de la cuenta verificados. Las liquidaciones aún no están habilitadas."
+	} else if (blocked) {
+		phaseLabel = "Requiere corrección"
 		helperText =
-			attemptsUsed >= PAYOUT_MICRO_DEPOSIT_MAX_ATTEMPTS
-				? "Se agotaron los intentos de confirmación. Envía una cuenta nueva o contacta a soporte Fastt."
-				: "Esta cuenta necesita corrección. Envía una nueva con datos actualizados."
+			account.reviewReason ||
+			(attemptsUsed >= PAYOUT_MICRO_DEPOSIT_MAX_ATTEMPTS
+				? "Se agotaron los intentos de confirmación. Contacta al equipo o envía los datos corregidos."
+				: "El equipo necesita revisar esta cuenta antes de continuar.")
+	} else if (bankFlow && expired) {
+		phaseLabel = "Verificación vencida"
+		helperText =
+			"El plazo terminó. El equipo debe revisar la cuenta antes de iniciar una nueva verificación."
 	} else if (canConfirm) {
 		phaseLabel = "Confirmar montos"
 		helperText =
 			attemptsUsed > 0
-				? `Los montos no coincidieron. Te quedan ${attemptsRemaining} intento${attemptsRemaining === 1 ? "" : "s"}. Busca en el extracto dos créditos pequeños (a menudo < $1) y anótalos en centavos.`
-				: "Abre tu extracto o app del banco, busca dos créditos pequeños recientes (verificación / Fastt) e ingresa ambos montos en centavos (ej. $0.32 → 32)."
-	} else if (account.status === "pending") {
-		phaseLabel = "Esperando depósitos"
-		helperText =
-			"Cuenta enviada. En 1–2 días hábiles deberían aparecer dos depósitos de prueba en el extracto. No confirmes hasta verlos."
-	} else if (account.status === "superseded") {
-		phaseLabel = "Reemplazada"
-		helperText = "Esta cuenta fue reemplazada por un envío más reciente."
-	} else {
-		phaseLabel = "Sin configurar"
-		helperText = "Agrega una cuenta bancaria para empezar."
+				? `Los montos no coincidieron. Te quedan ${PAYOUT_MICRO_DEPOSIT_MAX_ATTEMPTS - attemptsUsed} intentos.`
+				: "Ingresa los dos créditos de verificación que aparecen en tu extracto, en centavos."
+	} else if (challenge.status === "initiating") {
+		phaseLabel = "Verificación en curso"
+		helperText = "Se está confirmando el inicio de la verificación bancaria."
+	} else if (account.status === "not_configured") {
+		phaseLabel = "Sin cuenta registrada"
+		helperText = "El proveedor aún no ha enviado una cuenta bancaria."
 	}
-
+	const currentStepId: PayoutTimelineStepId | null =
+		ready || replaced ? null : canConfirm ? "confirm" : "awaiting_deposits"
+	const steps: PayoutTimelineStep[] = [
+		{ id: "submitted", label: "Enviada", description: "Datos recibidos.", state: "complete" },
+		{
+			id: "awaiting_deposits",
+			label: bankFlow ? "Verificación bancaria" : "Revisión del equipo",
+			description: bankFlow ? "Comprobación de la cuenta." : "Comprobación de datos y respaldos.",
+			state: ready
+				? "complete"
+				: blocked || expired
+					? "blocked"
+					: canConfirm
+						? "complete"
+						: "current",
+		},
+		...(bankFlow
+			? [
+					{
+						id: "confirm" as const,
+						label: "Confirmar montos",
+						description: "Confirmación del extracto.",
+						state: ready
+							? ("complete" as const)
+							: blocked || expired
+								? ("blocked" as const)
+								: canConfirm
+									? ("current" as const)
+									: ("upcoming" as const),
+					},
+				]
+			: []),
+		{
+			id: "ready",
+			label: "Verificada",
+			description: "Resultado de la revisión.",
+			state: ready ? "complete" : blocked || expired ? "blocked" : "upcoming",
+		},
+	]
 	return {
-		steps,
+		steps: replaced ? [] : steps,
 		currentStepId,
 		phaseLabel,
 		helperText,
 		showConfirmForm: canConfirm,
 		attemptsUsed,
-		attemptsRemaining,
+		attemptsRemaining: canConfirm ? PAYOUT_MICRO_DEPOSIT_MAX_ATTEMPTS - attemptsUsed : null,
 		expiresAt: challenge.expiresAt,
 	}
 }
 
-function mapRow(
-	row: {
-		id: string
-		providerId: string
-		status: string
-		provider: string
-		currency: string
-		accountHolderName: string | null
-		bankName: string | null
-		country: string | null
-		routingOrSwift: string | null
-		accountNumberLast4: string | null
-		accountReference: string | null
-		payoutSchedule: string
-		metadataJson: unknown
-		verifiedAt: Date | null
-		createdAt: Date | null
-		updatedAt: Date | null
-	},
-	opts?: { includeSecret?: boolean }
-): ProviderPaymentAccountRecord {
-	const status = asStatus(row.status)
+function mapRow(row: {
+	id: string
+	providerId: string
+	status: string
+	provider: string
+	currency: string
+	accountHolderName: string | null
+	bankName: string | null
+	country: string | null
+	routingOrSwift: string | null
+	accountNumberLast4: string | null
+	accountReference: string | null
+	payoutSchedule: string
+	metadataJson: unknown
+	verifiedAt: Date | null
+	createdAt: Date | null
+	updatedAt: Date | null
+}): ProviderPaymentAccountRecord {
+	let status = asStatus(row.status)
 	const method = asMethod(row.provider)
 	const payoutSchedule = asSchedule(row.payoutSchedule)
 	const meta = readMetadata(row.metadataJson)
-	const accountIdentifier = opts?.includeSecret
-		? readAccountIdentifierFromMetadata(row.metadataJson)
-		: null
+	const review = readMetadata(meta.lastReview)
+	const rail = readMetadata(meta.payoutRail)
+	const verificationMethod =
+		review.path === "manual_verify"
+			? "manual"
+			: rail.mode === "live" && rail.provider === "stripe_connect"
+				? "bank"
+				: "unverified"
+	if (
+		status === "verified" &&
+		verificationMethod === "unverified" &&
+		(rail.provider === "simulated" || readMetadata(meta.microDeposit).verifyVia === "hash")
+	)
+		status = "pending"
 
 	return {
 		id: row.id,
@@ -403,11 +402,13 @@ function mapRow(
 		routingOrSwift: row.routingOrSwift ?? null,
 		accountNumberLast4: row.accountNumberLast4 ?? null,
 		accountReference: row.accountReference ?? null,
-		accountIdentifier,
+		accountIdentifier: null,
+		reviewReason: typeof review.reason === "string" ? review.reason : null,
+		verificationMethod,
 		payoutSchedule,
 		payoutScheduleLabel: scheduleLabels[payoutSchedule],
 		microDeposit: readMicroDepositChallenge(meta),
-		verifiedAt: row.verifiedAt ?? null,
+		verifiedAt: status === "verified" ? (row.verifiedAt ?? null) : null,
 		reviewedAt: parseReviewDate(row.metadataJson) ?? row.verifiedAt ?? null,
 		createdAt: row.createdAt ?? null,
 		updatedAt: row.updatedAt ?? null,
@@ -466,9 +467,20 @@ export async function listProviderPaymentAccounts(
 		.where(eq(ProviderPaymentAccount.providerId, providerId))
 		.orderBy(desc(ProviderPaymentAccount.createdAt), desc(ProviderPaymentAccount.id))
 
-		.catch(() => [])
-
-	return rows.map((row) => mapRow(row, { includeSecret: false }))
+	const profile = await db
+		.select({ reference: ProviderFinancialProfile.payoutMethodReference })
+		.from(ProviderFinancialProfile)
+		.where(eq(ProviderFinancialProfile.providerId, providerId))
+		.then(first)
+	const matches = rows.filter(
+		(row) =>
+			row.status === "verified" &&
+			(row.id === profile?.reference || row.accountReference === profile?.reference)
+	)
+	return rows.map((row) => ({
+		...mapRow(row),
+		isPrimary: matches.length === 1 && matches[0].id === row.id,
+	}))
 }
 
 export async function listPendingProviderPaymentAccountsForAdmin(): Promise<
@@ -477,14 +489,12 @@ export async function listPendingProviderPaymentAccountsForAdmin(): Promise<
 	const rows = await db
 		.select(selectColumns)
 		.from(ProviderPaymentAccount)
-		.where(eq(ProviderPaymentAccount.status, "pending"))
+		.where(inArray(ProviderPaymentAccount.status, ["pending", "verified"]))
 		.orderBy(desc(ProviderPaymentAccount.createdAt), desc(ProviderPaymentAccount.id))
-
-		.catch(() => [])
 
 	// Queue/read surfaces stay masked. Full identifiers are available only through
 	// the case-bound reveal endpoint (permission + MFA + reason + audit).
-	return rows.map((row) => mapRow(row, { includeSecret: false }))
+	return rows.map((row) => mapRow(row)).filter((row) => row.status === "pending")
 }
 
 /**
@@ -503,689 +513,674 @@ export async function createProviderPaymentAccount(params: {
 	payoutSchedule?: unknown
 	submissionNotes?: unknown
 }) {
-	await assertCanManagePayments(params.providerId, params.actorUserId)
-
-	const method = asMethod(params.method)
-	const currency =
-		String(params.currency ?? "USD")
-			.trim()
-			.toUpperCase() || "USD"
-	const accountHolderName = String(params.accountHolderName ?? "").trim()
-	const bankName = String(params.bankName ?? "").trim()
-	const country =
-		String(params.country ?? "")
-			.trim()
-			.toUpperCase() || null
-	const routingOrSwift = String(params.routingOrSwift ?? "").trim() || null
-	const accountIdentifier = String(params.accountIdentifier ?? "")
-		.replace(/\s+/g, "")
-		.toUpperCase()
-	const payoutSchedule = asSchedule(params.payoutSchedule)
-	const submissionNotes = String(params.submissionNotes ?? "").trim() || null
-
-	if (!accountHolderName) {
-		const error = new Error("account_holder_required")
-		;(error as Error & { status?: number }).status = 400
-		throw error
-	}
-	if (!bankName) {
-		const error = new Error("bank_name_required")
-		;(error as Error & { status?: number }).status = 400
-		throw error
-	}
-	if (!country || !/^[A-Z]{2}$/.test(country)) {
-		const error = new Error("invalid_country")
-		;(error as Error & { status?: number }).status = 400
-		throw error
-	}
-	if (!/^[A-Z]{3}$/.test(currency)) {
-		const error = new Error("invalid_currency")
-		;(error as Error & { status?: number }).status = 400
-		throw error
-	}
-	if (accountIdentifier.length < 4) {
-		const error = new Error("account_identifier_required")
-		;(error as Error & { status?: number }).status = 400
-		throw error
-	}
-	if (method === "international_wire" && !routingOrSwift) {
-		const error = new Error("swift_required_for_international_wire")
-		;(error as Error & { status?: number }).status = 400
-		throw error
-	}
-
-	const { last4, reference } = maskAccountIdentifier(accountIdentifier)
-	const now = new Date()
-	const id = crypto.randomUUID()
-
-	const pendingSameProvider = await db
-		.select({ id: ProviderPaymentAccount.id })
-		.from(ProviderPaymentAccount)
-		.where(
-			and(
-				eq(ProviderPaymentAccount.providerId, params.providerId),
-				eq(ProviderPaymentAccount.status, "pending")
-			)
-		)
-		.catch(() => [])
-
-	if (pendingSameProvider.length > 0) {
-		const error = new Error("pending_account_in_progress")
-		;(error as Error & { status?: number }).status = 409
-		throw error
-	}
-
-	const attentionAccounts = await db
-		.select({ id: ProviderPaymentAccount.id })
-		.from(ProviderPaymentAccount)
-		.where(
-			and(
-				eq(ProviderPaymentAccount.providerId, params.providerId),
-				eq(ProviderPaymentAccount.status, "requires_attention")
-			)
-		)
-		.catch(() => [])
-
-	for (const row of attentionAccounts) {
+	return withPostgresTransaction(async () => {
+		await assertCanManagePayments(params.providerId, params.actorUserId)
 		await db
-			.update(ProviderPaymentAccount)
-			.set({ status: "superseded", updatedAt: now })
-			.where(eq(ProviderPaymentAccount.id, row.id))
-	}
+			.select({ id: Provider.id })
+			.from(Provider)
+			.where(eq(Provider.id, params.providerId))
+			.for("update")
 
-	const metadataJson = buildPaymentAccountMetadata({
-		accountIdentifier,
-		submissionNotes,
-	})
+		const method = asMethod(params.method)
+		const currency =
+			String(params.currency ?? "USD")
+				.trim()
+				.toUpperCase() || "USD"
+		const accountHolderName = String(params.accountHolderName ?? "").trim()
+		const bankName = String(params.bankName ?? "").trim()
+		const country =
+			String(params.country ?? "")
+				.trim()
+				.toUpperCase() || null
+		const routingOrSwift = String(params.routingOrSwift ?? "").trim() || null
+		const accountIdentifier = String(params.accountIdentifier ?? "")
+			.replace(/\s+/g, "")
+			.toUpperCase()
+		const payoutSchedule = asSchedule(params.payoutSchedule)
+		const submissionNotes = String(params.submissionNotes ?? "").trim() || null
 
-	await db.insert(ProviderPaymentAccount).values({
-		id,
-		providerId: params.providerId,
-		status: "pending",
-		provider: method,
-		currency,
-		accountHolderName,
-		bankName,
-		country,
-		routingOrSwift: routingOrSwift ?? undefined,
-		accountNumberLast4: last4,
-		accountReference: reference,
-		payoutSchedule,
-		metadataJson,
-		verifiedAt: undefined,
-		createdAt: now,
-		updatedAt: now,
-	})
+		if (!accountHolderName) {
+			const error = new Error("account_holder_required")
+			;(error as Error & { status?: number }).status = 400
+			throw error
+		}
+		if (!bankName) {
+			const error = new Error("bank_name_required")
+			;(error as Error & { status?: number }).status = 400
+			throw error
+		}
+		if (!country || !/^[A-Z]{2}$/.test(country)) {
+			const error = new Error("invalid_country")
+			;(error as Error & { status?: number }).status = 400
+			throw error
+		}
+		if (!/^[A-Z]{3}$/.test(currency)) {
+			const error = new Error("invalid_currency")
+			;(error as Error & { status?: number }).status = 400
+			throw error
+		}
+		if (accountIdentifier.length < 4) {
+			const error = new Error("account_identifier_required")
+			;(error as Error & { status?: number }).status = 400
+			throw error
+		}
+		if (method === "international_wire" && !routingOrSwift) {
+			const error = new Error("swift_required_for_international_wire")
+			;(error as Error & { status?: number }).status = 400
+			throw error
+		}
 
-	await writeProviderAuditLog({
-		providerId: params.providerId,
-		actorUserId: params.actorUserId,
-		action: "provider.payment_account.create",
-		entityType: "ProviderPaymentAccount",
-		entityId: id,
-		beforeJson: attentionAccounts.length
-			? { supersededIds: attentionAccounts.map((row) => row.id) }
-			: null,
-		afterJson: {
+		const { last4, reference } = maskAccountIdentifier(accountIdentifier)
+		const now = new Date()
+		const id = crypto.randomUUID()
+
+		const pendingSameProvider = await db
+			.select(selectColumns)
+			.from(ProviderPaymentAccount)
+			.where(
+				and(
+					eq(ProviderPaymentAccount.providerId, params.providerId),
+					inArray(ProviderPaymentAccount.status, ["pending", "verified"])
+				)
+			)
+		if (pendingSameProvider.some((row) => mapRow(row).status === "pending")) {
+			const error = new Error("pending_account_in_progress")
+			;(error as Error & { status?: number }).status = 409
+			throw error
+		}
+
+		const attentionAccounts = await db
+			.select({ id: ProviderPaymentAccount.id })
+			.from(ProviderPaymentAccount)
+			.where(
+				and(
+					eq(ProviderPaymentAccount.providerId, params.providerId),
+					eq(ProviderPaymentAccount.status, "requires_attention")
+				)
+			)
+		for (const row of attentionAccounts) {
+			await db
+				.update(ProviderPaymentAccount)
+				.set({ status: "superseded", updatedAt: now })
+				.where(eq(ProviderPaymentAccount.id, row.id))
+		}
+
+		const metadataJson = buildPaymentAccountMetadata({
+			accountIdentifier,
+			submissionNotes,
+		})
+
+		await db.insert(ProviderPaymentAccount).values({
 			id,
+			providerId: params.providerId,
 			status: "pending",
-			method,
+			provider: method,
 			currency,
-			country,
-			accountReference: reference,
-			bankName,
 			accountHolderName,
-		},
-		riskLevel: inferSettingsRiskLevel({ domain: "payments" }),
-	})
+			bankName,
+			country,
+			routingOrSwift: routingOrSwift ?? undefined,
+			accountNumberLast4: last4,
+			accountReference: reference,
+			payoutSchedule,
+			metadataJson,
+			verifiedAt: undefined,
+			createdAt: now,
+			updatedAt: now,
+		})
 
-	const created = await listProviderPaymentAccounts(params.providerId)
-	return created.find((row) => row.id === id)!
+		await writeProviderAuditLog({
+			providerId: params.providerId,
+			actorUserId: params.actorUserId,
+			action: "provider.payment_account.create",
+			entityType: "ProviderPaymentAccount",
+			entityId: id,
+			beforeJson: attentionAccounts.length
+				? { supersededIds: attentionAccounts.map((row) => row.id) }
+				: null,
+			afterJson: {
+				id,
+				status: "pending",
+				method,
+				currency,
+				country,
+				accountReference: reference,
+				bankName,
+				accountHolderName,
+			},
+			riskLevel: inferSettingsRiskLevel({ domain: "payments" }),
+		})
+
+		const created = await listProviderPaymentAccounts(params.providerId)
+		await synchronizeComplianceCaseCompat(paymentAccountSource(params.providerId, id))
+		return created.find((row) => row.id === id)!
+	}).catch((error: unknown) => {
+		const code =
+			(error as { code?: string; cause?: { code?: string } })?.cause?.code ||
+			(error as { code?: string })?.code
+		if (code === "23505") paymentError("pending_account_in_progress")
+		if (code === "40001") paymentError("account_changed_retry")
+		throw error
+	})
 }
 
 export async function assertHasVerifiedPaymentAccount(providerId: string): Promise<void> {
-	const row = await db
-		.select({ id: ProviderPaymentAccount.id })
-		.from(ProviderPaymentAccount)
-		.where(
-			and(
-				eq(ProviderPaymentAccount.providerId, providerId),
-				eq(ProviderPaymentAccount.status, "verified")
-			)
+	if (
+		!(await listProviderPaymentAccounts(providerId)).some(
+			(account) => account.status === "verified"
 		)
-		.then(first)
-		.catch(() => null)
-
-	if (!row?.id) {
+	) {
 		const error = new Error("verified_payment_account_required")
 		;(error as Error & { status?: number }).status = 409
 		throw error
 	}
 }
 
-async function syncProviderFinancialProfile(params: {
-	providerId: string
-	account: ProviderPaymentAccountRecord
-}) {
-	await assertHasVerifiedPaymentAccount(params.providerId)
+function paymentAccountSource(providerId: string, accountId: string) {
+	return {
+		providerId,
+		domain: "payments" as const,
+		sourceType: "ProviderPaymentAccount",
+		sourceRef: accountId,
+		summary: "Revisión de cuenta bancaria",
+	}
+}
 
+function paymentError(code: string, status = 409): never {
+	throw Object.assign(new Error(code), { status })
+}
+
+async function lockedAccount(providerId: string, accountId: string) {
+	// All account writes take the same provider lock, including creation and primary selection.
+	await db
+		.select({ id: Provider.id })
+		.from(Provider)
+		.where(eq(Provider.id, providerId))
+		.for("update")
+	const row = await db
+		.select(selectColumns)
+		.from(ProviderPaymentAccount)
+		.where(
+			and(
+				eq(ProviderPaymentAccount.id, accountId),
+				eq(ProviderPaymentAccount.providerId, providerId)
+			)
+		)
+		.for("update")
+		.then(first)
+	if (!row) return paymentError("not_found", 404)
+	if (row.status === "verified" && mapRow(row).status === "pending") {
+		await db
+			.update(ProviderPaymentAccount)
+			.set({ status: "pending", verifiedAt: null })
+			.where(eq(ProviderPaymentAccount.id, row.id))
+		return { ...row, status: "pending", verifiedAt: null }
+	}
+	return row
+}
+
+/** Recompute the existing read model when fiscal review changes. */
+export async function refreshProviderBankingReadiness(providerId: string) {
+	return withPostgresTransaction(async () => {
+		await db
+			.select({ id: Provider.id })
+			.from(Provider)
+			.where(eq(Provider.id, providerId))
+			.for("update")
+		const accounts = (await listProviderPaymentAccounts(providerId)).filter(
+			(account) => account.status === "verified"
+		)
+		const selected =
+			accounts.find((account) => account.isPrimary) ?? (accounts.length === 1 ? accounts[0] : null)
+		if (selected) await syncProviderFinancialProfile(selected)
+		else
+			await db
+				.update(ProviderFinancialProfile)
+				.set({ status: "incomplete", updatedAt: new Date() })
+				.where(eq(ProviderFinancialProfile.providerId, providerId))
+	})
+}
+
+async function syncProviderFinancialProfile(
+	account: ProviderPaymentAccountRecord,
+	selectPrimary = false
+) {
+	const profile = await db
+		.select()
+		.from(ProviderFinancialProfile)
+		.where(eq(ProviderFinancialProfile.providerId, account.providerId))
+		.then(first)
+	const accountRows = await db
+		.select(selectColumns)
+		.from(ProviderPaymentAccount)
+		.where(
+			and(
+				eq(ProviderPaymentAccount.providerId, account.providerId),
+				eq(ProviderPaymentAccount.status, "verified")
+			)
+		)
+	const accounts = accountRows.filter((row) => mapRow(row).status === "verified")
+	const existingPrimary = accounts.filter(
+		(row) =>
+			row.id === profile?.payoutMethodReference ||
+			row.accountReference === profile?.payoutMethodReference
+	)
+	// Verification of an additional account never silently replaces the selected beneficiary.
+	const selected =
+		selectPrimary || !profile?.payoutMethodReference
+			? account
+			: existingPrimary.length === 1
+				? mapRow(existingPrimary[0])
+				: null
 	const tax = await db
 		.select({ status: ProviderTaxConfiguration.status })
 		.from(ProviderTaxConfiguration)
-		.where(eq(ProviderTaxConfiguration.providerId, params.providerId))
+		.where(eq(ProviderTaxConfiguration.providerId, account.providerId))
 		.then(first)
-		.catch(() => null)
-
-	const now = new Date()
-	const taxStatus = String(tax?.status ?? "missing")
 	const taxProfileStatus =
-		taxStatus === "verified"
-			? "verified"
-			: taxStatus === "pending" || taxStatus === "requires_attention"
-				? "pending_review"
-				: "missing"
-
+		tax?.status === "verified"
+			? ("verified" as const)
+			: tax?.status === "pending" || tax?.status === "requires_attention"
+				? ("pending_review" as const)
+				: ("missing" as const)
+	const now = new Date()
 	const values = {
-		providerId: params.providerId,
-		payoutMethodReference: params.account.accountReference || params.account.id,
-		payoutSchedule: params.account.payoutSchedule,
-		currency: params.account.currency,
+		providerId: account.providerId,
+		payoutMethodReference: selected?.id ?? profile?.payoutMethodReference ?? null,
+		payoutSchedule: selected?.payoutSchedule ?? "manual",
+		currency: selected?.currency ?? profile?.currency ?? account.currency,
 		taxProfileStatus,
-		status: "ready" as const,
+		status:
+			selected && taxProfileStatus === "verified" ? ("ready" as const) : ("incomplete" as const),
 		updatedAt: now,
-		createdAt: now,
 	}
-
 	await db
 		.insert(ProviderFinancialProfile)
-		.values(values)
-		.onConflictDoUpdate({
-			target: [ProviderFinancialProfile.providerId],
-			set: {
-				payoutMethodReference: values.payoutMethodReference,
-				payoutSchedule: values.payoutSchedule,
-				currency: values.currency,
-				taxProfileStatus: values.taxProfileStatus,
-				status: values.status,
-				updatedAt: values.updatedAt,
-			},
-		})
+		.values({ ...values, createdAt: now })
+		.onConflictDoUpdate({ target: [ProviderFinancialProfile.providerId], set: values })
 }
 
-/**
- * Internal-admin review. Caller must already have passed requireInternalAdmin.
- * On verified: rolls up ProviderFinancialProfile readiness.
- * Manual verification remains available alongside the micro-deposit ownership path.
- */
+async function finishAccountReview(account: ProviderPaymentAccountRecord, manageCase = true) {
+	if (account.status === "verified") await syncProviderFinancialProfile(account)
+	else await refreshProviderBankingReadiness(account.providerId)
+	await completeComplianceAssignment({
+		providerId: account.providerId,
+		domain: "payments",
+		entityId: account.id,
+	})
+	if (manageCase)
+		await resolveComplianceCaseForSourceCompat(
+			paymentAccountSource(account.providerId, account.id),
+			account.status === "verified" ? "requirements_satisfied" : "information_mismatch"
+		)
+	await afterPostgresCommit(async () => {
+		await invalidateProvider(account.providerId)
+		await invalidateProviderGovernance(account.providerId, "payment_account_reviewed")
+	})
+}
+
+export async function selectPrimaryProviderPaymentAccount(params: {
+	providerId: string
+	actorUserId: string
+	accountId: string
+}) {
+	await assertCanManagePayments(params.providerId, params.actorUserId)
+	return withPostgresTransaction(async () => {
+		const row = await lockedAccount(params.providerId, params.accountId)
+		if (row.status !== "verified") paymentError("verified_payment_account_required")
+		const account = mapRow(row)
+		await syncProviderFinancialProfile(account, true)
+		await writeProviderAuditLog({
+			providerId: params.providerId,
+			actorUserId: params.actorUserId,
+			action: "provider.payment_account.select_primary",
+			entityType: "ProviderPaymentAccount",
+			entityId: row.id,
+			afterJson: { accountId: row.id },
+			riskLevel: "high",
+		})
+		return { ...account, isPrimary: true }
+	})
+}
+
+export function requirePaymentAccountReviewReason(status: string, value: unknown): string {
+	const reason = String(value ?? "").trim()
+	if (reason.length < 10)
+		paymentError(
+			status === "verified" ? "payment_review_evidence_required" : "reason_required",
+			400
+		)
+	return reason
+}
+
 export async function reviewProviderPaymentAccount(params: {
 	providerId: string
 	actorUserId: string
 	accountId: string
 	status: unknown
 	reason?: unknown
+	/** Casework commands own their decision lifecycle. */
+	manageCase?: boolean
 }) {
 	const nextStatus = asStatus(params.status)
-	if (nextStatus !== "verified" && nextStatus !== "requires_attention") {
-		const error = new Error("invalid_review_status")
-		;(error as Error & { status?: number }).status = 400
-		throw error
-	}
-
-	const reason = String(params.reason ?? "").trim()
-	if (nextStatus === "requires_attention" && reason.length < 2) {
-		const error = new Error("reason_required")
-		;(error as Error & { status?: number }).status = 400
-		throw error
-	}
-
-	const existing = await db
-		.select(selectColumns)
-		.from(ProviderPaymentAccount)
-		.where(
-			and(
-				eq(ProviderPaymentAccount.id, params.accountId),
-				eq(ProviderPaymentAccount.providerId, params.providerId)
-			)
-		)
-		.then(first)
-
-	if (!existing?.id) {
-		const error = new Error("not_found")
-		;(error as Error & { status?: number }).status = 404
-		throw error
-	}
-	if (existing.status !== "pending") {
-		const error = new Error("not_pending")
-		;(error as Error & { status?: number }).status = 409
-		throw error
-	}
-
-	const now = new Date()
-	const before = mapRow(existing, { includeSecret: false })
-	const meta = readMetadata(existing.metadataJson)
-
-	await db
-		.update(ProviderPaymentAccount)
-		.set({
+	if (nextStatus !== "verified" && nextStatus !== "requires_attention")
+		paymentError("invalid_review_status", 400)
+	const reason = requirePaymentAccountReviewReason(nextStatus, params.reason)
+	return withPostgresTransaction(async () => {
+		const row = await lockedAccount(params.providerId, params.accountId)
+		if (row.status !== "pending") paymentError("not_pending")
+		const now = new Date()
+		const metadata = readMetadata(row.metadataJson)
+		const values = {
 			status: nextStatus,
 			verifiedAt: nextStatus === "verified" ? now : null,
+			updatedAt: now,
 			metadataJson: {
-				...meta,
+				...metadata,
 				lastReview: {
 					status: nextStatus,
-					reason: reason || null,
+					reason,
 					reviewedAt: now.toISOString(),
 					reviewedBy: params.actorUserId,
 					path: "manual_verify",
 				},
 			},
-			updatedAt: now,
-		})
-		.where(eq(ProviderPaymentAccount.id, existing.id))
-
-	const afterRows = await db
-		.select(selectColumns)
-		.from(ProviderPaymentAccount)
-		.where(eq(ProviderPaymentAccount.id, existing.id))
-		.then(first)
-	const after = afterRows ? mapRow(afterRows, { includeSecret: true }) : before
-
-	if (nextStatus === "verified") {
-		await syncProviderFinancialProfile({
+		}
+		await db.update(ProviderPaymentAccount).set(values).where(eq(ProviderPaymentAccount.id, row.id))
+		const account = mapRow({ ...row, ...values })
+		await finishAccountReview(account, params.manageCase !== false)
+		await writeProviderAuditLog({
 			providerId: params.providerId,
-			account: after,
+			actorUserId: params.actorUserId,
+			action: "provider.payment_account.review",
+			entityType: "ProviderPaymentAccount",
+			entityId: row.id,
+			beforeJson: { status: row.status },
+			afterJson: { status: nextStatus, reason, path: "manual_verify" },
+			riskLevel: inferSettingsRiskLevel({ domain: "payments" }),
 		})
-	}
-
-	await completeComplianceAssignment({
-		providerId: params.providerId,
-		domain: "payments",
-		entityId: existing.id,
+		return account
 	})
-
-	await writeProviderAuditLog({
-		providerId: params.providerId,
-		actorUserId: params.actorUserId,
-		action: "provider.payment_account.review",
-		entityType: "ProviderPaymentAccount",
-		entityId: existing.id,
-		beforeJson: { status: before.status },
-		afterJson: { status: nextStatus, reason: reason || null, path: "manual_verify" },
-		riskLevel: inferSettingsRiskLevel({ domain: "payments" }),
-	})
-
-	return after
 }
 
-/**
- * Start micro-deposit ownership challenge (Airbnb-style). Amounts are hashed in
- * metadata; plaintext pair is returned only to the initiating admin (ops / harness).
- * Amounts come from the payout rail adapter (simulated by default; Connect scaffolded).
- */
+/** Reserves one challenge before contacting the bank; retries reuse its external idempotency key. */
 export async function initiatePaymentAccountMicroDeposit(params: {
 	providerId: string
 	actorUserId: string
 	accountId: string
 }) {
-	const existing = await db
-		.select(selectColumns)
-		.from(ProviderPaymentAccount)
-		.where(
-			and(
-				eq(ProviderPaymentAccount.id, params.accountId),
-				eq(ProviderPaymentAccount.providerId, params.providerId)
-			)
+	const reservation = await withPostgresTransaction(async () => {
+		const row = await lockedAccount(params.providerId, params.accountId)
+		await synchronizeComplianceCaseCompat(paymentAccountSource(params.providerId, params.accountId))
+		await assertLegacyComplianceReviewAllowed(
+			paymentAccountSource(params.providerId, params.accountId)
 		)
-		.then(first)
-
-	if (!existing?.id) {
-		const error = new Error("not_found")
-		;(error as Error & { status?: number }).status = 404
-		throw error
-	}
-	if (existing.status !== "pending") {
-		const error = new Error("not_pending")
-		;(error as Error & { status?: number }).status = 409
-		throw error
-	}
-
-	const mapped = mapRow(existing, { includeSecret: false })
-	const accountIdentifier = readAccountIdentifierFromMetadata(existing.metadataJson)
-	const railResult = await initiatePayoutRailMicroDeposit({
-		accountId: existing.id,
+		if (row.status !== "pending") paymentError("not_pending")
+		const account = mapRow(row)
+		if (!canVerifyBankAccountAutomatically(account))
+			paymentError("bank_verification_unavailable", 422)
+		const meta = readMetadata(row.metadataJson)
+		const challenge = readMetadata(meta.microDeposit)
+		if (challenge.status === "initiated" || challenge.status === "failed")
+			paymentError("micro_deposit_review_required")
+		const requestKey =
+			typeof challenge.requestKey === "string" && challenge.status === "initiating"
+				? challenge.requestKey
+				: crypto.randomUUID()
+		const now = new Date()
+		await db
+			.update(ProviderPaymentAccount)
+			.set({
+				metadataJson: {
+					...meta,
+					microDeposit: {
+						...challenge,
+						status: "initiating",
+						requestKey,
+						initiatedAt: challenge.initiatedAt || now.toISOString(),
+						attempts: Number(challenge.attempts) || 0,
+					},
+				},
+				updatedAt: now,
+			})
+			.where(eq(ProviderPaymentAccount.id, row.id))
+		return {
+			row,
+			account,
+			requestKey,
+			initiatedAt: String(challenge.initiatedAt || now.toISOString()),
+		}
+	})
+	const result = await initiatePayoutRailMicroDeposit({
+		accountId: params.accountId,
 		providerId: params.providerId,
 		actorUserId: params.actorUserId,
-		currency: mapped.currency,
-		accountNumberLast4: mapped.accountNumberLast4,
-		country: mapped.country,
-		accountIdentifier,
-		routingOrSwift: existing.routingOrSwift,
-		accountHolderName: existing.accountHolderName,
+		currency: reservation.account.currency,
+		country: reservation.account.country,
+		accountNumberLast4: reservation.account.accountNumberLast4,
+		accountIdentifier: readAccountIdentifierFromMetadata(reservation.row.metadataJson),
+		routingOrSwift: reservation.row.routingOrSwift,
+		accountHolderName: reservation.row.accountHolderName,
+		idempotencyKey: `bank_verification:${reservation.requestKey}`,
+		initiatedAt: reservation.initiatedAt,
 	})
-
-	const liveRail = railResult.ok && railResult.mode === "live" && Boolean(railResult.externalRef)
-	const alreadyVerified = Boolean(railResult.alreadyVerified)
-	if (!railResult.ok || (!liveRail && !railResult.depositAmountsCents && !alreadyVerified)) {
-		const error = new Error(railResult.error || "payout_rail_initiate_failed")
-		;(error as Error & { status?: number }).status = 503
-		throw error
-	}
-
-	const amount1 = railResult.depositAmountsCents?.[0] ?? null
-	const amount2 = railResult.depositAmountsCents?.[1] ?? null
-	const now = new Date()
-	const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
-	const meta = readMetadata(existing.metadataJson)
-	const microStatus = alreadyVerified ? "confirmed" : "initiated"
-	const verifyVia = liveRail || alreadyVerified ? "stripe" : "hash"
-
-	await db
-		.update(ProviderPaymentAccount)
-		.set({
-			status: alreadyVerified ? "verified" : existing.status,
-			verifiedAt: alreadyVerified ? now : existing.verifiedAt,
+	if (
+		!result.ok ||
+		result.mode !== "live" ||
+		!result.externalRef ||
+		result.verificationMethod === "financial_connections"
+	)
+		paymentError("bank_verification_unavailable", 503)
+	return withPostgresTransaction(async () => {
+		const row = await lockedAccount(params.providerId, params.accountId)
+		const meta = readMetadata(row.metadataJson)
+		const challenge = readMetadata(meta.microDeposit)
+		if (row.status !== "pending" || challenge.requestKey !== reservation.requestKey)
+			paymentError("not_pending")
+		await assertLegacyComplianceReviewAllowed(
+			paymentAccountSource(params.providerId, params.accountId)
+		)
+		if (challenge.status === "initiated") return { account: mapRow(row), rail: { mode: "live" } }
+		const now = new Date()
+		const values = {
+			status: result.alreadyVerified ? "verified" : "pending",
+			verifiedAt: result.alreadyVerified ? now : null,
+			updatedAt: now,
 			metadataJson: {
 				...meta,
 				payoutRail: {
-					provider: railResult.provider,
-					mode: railResult.mode,
-					externalRef: railResult.externalRef,
-					fallbackFrom: railResult.fallbackFrom ?? null,
-					verificationMethod: railResult.verificationMethod ?? null,
-					clientSecretPresent: Boolean(railResult.clientSecret),
-					// Transient FC secret for host UI / ops; prefer short-lived use then clear.
-					...(railResult.clientSecret ? { clientSecret: railResult.clientSecret } : {}),
+					provider: result.provider,
+					mode: "live",
+					externalRef: result.externalRef,
+					verificationMethod: "microdeposits",
 					initiatedAt: now.toISOString(),
 				},
 				microDeposit: {
-					status: microStatus,
-					verifyVia,
-					amountHashes:
-						amount1 != null && amount2 != null
-							? [
-									hashMicroDepositAmount(existing.id, amount1),
-									hashMicroDepositAmount(existing.id, amount2),
-								]
-							: [],
-					initiatedAt: now.toISOString(),
-					expiresAt: expiresAt.toISOString(),
-					attempts: 0,
-					initiatedBy: params.actorUserId,
-					...(alreadyVerified ? { confirmedAt: now.toISOString() } : {}),
+					...challenge,
+					status: result.alreadyVerified ? "confirmed" : "initiated",
+					verifyVia: "stripe",
+					expiresAt: new Date(
+						new Date(reservation.initiatedAt).getTime() + 7 * 86400000
+					).toISOString(),
 				},
-			},
-			updatedAt: now,
-		})
-		.where(eq(ProviderPaymentAccount.id, existing.id))
-
-	await writeProviderAuditLog({
-		providerId: params.providerId,
-		actorUserId: params.actorUserId,
-		action: "provider.payment_account.micro_deposit_initiate",
-		entityType: "ProviderPaymentAccount",
-		entityId: existing.id,
-		beforeJson: { microDeposit: readMicroDepositChallenge(meta) },
-		afterJson: {
-			status: microStatus,
-			expiresAt: expiresAt.toISOString(),
-			railProvider: railResult.provider,
-			railMode: railResult.mode,
-			railFallbackFrom: railResult.fallbackFrom ?? null,
-			verificationMethod: railResult.verificationMethod ?? null,
-			alreadyVerified,
-			verifyVia,
-		},
-		riskLevel: inferSettingsRiskLevel({ domain: "payments" }),
-	})
-
-	const afterRows = await db
-		.select(selectColumns)
-		.from(ProviderPaymentAccount)
-		.where(eq(ProviderPaymentAccount.id, existing.id))
-		.then(first)
-	const after = afterRows
-		? mapRow(afterRows, { includeSecret: true })
-		: mapRow(existing, { includeSecret: true })
-
-	return {
-		account: {
-			...after,
-			microDeposit: {
-				...after.microDeposit,
-				...(amount1 != null && amount2 != null
-					? { amountsCents: [amount1, amount2] as [number, number] }
+				...(result.alreadyVerified
+					? {
+							lastReview: {
+								status: "verified",
+								reason: "Verificación bancaria completada.",
+								reviewedAt: now.toISOString(),
+								reviewedBy: params.actorUserId,
+								path: "micro_deposit",
+							},
+						}
 					: {}),
 			},
-		},
-		/** Deposit amounts (cents). Simulated rail returns plaintext for ops/harness; live ACH does not. */
-		depositAmountsCents:
-			amount1 != null && amount2 != null ? ([amount1, amount2] as [number, number]) : null,
-		rail: {
-			provider: railResult.provider,
-			mode: railResult.mode,
-			externalRef: railResult.externalRef,
-			fallbackFrom: railResult.fallbackFrom ?? null,
-			message: railResult.message ?? null,
-			verificationMethod: railResult.verificationMethod ?? null,
-			alreadyVerified,
-			clientSecret: railResult.clientSecret ?? null,
-		},
-	}
+		}
+		await db.update(ProviderPaymentAccount).set(values).where(eq(ProviderPaymentAccount.id, row.id))
+		const account = mapRow({ ...row, ...values })
+		if (account.status === "verified") await finishAccountReview(account)
+		await writeProviderAuditLog({
+			providerId: params.providerId,
+			actorUserId: params.actorUserId,
+			action: "provider.payment_account.micro_deposit_initiate",
+			entityType: "ProviderPaymentAccount",
+			entityId: row.id,
+			afterJson: { status: account.status, method: "bank", requestKey: reservation.requestKey },
+			riskLevel: "high",
+		})
+		return { account, rail: { mode: "live" } }
+	})
 }
 
-/**
- * Provider confirms the two micro-deposit amounts. On success → verified + FinancialProfile.
- */
 export async function confirmPaymentAccountMicroDeposit(params: {
 	providerId: string
 	actorUserId: string
 	accountId: string
 	amount1Cents: unknown
 	amount2Cents: unknown
-	/** Stripe SM**** descriptor code (SetupIntent verify_microdeposits alternative). */
 	descriptorCode?: unknown
 }) {
 	await assertCanManagePayments(params.providerId, params.actorUserId)
-
 	const descriptorCode = String(params.descriptorCode ?? "")
 		.trim()
 		.toUpperCase()
-	const useDescriptor = Boolean(descriptorCode && /^SM[A-Z0-9]{4}$/.test(descriptorCode))
-
-	const amount1 = Number(params.amount1Cents)
-	const amount2 = Number(params.amount2Cents)
-	if (
-		!useDescriptor &&
-		(!Number.isInteger(amount1) ||
-			!Number.isInteger(amount2) ||
-			amount1 < 1 ||
-			amount1 > 99 ||
-			amount2 < 1 ||
-			amount2 > 99)
-	) {
-		const error = new Error("invalid_micro_deposit_amounts")
-		;(error as Error & { status?: number }).status = 400
-		throw error
-	}
-
-	const existing = await db
-		.select(selectColumns)
-		.from(ProviderPaymentAccount)
-		.where(
-			and(
-				eq(ProviderPaymentAccount.id, params.accountId),
-				eq(ProviderPaymentAccount.providerId, params.providerId)
-			)
+	const useDescriptor = /^SM[A-Z0-9]{4}$/.test(descriptorCode)
+	const [amount1, amount2] = [Number(params.amount1Cents), Number(params.amount2Cents)].sort(
+		(a, b) => a - b
+	)
+	const fingerprint = createHash("sha256")
+		.update(useDescriptor ? descriptorCode : [amount1, amount2].sort().join(":"))
+		.digest("hex")
+	if (!useDescriptor && ![amount1, amount2].every((n) => Number.isInteger(n) && n >= 1 && n <= 99))
+		paymentError("invalid_micro_deposit_amounts", 400)
+	// Reserve an attempt under lock; external failures restore it and never count as wrong amounts.
+	const attempt = await withPostgresTransaction(async () => {
+		const row = await lockedAccount(params.providerId, params.accountId)
+		await assertLegacyComplianceReviewAllowed(
+			paymentAccountSource(params.providerId, params.accountId)
 		)
-		.then(first)
-
-	if (!existing?.id) {
-		const error = new Error("not_found")
-		;(error as Error & { status?: number }).status = 404
-		throw error
-	}
-	if (existing.status !== "pending") {
-		const error = new Error("not_pending")
-		;(error as Error & { status?: number }).status = 409
-		throw error
-	}
-
-	const meta = readMetadata(existing.metadataJson)
-	const challenge = meta.microDeposit
-	if (!challenge || typeof challenge !== "object" || Array.isArray(challenge)) {
-		const error = new Error("micro_deposit_not_initiated")
-		;(error as Error & { status?: number }).status = 409
-		throw error
-	}
-	const challengeObj = challenge as Record<string, unknown>
-	if (String(challengeObj.status) !== "initiated") {
-		const error = new Error("micro_deposit_not_initiated")
-		;(error as Error & { status?: number }).status = 409
-		throw error
-	}
-	const expiresAt =
-		typeof challengeObj.expiresAt === "string" ? new Date(challengeObj.expiresAt) : null
-	if (expiresAt && expiresAt.getTime() < Date.now()) {
-		const error = new Error("micro_deposit_expired")
-		;(error as Error & { status?: number }).status = 409
-		throw error
-	}
-
-	const hashes = Array.isArray(challengeObj.amountHashes)
-		? challengeObj.amountHashes.map((value) => String(value))
-		: []
-	const verifyVia = String(challengeObj.verifyVia ?? "hash")
-	const payoutRail =
-		meta.payoutRail && typeof meta.payoutRail === "object" && !Array.isArray(meta.payoutRail)
-			? (meta.payoutRail as Record<string, unknown>)
-			: null
-	const attempts = (Number(challengeObj.attempts) || 0) + 1
-	let matched = false
-
-	if (verifyVia === "stripe") {
-		const externalRef = String(payoutRail?.externalRef ?? "").trim()
-		const stripeResult = await confirmStripeConnectMicroDeposit({
-			externalRef,
-			amount1Cents: Number.isInteger(amount1) ? amount1 : 0,
-			amount2Cents: Number.isInteger(amount2) ? amount2 : 0,
-			descriptorCode: useDescriptor ? descriptorCode : null,
-		})
-		matched = stripeResult.ok
-		if (!matched && stripeResult.error === "invalid_external_ref") {
-			const error = new Error("micro_deposit_not_initiated")
-			;(error as Error & { status?: number }).status = 409
-			throw error
-		}
-		if (!matched && stripeResult.error === "financial_connections_pending_ui") {
-			const error = new Error("financial_connections_pending_ui")
-			;(error as Error & { status?: number }).status = 409
-			throw error
-		}
-	} else {
-		const submitted = [
-			hashMicroDepositAmount(existing.id, amount1),
-			hashMicroDepositAmount(existing.id, amount2),
-		].sort()
-		const expected = [...hashes].sort()
-		matched =
-			submitted.length === 2 &&
-			expected.length === 2 &&
-			submitted[0] === expected[0] &&
-			submitted[1] === expected[1]
-	}
-
-	const now = new Date()
-	if (!matched) {
-		const failed = attempts >= PAYOUT_MICRO_DEPOSIT_MAX_ATTEMPTS
+		if (!canVerifyBankAccountAutomatically(mapRow(row)))
+			paymentError("bank_verification_unavailable", 422)
+		if (row.status !== "pending") paymentError("not_pending")
+		const meta = readMetadata(row.metadataJson),
+			challenge = readMetadata(meta.microDeposit),
+			rail = readMetadata(meta.payoutRail)
+		if (
+			rail.mode !== "live" ||
+			rail.provider !== "stripe_connect" ||
+			challenge.verifyVia !== "stripe"
+		)
+			paymentError("bank_verification_unavailable", 422)
+		if (challenge.status !== "initiated") paymentError("micro_deposit_not_initiated")
+		const deadline = new Date(String(challenge.expiresAt ?? "")).getTime()
+		if (!Number.isFinite(deadline) || deadline <= Date.now()) paymentError("micro_deposit_expired")
+		if (
+			challenge.confirmingAt &&
+			Date.now() - new Date(String(challenge.confirmingAt)).getTime() < 60_000
+		)
+			paymentError("micro_deposit_confirmation_in_progress")
+		if (challenge.confirmingAt && challenge.confirmationFingerprint !== fingerprint)
+			paymentError("micro_deposit_confirmation_uncertain")
+		const attempts = Number(challenge.attempts) || 0
+		if (attempts >= PAYOUT_MICRO_DEPOSIT_MAX_ATTEMPTS) paymentError("micro_deposit_failed")
+		const token =
+			challenge.confirmingAt && typeof challenge.confirmationToken === "string"
+				? challenge.confirmationToken
+				: crypto.randomUUID()
 		await db
 			.update(ProviderPaymentAccount)
 			.set({
-				status: failed ? "requires_attention" : "pending",
 				metadataJson: {
 					...meta,
 					microDeposit: {
-						...challengeObj,
-						status: failed ? "failed" : "initiated",
-						attempts,
-						lastFailedAt: now.toISOString(),
+						...challenge,
+						confirmingAt: new Date().toISOString(),
+						confirmationToken: token,
+						confirmationFingerprint: fingerprint,
 					},
 				},
-				updatedAt: now,
 			})
-			.where(eq(ProviderPaymentAccount.id, existing.id))
-
+			.where(eq(ProviderPaymentAccount.id, row.id))
+		return { token, externalRef: String(rail.externalRef ?? "") }
+	})
+	let result: Awaited<ReturnType<typeof confirmStripeConnectMicroDeposit>>
+	try {
+		result = await confirmStripeConnectMicroDeposit({
+			externalRef: attempt.externalRef,
+			amount1Cents: amount1,
+			amount2Cents: amount2,
+			descriptorCode: useDescriptor ? descriptorCode : null,
+			idempotencyKey: `bank_confirmation:${attempt.token}`,
+		})
+	} catch {
+		result = { ok: false, error: "bank_verification_unavailable" }
+	}
+	const outcome = await withPostgresTransaction(async () => {
+		const row = await lockedAccount(params.providerId, params.accountId)
+		const meta = readMetadata(row.metadataJson),
+			challenge = readMetadata(meta.microDeposit)
+		if (row.status !== "pending" || challenge.confirmationToken !== attempt.token)
+			paymentError("not_pending")
+		await assertLegacyComplianceReviewAllowed(
+			paymentAccountSource(params.providerId, params.accountId)
+		)
+		const mismatch = !result.ok && /mismatch/.test(result.error ?? "")
+		const attempts = (Number(challenge.attempts) || 0) + (mismatch || result.ok ? 1 : 0)
+		const failed = mismatch && attempts >= PAYOUT_MICRO_DEPOSIT_MAX_ATTEMPTS
+		const now = new Date()
+		const values = {
+			status: result.ok ? "verified" : failed ? "requires_attention" : "pending",
+			verifiedAt: result.ok ? now : null,
+			updatedAt: now,
+			metadataJson: {
+				...meta,
+				microDeposit: {
+					...challenge,
+					status: result.ok ? "confirmed" : failed ? "failed" : "initiated",
+					attempts,
+					confirmingAt: result.ok || mismatch ? null : challenge.confirmingAt,
+					confirmationToken: result.ok || mismatch ? null : challenge.confirmationToken,
+				},
+				...(result.ok || failed
+					? {
+							lastReview: {
+								status: result.ok ? "verified" : "requires_attention",
+								reason: result.ok
+									? "Titularidad confirmada por verificación bancaria."
+									: "Se agotaron los intentos de verificación bancaria.",
+								reviewedAt: now.toISOString(),
+								reviewedBy: params.actorUserId,
+								path: "micro_deposit",
+							},
+						}
+					: {}),
+			},
+		}
+		await db.update(ProviderPaymentAccount).set(values).where(eq(ProviderPaymentAccount.id, row.id))
+		const account = mapRow({ ...row, ...values })
+		if (result.ok || failed) await finishAccountReview(account)
 		await writeProviderAuditLog({
 			providerId: params.providerId,
 			actorUserId: params.actorUserId,
 			action: "provider.payment_account.micro_deposit_confirm",
 			entityType: "ProviderPaymentAccount",
-			entityId: existing.id,
-			beforeJson: { attempts: attempts - 1 },
-			afterJson: { matched: false, attempts, failed },
-			riskLevel: inferSettingsRiskLevel({ domain: "payments" }),
+			entityId: row.id,
+			afterJson: { status: account.status, attempts, matched: result.ok },
+			riskLevel: "high",
 		})
-
-		const error = new Error(failed ? "micro_deposit_failed" : "micro_deposit_mismatch")
-		;(error as Error & { status?: number }).status = failed ? 409 : 400
-		throw error
-	}
-
-	await db
-		.update(ProviderPaymentAccount)
-		.set({
-			status: "verified",
-			verifiedAt: now,
-			metadataJson: {
-				...meta,
-				microDeposit: {
-					...challengeObj,
-					status: "confirmed",
-					attempts,
-					confirmedAt: now.toISOString(),
-					amountHashes: undefined,
-				},
-				lastReview: {
-					status: "verified",
-					reason: "micro_deposit_confirmed",
-					reviewedAt: now.toISOString(),
-					reviewedBy: params.actorUserId,
-					path: "micro_deposit",
-				},
-			},
-			updatedAt: now,
-		})
-		.where(eq(ProviderPaymentAccount.id, existing.id))
-
-	const afterRows = await db
-		.select(selectColumns)
-		.from(ProviderPaymentAccount)
-		.where(eq(ProviderPaymentAccount.id, existing.id))
-		.then(first)
-	const after = afterRows
-		? mapRow(afterRows, { includeSecret: false })
-		: mapRow(existing, { includeSecret: false })
-
-	await syncProviderFinancialProfile({
-		providerId: params.providerId,
-		account: after,
+		return {
+			account,
+			error: result.ok
+				? null
+				: mismatch
+					? failed
+						? "micro_deposit_failed"
+						: "micro_deposit_mismatch"
+					: "bank_verification_unavailable",
+		}
 	})
-
-	await completeComplianceAssignment({
-		providerId: params.providerId,
-		domain: "payments",
-		entityId: existing.id,
-	})
-
-	await writeProviderAuditLog({
-		providerId: params.providerId,
-		actorUserId: params.actorUserId,
-		action: "provider.payment_account.micro_deposit_confirm",
-		entityType: "ProviderPaymentAccount",
-		entityId: existing.id,
-		beforeJson: { status: "pending" },
-		afterJson: { status: "verified", path: "micro_deposit", attempts },
-		riskLevel: inferSettingsRiskLevel({ domain: "payments" }),
-	})
-
-	return after
+	// Throw after commit so wrong attempts are persisted.
+	if (outcome.error)
+		paymentError(outcome.error, outcome.error === "micro_deposit_mismatch" ? 400 : 409)
+	return outcome.account
 }

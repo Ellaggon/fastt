@@ -240,6 +240,7 @@ export async function resolveProductCommercialDiagnosis(params: {
 				experienceFormat: format?.experienceFormat as ExperienceFormat | null,
 				formatContractVersion: format?.formatContractVersion,
 				jurisdictionCode: tourContext?.jurisdictionCode ?? null,
+				jurisdictionCodes: tourContext?.jurisdictionCodes ?? undefined,
 				operatingRole:
 					(tourContext?.operatingRole as "operator" | "guide" | "intermediary" | null) ?? null,
 				activityClasses,

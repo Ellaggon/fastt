@@ -4,6 +4,7 @@ import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
+	assertLegacyComplianceReviewAllowed,
 	resolveComplianceCaseForSourceCompat,
 	synchronizeComplianceCaseCompat,
 } from "@/lib/casework/compliance-casework"
@@ -71,6 +72,7 @@ export const POST: APIRoute = async ({ request }) => {
 			riskLevel: "high",
 		}
 		const command = await executeSensitiveCommand({
+			atomic: true,
 			audit,
 			idempotency: {
 				scope: "provider.document.review",
@@ -100,6 +102,12 @@ export const POST: APIRoute = async ({ request }) => {
 					sourceType: "ProviderDocument",
 					sourceRef: payload.documentId,
 					summary: "Revisión documental",
+				})
+				await assertLegacyComplianceReviewAllowed({
+					providerId: payload.providerId,
+					domain: "documents",
+					sourceType: "ProviderDocument",
+					sourceRef: payload.documentId,
 				})
 				const document = await reviewProviderDocument({
 					providerId: payload.providerId,

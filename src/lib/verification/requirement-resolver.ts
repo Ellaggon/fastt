@@ -59,6 +59,7 @@ export type TourVerificationContext = {
 	operatingRole: TourCredentialRole | null
 	activityClasses: readonly string[]
 	jurisdictionCode: string | null
+	jurisdictionCodes?: string[]
 	departureResourceIds: readonly string[]
 }
 
@@ -163,7 +164,9 @@ function mergeTourScopes(tours: readonly TourVerificationContext[]): Verificatio
 			50
 		),
 		territoryCodes: unique(
-			tours.map((tour) => tour.jurisdictionCode),
+			tours.flatMap(
+				(tour) => tour.jurisdictionCodes ?? (tour.jurisdictionCode ? [tour.jurisdictionCode] : [])
+			),
 			20
 		),
 		activityClasses: unique(
@@ -184,6 +187,7 @@ function tourContexts(input: VerificationResolutionInput): TourVerificationConte
 			operatingRole: normalizeRole(tour.operatingRole),
 			activityClasses: normalizeActivities(tour.activityClasses ?? []),
 			jurisdictionCode: String(tour.jurisdictionCode ?? "").trim() || null,
+			jurisdictionCodes: tour.jurisdictionCodes,
 			departureResourceIds: unique(tour.departureResourceIds ?? [], 50),
 		}))
 		.filter((tour) => tour.productId.length > 0)

@@ -3,7 +3,6 @@ import {
 	type DocumentListPresentation,
 } from "@/lib/verification/document-list-presentation"
 import { getIdentityVendorStatus } from "@/lib/identity-vendor"
-import { getPayoutRailStatus } from "@/lib/payout-rail"
 import { resolveProductCommercialDiagnosis } from "@/lib/commercial-policy/enforcement"
 import {
 	isHolderDeclarationInReview,
@@ -135,7 +134,6 @@ export type ProviderVerificationWorkspaceModel = {
 	taxConfiguration: ProviderTaxConfigurationRecord | null
 	paymentAccounts: ProviderPaymentAccountRecord[]
 	defaultCurrency: string
-	payoutRail: ReturnType<typeof getPayoutRailStatus>
 	identityVendorStatus: ReturnType<typeof getIdentityVendorStatus>
 	nextStep: VerificationNextStep
 	crossLinks: VerificationCrossLink[]
@@ -358,7 +356,9 @@ export async function loadProviderVerificationWorkspace(params: {
 				requirements: tourRequirements,
 				operation: {
 					productId: selectedExperienceId,
-					territoryCodes: tourContext?.jurisdictionCode ? [tourContext.jurisdictionCode] : [],
+					territoryCodes:
+						tourContext?.jurisdictionCodes ??
+						(tourContext?.jurisdictionCode ? [tourContext.jurisdictionCode] : []),
 					activityClasses: storedTourActivityClasses(tourContext?.activityClassesJson),
 				},
 				products: tourProducts,
@@ -451,7 +451,9 @@ export async function loadProviderVerificationWorkspace(params: {
 					tourOperation: selectedExperienceId
 						? {
 								productId: selectedExperienceId,
-								territoryCodes: tourContext?.jurisdictionCode ? [tourContext.jurisdictionCode] : [],
+								territoryCodes:
+									tourContext?.jurisdictionCodes ??
+									(tourContext?.jurisdictionCode ? [tourContext.jurisdictionCode] : []),
 								activityClasses: storedTourActivityClasses(tourContext?.activityClassesJson),
 							}
 						: null,
@@ -656,7 +658,6 @@ export async function loadProviderVerificationWorkspace(params: {
 		taxConfiguration,
 		paymentAccounts,
 		defaultCurrency: trustSnapshot?.defaultCurrency ?? "USD",
-		payoutRail: getPayoutRailStatus(),
 		identityVendorStatus: getIdentityVendorStatus(),
 		nextStep,
 		crossLinks,

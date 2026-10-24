@@ -4,6 +4,7 @@ import { ZodError, z } from "zod"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
 import { safeVerificationReturn, safeRatePlanPlaybookReturn } from "@/lib/auth/returnTo"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
+import { synchronizeComplianceCaseCompat } from "@/lib/casework/compliance-casework"
 import { assertHolderDeclarationAllowsDocuments } from "@/lib/provider-holder-profile"
 import {
 	listProviderDocuments,
@@ -349,6 +350,13 @@ export const POST: APIRoute = async ({ request }) => {
 						: undefined,
 			replacesDocumentId: parsed.replacesDocumentId,
 			fileBytes,
+		})
+		await synchronizeComplianceCaseCompat({
+			providerId,
+			domain: "documents",
+			sourceType: "ProviderDocument",
+			sourceRef: submitted.id,
+			summary: `Revisión documental: ${submitted.typeLabel}`,
 		})
 		await invalidateProvider(providerId)
 		await invalidateProviderGovernance(providerId, "provider_document_submitted")

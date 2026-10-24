@@ -4,6 +4,7 @@ import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
+	assertLegacyComplianceReviewAllowed,
 	resolveComplianceCaseForSourceCompat,
 	synchronizeComplianceCaseCompat,
 } from "@/lib/casework/compliance-casework"
@@ -62,6 +63,7 @@ export const POST: APIRoute = async ({ request }) => {
 			riskLevel: "high",
 		}
 		const command = await executeSensitiveCommand({
+			atomic: true,
 			audit,
 			idempotency: {
 				scope: "provider.tax_configuration.review",
@@ -90,6 +92,12 @@ export const POST: APIRoute = async ({ request }) => {
 					sourceType: "ProviderTaxConfiguration",
 					sourceRef: payload.providerId,
 					summary: "Revisión de identidad fiscal",
+				})
+				await assertLegacyComplianceReviewAllowed({
+					providerId: payload.providerId,
+					domain: "fiscal",
+					sourceType: "ProviderTaxConfiguration",
+					sourceRef: payload.providerId,
 				})
 				const taxConfiguration = await reviewProviderTaxConfiguration({
 					providerId: payload.providerId,

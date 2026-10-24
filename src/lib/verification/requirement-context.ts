@@ -80,6 +80,7 @@ async function loadTourVerificationContexts(
 				operatingRole: TourComplianceContext.operatingRole,
 				activityClassesJson: TourComplianceContext.activityClassesJson,
 				jurisdictionCode: TourComplianceContext.jurisdictionCode,
+				jurisdictionCodes: TourComplianceContext.jurisdictionCodes,
 			})
 			.from(TourComplianceContext)
 			.where(eq(TourComplianceContext.providerId, providerId))
@@ -126,6 +127,7 @@ async function loadTourVerificationContexts(
 				role === "operator" || role === "guide" || role === "intermediary" ? role : null,
 			activityClasses: activityClasses(context?.activityClassesJson),
 			jurisdictionCode: String(context?.jurisdictionCode ?? "").trim() || null,
+			jurisdictionCodes: context?.jurisdictionCodes ?? undefined,
 			departureResourceIds: resourcesByProduct.get(productId) ?? [],
 		}
 	})

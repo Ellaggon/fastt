@@ -45,6 +45,9 @@ export const POST: APIRoute = async ({ request }) => {
 			operatingRole: form.get("operatingRole"),
 			activityClasses: form.getAll("activityClass"),
 			jurisdictionCode: form.get("jurisdictionCode"),
+			jurisdictionCodes: form.getAll("jurisdictionCodes").length
+				? form.getAll("jurisdictionCodes")
+				: undefined,
 		})
 		if (!input.operatingRole || !input.jurisdictionCode || input.activityClasses.length === 0) {
 			return tourOperatingContextRedirect(request, productId, "invalid_context")

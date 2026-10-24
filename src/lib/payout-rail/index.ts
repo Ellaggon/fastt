@@ -4,6 +4,7 @@ import { initiateSimulatedMicroDeposit } from "./simulated"
 import {
 	initiateStripeConnectMicroDeposit,
 	isStripeConnectKeyPresent,
+	isStripeLiveKeyPresent,
 	isStripePayoutRailLiveEnabled,
 	resolveStripeAchVerificationMethod,
 } from "./stripeConnect"
@@ -72,7 +73,7 @@ export function getPayoutRailStatus(): PayoutRailStatus {
 		}
 	}
 
-	if (!liveEnabled) {
+	if (!liveEnabled || !isStripeLiveKeyPresent()) {
 		return {
 			preferredProvider,
 			activeProvider: "simulated",
@@ -104,7 +105,7 @@ export function getPayoutRailStatus(): PayoutRailStatus {
 
 /**
  * Initiate μ-deposit amounts via the configured rail.
- * Falls back to simulated until Stripe ACH live succeeds.
+ * Simulation is explicit. A failed live verification must never become a test success.
  */
 export async function initiatePayoutRailMicroDeposit(
 	input: InitiatePayoutRailMicroDepositInput
@@ -122,19 +123,13 @@ export async function initiatePayoutRailMicroDeposit(
 			return liveAttempt
 		}
 
-		logger.warn("payout_rail.stripe_fallback_simulated", {
+		logger.warn("payout_rail.stripe_verification_failed", {
 			accountId: input.accountId,
 			error: liveAttempt.error ?? "unknown",
 			mode: liveAttempt.mode,
 		})
 
-		const simulated = await initiateSimulatedMicroDeposit(input)
-		return {
-			...simulated,
-			mode: status.mode === "live" ? "scaffold" : status.mode,
-			fallbackFrom: "stripe_connect",
-			message: liveAttempt.message,
-		}
+		return liveAttempt
 	}
 
 	const simulated = await initiateSimulatedMicroDeposit(input)
@@ -144,4 +139,22 @@ export async function initiatePayoutRailMicroDeposit(
 		accountId: input.accountId,
 	})
 	return simulated
+}
+
+/** Only the certified microdeposit UI is offered; instant linking has no completed client flow. */
+export function canVerifyBankAccountAutomatically(
+	account: {
+		country: string | null
+		currency: string
+		method?: string
+	},
+	status = getPayoutRailStatus()
+): boolean {
+	return (
+		status.mode === "live" &&
+		resolveStripeAchVerificationMethod() === "microdeposits" &&
+		account.country === "US" &&
+		account.currency === "USD" &&
+		(!account.method || account.method === "bank_transfer")
+	)
 }

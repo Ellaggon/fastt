@@ -6,6 +6,9 @@ import {
 	ProviderFinancialProfile,
 	ProviderPaymentAccount,
 	ProviderUser,
+	CaseDecision,
+	ComplianceCase,
+	and,
 	User,
 } from "@/shared/infrastructure/db/compat"
 import {
@@ -15,6 +18,11 @@ import {
 import { POST as adminPaymentAccountsPost } from "@/pages/api/admin/providers/payment-accounts"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 import { elevateInternalTestSession } from "../test-support/internal-mfa"
+import {
+	createProviderPaymentAccount,
+	initiatePaymentAccountMicroDeposit,
+} from "@/lib/provider-payment-accounts"
+import { proposeCaseDecision } from "@/modules/casework/application/commands/case-commands"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -77,6 +85,127 @@ function makeAuthedRequest(path: string, token: string, body?: FormData | string
 }
 
 describe("provider payment accounts / payouts", () => {
+	it("rejects an undocumented bank decision before persisting a proposal", async () => {
+		const suffix = crypto.randomUUID()
+		const providerId = `provider_bank_evidence_${suffix}`
+		const ownerEmail = `bank.evidence.${suffix}@example.com`
+		const actorUserId = `user_${ownerEmail}`
+		await upsertProvider({
+			id: providerId,
+			legalName: "Banco Evidencia",
+			displayName: "Banco Evidencia",
+			ownerEmail,
+		})
+		const account = await createProviderPaymentAccount({
+			providerId,
+			actorUserId,
+			accountHolderName: "Banco Evidencia",
+			bankName: "Banco Ejemplo",
+			country: "BO",
+			currency: "USD",
+			accountIdentifier: "1234567890",
+		})
+		const [reviewCase] = await db
+			.select()
+			.from(ComplianceCase)
+			.where(eq(ComplianceCase.sourceRef, account.id))
+		expect(reviewCase).toBeTruthy()
+		await expect(
+			proposeCaseDecision({
+				caseId: reviewCase.id,
+				expectedVersion: reviewCase.version,
+				decision: "approved",
+				reasonCode: "requirements_satisfied",
+				comment: "OK",
+				actorUserId,
+				evidenceSnapshot: {},
+			})
+		).rejects.toMatchObject({ message: "payment_review_evidence_required", status: 400 })
+		expect(
+			await db
+				.select({ id: CaseDecision.id })
+				.from(CaseDecision)
+				.where(eq(CaseDecision.caseId, reviewCase.id))
+		).toEqual([])
+	})
+	it("does not create a case for an account owned by another provider", async () => {
+		const suffix = crypto.randomUUID()
+		const providerId = `provider_bank_owned_${suffix}`
+		const otherProviderId = `provider_bank_other_${suffix}`
+		const ownerEmail = `bank.owned.${suffix}@example.com`
+		await upsertProvider({
+			id: providerId,
+			legalName: "Titular A",
+			displayName: "Titular A",
+			ownerEmail,
+		})
+		await upsertProvider({
+			id: otherProviderId,
+			legalName: "Titular B",
+			displayName: "Titular B",
+			ownerEmail: `bank.other.${suffix}@example.com`,
+		})
+		const actorUserId = `user_${ownerEmail}`
+		const account = await createProviderPaymentAccount({
+			providerId,
+			actorUserId,
+			accountHolderName: "Titular A",
+			bankName: "Banco Ejemplo",
+			country: "BO",
+			currency: "USD",
+			accountIdentifier: "1234567890",
+		})
+		await expect(
+			initiatePaymentAccountMicroDeposit({
+				providerId: otherProviderId,
+				actorUserId,
+				accountId: account.id,
+			})
+		).rejects.toMatchObject({ message: "not_found", status: 404 })
+		expect(
+			await db
+				.select({ id: ComplianceCase.id })
+				.from(ComplianceCase)
+				.where(
+					and(
+						eq(ComplianceCase.providerId, otherProviderId),
+						eq(ComplianceCase.sourceRef, account.id)
+					)
+				)
+		).toEqual([])
+	})
+	it("allows only one pending account under simultaneous submissions", async () => {
+		const suffix = crypto.randomUUID()
+		const ownerEmail = `bank.concurrent.${suffix}@example.com`
+		const providerId = `provider_bank_concurrent_${suffix}`
+		await upsertProvider({
+			id: providerId,
+			legalName: "Banco Test",
+			displayName: "Banco Test",
+			ownerEmail,
+		})
+		const input = {
+			providerId,
+			actorUserId: `user_${ownerEmail}`,
+			accountHolderName: "Banco Test",
+			bankName: "Banco Ejemplo",
+			country: "BO",
+			currency: "USD",
+			accountIdentifier: "1234567890",
+		}
+		const results = await Promise.allSettled([
+			createProviderPaymentAccount(input),
+			createProviderPaymentAccount(input),
+		])
+		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1)
+		const failed = results.find((result) => result.status === "rejected") as PromiseRejectedResult
+		expect(failed.reason.status).toBe(409)
+		const rows = await db
+			.select({ status: ProviderPaymentAccount.status })
+			.from(ProviderPaymentAccount)
+			.where(eq(ProviderPaymentAccount.providerId, providerId))
+		expect(rows.filter((row) => row.status === "pending")).toHaveLength(1)
+	})
 	it("lets an owner submit a bank account and only an internal admin verify it", async () => {
 		const providerId = `provider_payment_accounts_flow_${crypto.randomUUID()}`
 		const token = "t_payments_owner"
@@ -158,6 +287,7 @@ describe("provider payment accounts / payouts", () => {
 							providerId,
 							accountId: submitted.account.id,
 							status: "verified",
+							reason: "Constancia bancaria y titularidad corroboradas por el equipo.",
 						})
 					),
 				} as any)
@@ -193,10 +323,10 @@ describe("provider payment accounts / payouts", () => {
 					.where(eq(ProviderFinancialProfile.providerId, providerId))
 					.then((rows) => rows[0])
 				expect(financial).toMatchObject({
-					status: "ready",
+					status: "incomplete",
 					currency: "USD",
 					payoutSchedule: "weekly",
-					payoutMethodReference: "••••9012",
+					payoutMethodReference: submitted.account.id,
 				})
 
 				const audit = await db

@@ -67,6 +67,17 @@ function scopeMatches(
 	const scopes = operation.resourceId
 		? document.scopes
 		: document.scopes.filter((scope) => scope.scopeType !== "resource")
+	const territoryScopes = scopes.filter((scope) => scope.scopeType === "territory")
+	if (
+		territoryScopes.length &&
+		operation.territoryCodes?.length &&
+		!operation.territoryCodes.every((code) =>
+			territoryScopes.some(
+				(scope) => scope.territoryCode === code || scope.territoryCode === code.split("-")[0]
+			)
+		)
+	)
+		return false
 	return documentAppliesToOperation(
 		{
 			// Scope and validity are diagnosed separately so an expired document
@@ -75,7 +86,10 @@ function scopeMatches(
 			subjectReference: document.subjectReference,
 			scopes,
 		},
-		operation
+		{
+			...operation,
+			territoryCodes: operation.territoryCodes?.flatMap((code) => [code, code.split("-")[0]]),
+		}
 	)
 }
 

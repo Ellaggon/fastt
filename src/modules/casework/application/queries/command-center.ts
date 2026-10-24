@@ -4,6 +4,7 @@ import type { SQL } from "drizzle-orm"
 import {
 	evaluateRequiredKycDocumentsComplete,
 	listProviderDocuments,
+	providerDocumentTypes,
 } from "@/lib/provider-documents"
 import { evaluateProviderGovernance } from "@/lib/provider-governance"
 import { loadProviderVerificationResolution } from "@/lib/verification/requirement-context"
@@ -25,11 +26,15 @@ import {
 	db,
 	desc,
 	eq,
+	gte,
 	inArray,
 	isNull,
 	lt,
+	lte,
+	ne,
 	or,
 	Provider,
+	ProviderDocument,
 	ProviderVerification,
 	SavedCaseView,
 	sql,
@@ -641,8 +646,8 @@ export async function listCommandCenterCases(filters: CaseListFilters = {}) {
 					: and(
 							eq(CaseSlaTimer.status, "running"),
 							// due soon but not already overdue
-							sql`${CaseSlaTimer.dueAt} >= ${now}`,
-							sql`${CaseSlaTimer.dueAt} <= ${dueSoon}`
+							gte(CaseSlaTimer.dueAt, now),
+							lte(CaseSlaTimer.dueAt, dueSoon)
 						)!
 			)
 		const eligibleIds = [...new Set(eligible.map((row) => row.caseId))]
@@ -931,6 +936,46 @@ export async function getCaseWorkspace(caseId: string) {
 				),
 		])
 	return { case: item, tasks, timers, activities, decisions, approvals, reasons, informationEvents }
+}
+
+export async function listRelatedCaseReviews(providerId: string, excludeCaseId: string) {
+	const relatedCases = await db
+		.select({
+			id: ComplianceCase.id,
+			domain: ComplianceCase.domain,
+			status: ComplianceCase.status,
+			documentType: ProviderDocument.type,
+			documentName: sql<string | null>`${ProviderDocument.metadataJson}->>'fileName'`,
+		})
+		.from(ComplianceCase)
+		.leftJoin(
+			ProviderDocument,
+			and(
+				eq(ComplianceCase.domain, "documents"),
+				eq(ComplianceCase.sourceRef, ProviderDocument.id),
+				eq(ComplianceCase.providerId, ProviderDocument.providerId)
+			)
+		)
+		.where(
+			and(
+				eq(ComplianceCase.providerId, providerId),
+				ne(ComplianceCase.id, excludeCaseId),
+				inArray(ComplianceCase.domain, ["fiscal", "documents"]),
+				inArray(ComplianceCase.status, [...ACTIVE_CASE_STATUSES])
+			)
+		)
+		.orderBy(desc(ComplianceCase.openedAt), desc(ComplianceCase.id))
+	return relatedCases.map((review) => ({
+		id: review.id,
+		domain: review.domain,
+		status: review.status,
+		documentName: review.documentName,
+		label:
+			review.domain === "fiscal"
+				? "Datos fiscales"
+				: (providerDocumentTypes.find((type) => type.value === review.documentType)?.label ??
+					"Documento de cumplimiento"),
+	}))
 }
 
 export async function getProvider360(providerId: string) {

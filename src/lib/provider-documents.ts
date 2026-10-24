@@ -26,6 +26,7 @@ import {
 	allowLegacyLocalDocumentUrls,
 	assertAllowedProviderDocumentUrl,
 	isR2DocumentStorageConfigured,
+	inspectProviderDocumentPreview,
 	uploadProviderDocumentObject,
 } from "@/lib/provider-document-storage"
 import { providerRepository } from "@/container"
@@ -1643,6 +1644,10 @@ export async function reviewProviderDocument(params: {
 	}
 
 	if (nextStatus === "verified") {
+		const preview = await inspectProviderDocumentPreview({ fileUrl: existing.fileUrl })
+		if (preview.state !== "ready") {
+			throw Object.assign(new Error("document_preview_required"), { status: 422 })
+		}
 		const { documentInspectionGate, getProviderDocumentInspection } =
 			await import("@/lib/documents/document-processing")
 		const gate = documentInspectionGate(await getProviderDocumentInspection(existing.id))
@@ -1651,6 +1656,9 @@ export async function reviewProviderDocument(params: {
 			;(error as Error & { status?: number; details?: string[] }).status = 422
 			;(error as Error & { status?: number; details?: string[] }).details = gate.blockers
 			throw error
+		}
+		if (gate.warnings.length && !reviewNotes) {
+			throw Object.assign(new Error("document_manual_review_notes_required"), { status: 422 })
 		}
 	}
 

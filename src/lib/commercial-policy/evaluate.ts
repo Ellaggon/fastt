@@ -24,6 +24,7 @@ export type CommercialPolicyContext = {
 	collectionModel: "property_collect" | "platform_collect" | "undecided"
 	productId?: string | null
 	jurisdictionCode?: string | null
+	jurisdictionCodes?: string[]
 	operatingRole?: "operator" | "guide" | "intermediary" | null
 	activityClasses?: string[]
 	resourceIds?: string[]
@@ -146,7 +147,9 @@ function requirementApplies(
 		return false
 	if (
 		condition.jurisdictionCodes?.length &&
-		(!context.jurisdictionCode || !condition.jurisdictionCodes.includes(context.jurisdictionCode))
+		!(
+			context.jurisdictionCodes ?? (context.jurisdictionCode ? [context.jurisdictionCode] : [])
+		).some((code) => condition.jurisdictionCodes?.includes(code))
 	)
 		return false
 	if (
@@ -190,6 +193,11 @@ function versionMatchesContext(version: CommercialPolicyVersion, context: Commer
 		!selector?.operatingRoles?.length ||
 		!selector.activityClasses?.length ||
 		!selector.jurisdictionCodes?.length
+	)
+		return false
+	if (
+		context.jurisdictionCodes?.length &&
+		!context.jurisdictionCodes.every((code) => selector.jurisdictionCodes?.includes(code))
 	)
 		return false
 	return requirementApplies(selector, context)
@@ -280,9 +288,10 @@ function evidenceAppliesToContext(
 			operation: {
 				productId: context.productId,
 				resourceId: context.resourceIds?.length === 1 ? context.resourceIds[0] : null,
-				territoryCodes: [context.jurisdictionCode, context.productCountry].filter(
-					(value): value is string => Boolean(value)
-				),
+				territoryCodes: (context.jurisdictionCodes?.length
+					? context.jurisdictionCodes
+					: [context.jurisdictionCode ?? context.productCountry]
+				).filter((value): value is string => Boolean(value)),
 				activityClasses: (context.activityClasses ?? []) as Array<
 					| "urban_cultural"
 					| "guided_nature"
@@ -317,9 +326,22 @@ function evidenceAppliesToContext(
 	const territoryScopes = byType("territory")
 	if (
 		territoryScopes.length &&
+		context.jurisdictionCodes?.length &&
+		!context.jurisdictionCodes.every((code) =>
+			territoryScopes.some(
+				(scope) => scope.territoryCode === code || scope.territoryCode === context.productCountry
+			)
+		)
+	)
+		return "out_of_scope" as const
+	if (
+		territoryScopes.length &&
 		!territoryScopes.some((scope) => {
 			const territory = String(scope.territoryCode ?? "")
-			return territory === context.jurisdictionCode || territory === context.productCountry
+			return (
+				(context.jurisdictionCodes ?? [context.jurisdictionCode]).includes(territory) ||
+				territory === context.productCountry
+			)
 		})
 	)
 		return "out_of_scope" as const

@@ -14,3 +14,21 @@ export const tourOperatingTerritories = [
 export function tourOperatingTerritory(code: string | null | undefined) {
 	return tourOperatingTerritories.find((territory) => territory.code === code) ?? null
 }
+
+export function tourTerritoryCodes(
+	context: { jurisdictionCodes?: unknown; jurisdictionCode?: string | null } | null | undefined
+): string[] {
+	const values = Array.isArray(context?.jurisdictionCodes)
+		? context.jurisdictionCodes
+		: context?.jurisdictionCode
+			? [context.jurisdictionCode]
+			: []
+	return [
+		...new Set(
+			values.filter(
+				(value): value is string =>
+					typeof value === "string" && Boolean(tourOperatingTerritory(value))
+			)
+		),
+	]
+}

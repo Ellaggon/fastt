@@ -21,7 +21,7 @@ import {
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 describe("P2 maturity — micro-deposit / smoke / TIN / ops SLA", () => {
-	it("verifies payout ownership via micro-deposit confirm", async () => {
+	it("keeps simulated bank verification out of account approval", async () => {
 		const fixtureSuffix = crypto.randomUUID()
 		const providerId = `provider_p2_micro_deposit_${fixtureSuffix}`
 		const ownerEmail = `p2.micro.${fixtureSuffix}@example.com`
@@ -54,49 +54,34 @@ describe("P2 maturity — micro-deposit / smoke / TIN / ops SLA", () => {
 			payoutSchedule: "weekly",
 		})
 
-		const initiated = await initiatePaymentAccountMicroDeposit({
-			providerId,
-			actorUserId: adminId,
-			accountId: account.id,
-		})
-		expect(initiated.depositAmountsCents).toHaveLength(2)
-		expect(initiated.account.microDeposit.status).toBe("initiated")
-		const depositAmounts = initiated.depositAmountsCents
-		if (!depositAmounts) throw new Error("expected depositAmountsCents from simulated rail")
-
+		await expect(
+			initiatePaymentAccountMicroDeposit({
+				providerId,
+				actorUserId: adminId,
+				accountId: account.id,
+			})
+		).rejects.toThrow("bank_verification_unavailable")
 		await expect(
 			confirmPaymentAccountMicroDeposit({
 				providerId,
 				actorUserId: ownerId,
 				accountId: account.id,
-				amount1Cents: 1,
-				amount2Cents: 2,
+				amount1Cents: 10,
+				amount2Cents: 20,
 			})
-		).rejects.toThrow(/micro_deposit_mismatch/)
-
-		const confirmed = await confirmPaymentAccountMicroDeposit({
-			providerId,
-			actorUserId: ownerId,
-			accountId: account.id,
-			amount1Cents: depositAmounts[0],
-			amount2Cents: depositAmounts[1],
-		})
-		expect(confirmed.status).toBe("verified")
-		expect(confirmed.microDeposit.status).toBe("confirmed")
-
+		).rejects.toThrow("bank_verification_unavailable")
 		const persisted = await db
 			.select({ status: ProviderPaymentAccount.status })
 			.from(ProviderPaymentAccount)
 			.where(eq(ProviderPaymentAccount.id, account.id))
 			.then((rows) => rows[0])
-		expect(persisted?.status).toBe("verified")
-
+		expect(persisted?.status).toBe("pending")
 		const financial = await db
 			.select({ status: ProviderFinancialProfile.status })
 			.from(ProviderFinancialProfile)
 			.where(eq(ProviderFinancialProfile.providerId, providerId))
 			.then((rows) => rows[0])
-		expect(financial?.status).toBe("ready")
+		expect(financial).toBeUndefined()
 	})
 
 	it("runs endpoint smoke and rejects non-HTTPS endpoints", async () => {

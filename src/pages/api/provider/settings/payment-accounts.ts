@@ -8,6 +8,7 @@ import {
 	createProviderPaymentAccount,
 	confirmPaymentAccountMicroDeposit,
 	listProviderPaymentAccounts,
+	selectPrimaryProviderPaymentAccount,
 	providerPaymentAccountStatuses,
 	providerPayoutMethods,
 	providerPayoutSchedules,
@@ -162,6 +163,19 @@ export const POST: APIRoute = async ({ request }) => {
 				? redirectToPayments(request, "micro_deposit_confirmed", returnTo)
 				: json({ ok: true, account })
 		}
+		if (action === "select_primary") {
+			const account = await selectPrimaryProviderPaymentAccount({
+				providerId,
+				actorUserId: user.id,
+				accountId: String(form.get("accountId") ?? "").trim(),
+			})
+			await invalidateProvider(providerId)
+			await invalidateProviderGovernance(providerId, "provider_payment_primary_selected")
+			return shouldReturnHtmlRedirect(request)
+				? redirectToPayments(request, "primary_selected", returnTo)
+				: json({ ok: true, account })
+		}
+		if (action !== "create") return json({ error: "invalid_action" }, 400)
 
 		const parsed = createSchema.parse({
 			method: form.get("method") || "bank_transfer",
@@ -196,16 +210,13 @@ export const POST: APIRoute = async ({ request }) => {
 			: json({ ok: true, account }, 201)
 	} catch (err: any) {
 		if (err instanceof Response) return err
+		if (err instanceof ZodError && shouldReturnHtmlRedirect(request))
+			return redirectToPaymentsError(request, "validation_error", returnTo)
 		if (err instanceof ZodError)
 			return json({ error: "validation_error", details: err.issues }, 400)
 		const message = String(err?.message || "Unknown error")
 		const status = typeof err?.status === "number" ? err.status : 400
-		if (
-			shouldReturnHtmlRedirect(request) &&
-			(message.startsWith("micro_deposit_") ||
-				message === "invalid_micro_deposit_amounts" ||
-				message === "pending_account_in_progress")
-		) {
+		if (shouldReturnHtmlRedirect(request)) {
 			return redirectToPaymentsError(request, message, returnTo)
 		}
 		return json({ error: message }, status)
