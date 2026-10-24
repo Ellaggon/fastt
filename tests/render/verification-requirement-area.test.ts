@@ -29,7 +29,13 @@ it("places a synthetic safety licence and its correction link in Safety only", a
 	})
 	const container = await AstroContainer.create()
 	const safety = await container.renderToString(Sections, {
-		props: { screen, line: "tour", tourArea: "safety", experienceId: "a" },
+		props: {
+			screen,
+			line: "tour",
+			tourArea: "safety",
+			experienceId: "a",
+			safetyState: "action_needed",
+		},
 	})
 	const activity = await container.renderToString(Sections, {
 		props: { screen, line: "tour", tourArea: "activity", experienceId: "a" },
