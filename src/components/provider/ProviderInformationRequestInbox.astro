@@ -1,0 +1,185 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Notice from "@/components/ui/Notice.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import { informationRequestPresentation } from "@/lib/provider-information-request-presentation"
+import { routes } from "@/lib/routes"
+import {
+	PROVIDER_WORK_VOCABULARY,
+	type listProviderInformationRequests,
+} from "@/modules/casework/public"
+import { Inbox } from "@lucide/astro"
+
+type Props = {
+	requests: Awaited<ReturnType<typeof listProviderInformationRequests>>
+	enabled: boolean
+	canReadRequests: boolean
+	actorId: string
+}
+const { requests, enabled, canReadRequests, actorId } = Astro.props
+const items = requests
+	.map((item) => ({ ...item, presentation: informationRequestPresentation(item) }))
+	.sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
+const groups = [
+	{ id: "pending", label: "Por responder" },
+	{ id: "follow_up", label: "En seguimiento" },
+	{ id: "closed", label: "Finalizadas" },
+] as const
+const fmt = new Intl.DateTimeFormat("es-BO", {
+	dateStyle: "medium",
+	timeStyle: "short",
+	timeZone: "America/La_Paz",
+})
+---
+
+<div class="space-y-6" data-provider-request-inbox>
+	{
+		Astro.url.searchParams.get("result") === "received" && (
+			<Notice variant="success" title="Respuesta recibida">
+				El equipo revisará la información. Puedes consultar tu respuesta en En seguimiento.
+			</Notice>
+		)
+	}
+	{
+		!items.length ? (
+			<Card class="space-y-5 p-5 sm:p-6" data-request-empty>
+				<Inbox class="size-7 text-slate-400" aria-hidden="true" />
+				<div class="max-w-xl space-y-2">
+					<h2 class="text-lg font-semibold text-slate-950">
+						{canReadRequests
+							? "No tienes solicitudes de información"
+							: "Tu acceso no incluye solicitudes de revisión"}
+					</h2>
+					<p class="text-sm leading-6 text-slate-600">
+						{canReadRequests
+							? "Cuando el equipo publique una solicitud para tu cuenta, podrás consultarla y responder aquí. Mientras tanto, revisa los requisitos pendientes en Verificación."
+							: "Pide al titular acceso al área correspondiente para consultar sus solicitudes."}
+					</p>
+					{canReadRequests && (
+						<p class="text-sm leading-6 text-slate-500">
+							Un buzón vacío no confirma que la cuenta esté aprobada.
+						</p>
+					)}
+				</div>
+				<div class="flex flex-wrap gap-3">
+					<Button
+						href={
+							canReadRequests ? routes.providerSettingsVerification() : routes.providerSettings()
+						}
+					>
+						{canReadRequests ? "Revisar verificación" : "Volver a configuración"}
+					</Button>
+					<Button href={routes.providerSupport()} variant="secondary">
+						Contactar soporte
+					</Button>
+				</div>
+			</Card>
+		) : (
+			<>
+				{!enabled && items.some((item) => item.presentation.canRespond) && (
+					<Notice variant="warning" title="Envío de respuestas no disponible">
+						Puedes consultar tus solicitudes. Si necesitas responder ahora,{" "}
+						<a href={routes.providerSupport()} class="font-semibold underline underline-offset-2">
+							contacta a Soporte
+						</a>{" "}
+						e indica la referencia del caso.
+					</Notice>
+				)}
+				{groups.map((group) => {
+					const grouped = items.filter((item) => item.presentation.group === group.id)
+					if (!grouped.length) return null
+					return (
+						<section class="space-y-3" aria-labelledby={`request-group-${group.id}`}>
+							<h2 id={`request-group-${group.id}`} class="text-sm font-semibold text-slate-300">
+								{group.label} <span class="ml-2 text-slate-400">{grouped.length}</span>
+							</h2>
+							{grouped.map((item) => (
+								<Card class="space-y-4 p-5 sm:p-6" data-information-request={item.decisionId}>
+									<div class="flex flex-wrap items-start justify-between gap-3">
+										<div class="space-y-1">
+											<h3 class="text-lg font-semibold text-slate-950">
+												{PROVIDER_WORK_VOCABULARY.domains[
+													item.domain as keyof typeof PROVIDER_WORK_VOCABULARY.domains
+												] ?? "Revisión de la cuenta"}
+											</h3>
+											<p class="text-xs text-slate-500">
+												Caso {item.caseNumber} ·{" "}
+												<time datetime={item.publishedAt.toISOString()}>
+													{fmt.format(item.publishedAt)}
+												</time>
+											</p>
+										</div>
+										<Badge variant={item.presentation.variant}>{item.presentation.label}</Badge>
+									</div>
+									<p class="text-sm leading-6 whitespace-pre-wrap text-slate-800">{item.message}</p>
+									{item.presentation.canRespond && item.presentation.destination && (
+										<Button href={item.presentation.destination.href} variant="secondary" size="sm">
+											{item.presentation.destination.label}
+										</Button>
+									)}
+									{item.response ? (
+										<details class="border-t border-slate-200 pt-4">
+											<summary class="cursor-pointer text-sm font-semibold text-slate-800">
+												Ver tu respuesta
+												{item.respondedAt ? ` · ${fmt.format(item.respondedAt)}` : ""}
+											</summary>
+											<p class="mt-3 text-sm leading-6 whitespace-pre-wrap text-slate-600">
+												{item.response}
+											</p>
+										</details>
+									) : enabled && item.presentation.canRespond ? (
+										<form
+											method="post"
+											action="/api/provider/compliance/respond"
+											class="space-y-3 border-t border-slate-200 pt-4"
+											data-information-response
+											data-actor-id={actorId}
+										>
+											<input type="hidden" name="decisionId" value={item.decisionId} />
+											<input type="hidden" name="requestKey" value={crypto.randomUUID()} />
+											<FormField
+												label="Tu respuesta"
+												htmlFor={`response-${item.decisionId}`}
+												required
+											>
+												<Textarea
+													id={`response-${item.decisionId}`}
+													name="message"
+													required
+													minlength="12"
+													maxlength="4000"
+													className="min-h-28"
+													aria-describedby={`response-help-${item.decisionId}`}
+												/>
+											</FormField>
+											<p
+												id={`response-help-${item.decisionId}`}
+												class="text-xs leading-5 text-slate-500"
+											>
+												Actualiza los documentos en su sección y explica qué corregiste. No incluyas
+												contraseñas, datos bancarios ni archivos en esta respuesta.
+											</p>
+											<Button type="submit">Enviar respuesta</Button>
+											<p
+												role="status"
+												aria-live="polite"
+												class="text-sm text-slate-600"
+												data-response-status
+											/>
+										</form>
+									) : null}
+								</Card>
+							))}
+						</section>
+					)
+				})}
+				<p class="text-xs leading-5 text-slate-400">
+					Las respuestas se revisan antes de actualizar la verificación de la cuenta.
+				</p>
+			</>
+		)
+	}
+</div>

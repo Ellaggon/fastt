@@ -7,12 +7,10 @@ import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
-import { getPayoutRailStatus, type PayoutRailStatus } from "@/lib/payout-rail"
-import type { ProviderPaymentAccountRecord } from "@/lib/provider-payment-accounts"
 import {
 	buildPayoutVerificationTimeline,
 	providerPayoutMethods,
-	providerPayoutSchedules,
+	type ProviderPaymentAccountRecord,
 } from "@/lib/provider-payment-accounts"
 import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
 
@@ -22,21 +20,15 @@ type Props = {
 	defaultCurrency?: string
 	paymentAssignments?: Record<
 		string,
-		{
-			slaDueAt: Date | string | null
-			slaState: "ok" | "due_soon" | "overdue" | "done"
-		}
+		{ slaDueAt: Date | string | null; slaState: "ok" | "due_soon" | "overdue" | "done" }
 	>
-	payoutRail?: PayoutRailStatus | null
 	formReturnTo?: "payments" | "verificationPayments"
 }
-
 const {
 	accounts = [],
 	canManagePayments = false,
 	defaultCurrency = "USD",
 	paymentAssignments = {},
-	payoutRail = null,
 	formReturnTo = "payments",
 } = Astro.props as Props
 const saveAction = copyVerificationNavigationQuery(
@@ -44,393 +36,285 @@ const saveAction = copyVerificationNavigationQuery(
 	Astro.url,
 	"payments"
 )
-
-const rail = payoutRail ?? getPayoutRailStatus()
-const pending = accounts.filter((row) => row.status === "pending")
-const verified = accounts.filter((row) => row.status === "verified")
-const needsAttention = accounts.filter((row) => row.status === "requires_attention")
-/** One account at a time while verification is in flight. */
-const hasInFlightAccount = pending.length > 0
+const current = accounts.filter((row) => row.status !== "superseded")
+const history = accounts.filter((row) => row.status === "superseded")
+const hasInFlightAccount = current.some((row) => row.status === "pending")
 const canShowCreateForm = canManagePayments && !hasInFlightAccount
-const createFormDefaultOpen = accounts.length === 0 || needsAttention.length > 0
-const focusAccount = pending[0] ?? needsAttention[0] ?? verified[0] ?? null
-const focusTimeline = focusAccount ? buildPayoutVerificationTimeline(focusAccount) : null
-const actionLead = !accounts.length
-	? "Puedes dejar una cuenta preparada para una futura liquidación. Esto no habilita cobros ni pagos por Fastt."
-	: focusTimeline?.showConfirmForm
-		? "Ingresa los dos montos del extracto (en centavos) para verificar la titularidad."
-		: pending.length
-			? "Espera los dos depósitos de prueba en el extracto. Cuando aparezcan, confirma los montos."
-			: needsAttention.length
-				? "Esta cuenta necesita corrección. Envía una nueva con los datos corregidos."
-				: "La cuenta está verificada. Una liquidación seguirá bloqueada hasta que existan contrato, política y rail aprobados."
-
-function badgeVariantForPhase(phaseLabel: string) {
-	if (phaseLabel === "Lista") return "success" as const
-	if (phaseLabel === "Requiere atención") return "error" as const
-	if (phaseLabel === "Confirmar montos" || phaseLabel === "Esperando depósitos") {
-		return "warning" as const
-	}
-	return "neutral" as const
-}
+const needsAttention = current.some((row) => row.status === "requires_attention")
+const fmt = new Intl.DateTimeFormat("es", { dateStyle: "medium" })
 ---
 
-<section class="space-y-6" data-payments-guided>
+<section class="space-y-5" data-payments-guided>
 	<Card>
-		<div class="space-y-5">
-			<div class="flex flex-wrap items-start justify-between gap-3">
-				<div>
-					<h2 class="text-xl font-semibold text-slate-950">Cuenta para futuras liquidaciones</h2>
-					<p class="mt-2 text-sm leading-6 text-slate-600" data-payments-action-lead>
-						{actionLead}
-					</p>
-					<p class="sr-only">
-						Una cuenta a la vez: envía → espera depósitos → confirma montos → lista.
-					</p>
-				</div>
-			</div>
-
+		<header>
+			<h2 class="text-xl font-semibold text-slate-950">Cuenta para futuras liquidaciones</h2>
+			<p class="mt-2 text-sm leading-6 text-slate-600" data-payments-action-lead>
+				Registra tu cuenta y consulta el resultado de su revisión. Las liquidaciones aún no están
+				habilitadas.
+			</p>
+		</header>
+		<div class="mt-5 divide-y divide-slate-200">
 			{
-				hasInFlightAccount ? (
-					<p class="text-sm leading-6 text-slate-600" data-payments-one-account>
-						Una cuenta primero: termina esta verificación antes de agregar otra.
-					</p>
-				) : null
-			}
-
-			<div class="space-y-3">
-				{
-					accounts.length ? (
-						accounts.map((account) => {
-							const timeline = buildPayoutVerificationTimeline(account)
-							return (
-								<Card
-									variant="soft"
-									class="space-y-3"
-									data-payment-account={account.id}
-									data-payment-account-status={account.status}
-								>
-									<div class="flex flex-wrap items-start justify-between gap-3">
-										<div>
-											<p class="text-sm font-semibold text-slate-950">
-												{account.bankName || "Banco"} · {account.accountReference || "••••"}
-											</p>
-											<p class="mt-1 text-sm text-slate-600">
-												{account.accountHolderName || "Sin titular"} · {account.country || "—"} ·{" "}
-												{account.currency} · {account.methodLabel}
-											</p>
-											<p class="mt-1 text-xs text-slate-500">
-												Calendario: {account.payoutScheduleLabel}
-												{account.routingOrSwift
-													? ` · SWIFT/routing: ${account.routingOrSwift}`
-													: ""}
-											</p>
-										</div>
-										<Badge variant={badgeVariantForPhase(timeline.phaseLabel)}>
-											{timeline.phaseLabel}
-										</Badge>
-									</div>
-
-									{account.status !== "superseded" ? (
-										<div class="border-t border-slate-200 pt-3">
-											<ProviderPayoutVerificationTimeline timeline={timeline} />
-										</div>
-									) : (
-										<p class="border-t border-slate-200 pt-3 text-sm leading-6 text-slate-600">
-											Esta cuenta fue reemplazada por un envío más reciente.
-										</p>
+				current.map((account) => {
+					const timeline = buildPayoutVerificationTimeline(account)
+					return (
+						<article
+							class="space-y-3 py-4 first:pt-0 last:pb-0"
+							data-payment-account={account.id}
+							data-payment-account-status={account.status}
+						>
+							<div class="flex flex-wrap items-start justify-between gap-2">
+								<div class="min-w-0">
+									<p class="text-sm font-semibold break-words text-slate-950">
+										{account.bankName || "Banco"} · {account.accountReference || "••••"}
+									</p>
+									<p class="mt-1 text-sm break-words text-slate-600">
+										{account.accountHolderName} · {account.country} · {account.currency}
+									</p>
+									{account.isPrimary && (
+										<p class="mt-1 text-xs font-medium text-slate-600">Cuenta principal</p>
 									)}
-
-									{account.status === "pending" && !timeline.showConfirmForm ? (
-										<>
-											<details
-												class="fastt-notice rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-600"
-												data-micro-deposit-education="awaiting"
-												data-long-copy-collapsed="true"
-											>
-												<summary class="cursor-pointer font-semibold text-slate-900">
-													Cómo leer el extracto
-													<span class="mt-0.5 block text-xs font-normal text-slate-500">
-														Qué buscar en el banco
-													</span>
-												</summary>
-												<ul class="mt-3 list-disc space-y-1 border-t border-slate-200 pt-3 pl-5">
-													<li>Revisa movimientos recientes en la app o extracto del banco.</li>
-													<li>
-														Busca dos créditos pequeños, a veces con concepto de verificación o
-														Fastt.
-													</li>
-													<li>
-														Cuando aparezcan, vuelve aquí: el paso “Confirmar montos” se activará.
-													</li>
-												</ul>
-											</details>
-											<ProviderReviewWaitNotice
-												domain="payment"
-												assignment={paymentAssignments[account.id] ?? null}
-												compact={true}
-												class="pt-1"
-											/>
-										</>
-									) : null}
-
-									{timeline.showConfirmForm ? (
-										<div class="space-y-3 border-t border-slate-200 pt-3">
-											<details
-												class="fastt-notice rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-600"
-												data-micro-deposit-education="confirm"
-												data-long-copy-collapsed="true"
-											>
-												<summary class="cursor-pointer font-semibold text-slate-900">
-													Cómo confirmar los micro-depósitos
-													<span class="mt-0.5 block text-xs font-normal text-slate-500">
-														Montos en centavos, como en el extracto
-													</span>
-												</summary>
-												<ol class="mt-3 list-decimal space-y-1 border-t border-slate-200 pt-3 pl-5">
-													<li>Abre el extracto o la app del banco de esta cuenta.</li>
-													<li>
-														Localiza los dos créditos pequeños de verificación y no los confundas
-														con comisiones.
-													</li>
-													<li>
-														Anota cada monto en <strong>centavos</strong> (ejemplo: $0.32 →{" "}
-														<code>32</code>; rango 1–99).
-													</li>
-													<li>Ingresa ambos abajo. Tienes hasta 3 intentos.</li>
-												</ol>
-											</details>
-											{canManagePayments ? (
-												<form
-													method="post"
-													action={`${saveAction.pathname}${saveAction.search}`}
-													class="grid gap-3 sm:grid-cols-3"
-													data-micro-deposit-confirm-form
-													data-astro-reload
-												>
-													<input type="hidden" name="action" value="confirm_micro_deposit" />
-													<input type="hidden" name="accountId" value={account.id} />
-													<input type="hidden" name="returnTo" value={formReturnTo} />
-													<FormField
-														label="Monto 1 (centavos)"
-														htmlFor={`amount1-${account.id}`}
-														description="Solo el número, sin punto decimal."
-														required
-													>
-														<Input
-															id={`amount1-${account.id}`}
-															name="amount1Cents"
-															type="number"
-															min="1"
-															max="99"
-															required
-															placeholder="32"
-														/>
-													</FormField>
-													<FormField
-														label="Monto 2 (centavos)"
-														htmlFor={`amount2-${account.id}`}
-														description="El segundo crédito del extracto."
-														required
-													>
-														<Input
-															id={`amount2-${account.id}`}
-															name="amount2Cents"
-															type="number"
-															min="1"
-															max="99"
-															required
-															placeholder="17"
-														/>
-													</FormField>
-													<div class="fastt-form-submit-footer sm:col-span-3">
-														<Button type="submit" variant="selection" class="w-full sm:w-auto">
-															Confirmar montos
-														</Button>
-													</div>
-												</form>
-											) : (
-												<p class="text-sm text-slate-600">
-													Tu rol no puede confirmar montos. Pide a un administrador del proveedor.
-												</p>
-											)}
-										</div>
-									) : null}
-								</Card>
-							)
-						})
-					) : (
-						<Card variant="soft" class="text-sm text-slate-600">
-							Aún no hay cuentas. Puedes preparar una cuenta bancaria; hacerlo no habilita
-							liquidaciones.
-						</Card>
+								</div>
+								<Badge
+									variant={
+										account.status === "verified"
+											? "success"
+											: account.status === "pending"
+												? "warning"
+												: "neutral"
+									}
+								>
+									{timeline.phaseLabel}
+								</Badge>
+							</div>
+							{account.status === "pending" ? (
+								<ProviderPayoutVerificationTimeline timeline={timeline} />
+							) : (
+								<p class="text-sm leading-6 text-slate-600">{timeline.helperText}</p>
+							)}
+							{account.status === "verified" && (
+								<p class="text-xs text-slate-500">
+									{account.verificationMethod === "manual"
+										? "Revisada por el equipo"
+										: "Verificación registrada"}
+									{account.reviewedAt ? ` · ${fmt.format(new Date(account.reviewedAt))}` : ""}
+								</p>
+							)}
+							{account.status === "pending" && !timeline.showConfirmForm && (
+								<ProviderReviewWaitNotice
+									domain="payment"
+									assignment={paymentAssignments[account.id] ?? null}
+									compact
+								/>
+							)}
+							{timeline.showConfirmForm && canManagePayments && (
+								<form
+									method="post"
+									action={saveAction.pathname + saveAction.search}
+									class="grid gap-3 sm:grid-cols-2"
+									data-micro-deposit-confirm-form
+									data-astro-reload
+								>
+									<input type="hidden" name="action" value="confirm_micro_deposit" />
+									<input type="hidden" name="accountId" value={account.id} />
+									<input type="hidden" name="returnTo" value={formReturnTo} />
+									<FormField
+										label="Primer monto (centavos)"
+										htmlFor={`amount1-${account.id}`}
+										description="Ejemplo: 0,32 USD se ingresa como 32."
+										required
+									>
+										<Input
+											id={`amount1-${account.id}`}
+											name="amount1Cents"
+											type="number"
+											min="1"
+											max="99"
+											required
+											inputmode="numeric"
+										/>
+									</FormField>
+									<FormField
+										label="Segundo monto (centavos)"
+										htmlFor={`amount2-${account.id}`}
+										required
+									>
+										<Input
+											id={`amount2-${account.id}`}
+											name="amount2Cents"
+											type="number"
+											min="1"
+											max="99"
+											required
+											inputmode="numeric"
+										/>
+									</FormField>
+									<div class="sm:col-span-2">
+										<Button type="submit" variant="selection">
+											Confirmar montos
+										</Button>
+									</div>
+								</form>
+							)}
+							{account.status === "verified" && !account.isPrimary && canManagePayments && (
+								<form
+									method="post"
+									action={saveAction.pathname + saveAction.search}
+									data-astro-reload
+								>
+									<input type="hidden" name="action" value="select_primary" />
+									<input type="hidden" name="accountId" value={account.id} />
+									<input type="hidden" name="returnTo" value={formReturnTo} />
+									<Button type="submit" variant="secondary" size="sm">
+										Usar como principal
+									</Button>
+								</form>
+							)}
+						</article>
 					)
-				}
-			</div>
-
+				})
+			}
 			{
-				rail.mode !== "simulated" || rail.preferredProvider === "stripe_connect" ? (
-					<details
-						class="fastt-notice rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600"
-						data-payout-rail-status
-						data-payout-rail-mode={rail.mode}
-						data-long-copy-collapsed="true"
-					>
-						<summary class="cursor-pointer font-semibold text-slate-900">
-							Verificación de prueba
-						</summary>
-						<p class="mt-2 border-t border-slate-200 pt-3">
-							{rail.mode === "scaffold"
-								? "Connect está preparado en entorno, pero los micro-depósitos siguen siendo de prueba. No habilita cobrar ni liquidar."
-								: rail.mode === "not_configured"
-									? "Se pidió Stripe Connect pero falta configurar la clave; seguimos en verificación de prueba (simulado)."
-									: "La verificación bancaria no autoriza cobros ni liquidaciones; ambos requieren contrato, política y rail aprobados."}
-						</p>
-					</details>
-				) : (
-					<details
-						class="fastt-notice rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600"
-						data-payout-rail-status
-						data-payout-rail-mode={rail.mode}
-						data-long-copy-collapsed="true"
-					>
-						<summary class="cursor-pointer font-semibold text-slate-900">
-							Verificación de prueba
-							<span class="mt-0.5 block text-xs font-normal text-slate-500">
-								No implica transferencia bancaria real
-							</span>
-						</summary>
-						<p class="mt-2 border-t border-slate-200 pt-3">
-							Modo actual: verificación de prueba (simulado). No implica transferencia ACH real.
-						</p>
-					</details>
+				!current.length && (
+					<p class="text-sm text-slate-600">Aún no has registrado una cuenta bancaria.</p>
 				)
 			}
 		</div>
+		{
+			hasInFlightAccount && (
+				<p class="mt-4 text-xs text-slate-500" data-payments-one-account>
+					Termina la revisión de la cuenta pendiente antes de agregar otra.
+				</p>
+			)
+		}
+		{
+			history.length > 0 && (
+				<details class="mt-4 border-t border-slate-200 pt-4 text-sm text-slate-600">
+					<summary class="cursor-pointer">Cuentas anteriores · {history.length}</summary>
+					<ul class="mt-3 space-y-2">
+						{history.map((account) => (
+							<li>
+								{account.bankName} · {account.accountReference} · Reemplazada
+							</li>
+						))}
+					</ul>
+				</details>
+			)
+		}
 	</Card>
-
 	{
-		canShowCreateForm ? (
+		canShowCreateForm && (
 			<Card data-payments-create-card>
-				<details open={createFormDefaultOpen} data-payments-create-form>
-					<summary class="cursor-pointer list-none">
-						<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
-							Agregar cuenta
-						</p>
-						<h3 class="mt-2 text-lg font-semibold text-slate-950">
-							{accounts.length === 0 ? "Primera cuenta bancaria" : "Nueva cuenta bancaria"}
-						</h3>
-						<p class="mt-1 text-sm text-slate-600">
-							{needsAttention.length
-								? "La cuenta anterior requiere atención. Envía una nueva con datos corregidos (reemplaza la anterior)."
-								: "Al guardar queda Enviada. Luego: envía → espera depósitos → confirma montos → lista."}
-						</p>
+				<details open={current.length === 0 || needsAttention} data-payments-create-form>
+					<summary class="cursor-pointer text-base font-semibold text-slate-950">
+						{needsAttention
+							? "Enviar cuenta corregida"
+							: current.length
+								? "Agregar otra cuenta"
+								: "Registrar cuenta bancaria"}
 					</summary>
+					<p class="mt-2 text-sm text-slate-600">
+						{needsAttention
+							? "La nueva presentación reemplaza los datos que requieren corrección."
+							: "El equipo revisará los datos. Agregar otra cuenta no cambia tu cuenta principal."}
+					</p>
 					<form
 						method="post"
-						action={`${saveAction.pathname}${saveAction.search}`}
-						class="mt-4 space-y-4 border-t border-slate-200 pt-4"
+						action={saveAction.pathname + saveAction.search}
+						class="mt-4 space-y-4"
 						data-astro-reload
 					>
 						<input type="hidden" name="returnTo" value={formReturnTo} />
+						<input type="hidden" name="payoutSchedule" value="manual" />
 						<div class="grid gap-4 md:grid-cols-2">
 							<FormField label="Titular de la cuenta" htmlFor="accountHolderName" required>
 								<Input
 									id="accountHolderName"
 									name="accountHolderName"
 									required
-									placeholder="Hotel Sol S.R.L."
+									minlength="2"
+									maxlength="160"
+									autocomplete="organization"
 								/>
 							</FormField>
-							<FormField label="Nombre del banco" htmlFor="bankName" required>
-								<Input id="bankName" name="bankName" required placeholder="Banco Nacional" />
+							<FormField label="Banco" htmlFor="bankName" required>
+								<Input id="bankName" name="bankName" required minlength="2" maxlength="160" />
 							</FormField>
 							<FormField label="País de la cuenta" htmlFor="country" required>
 								<Select id="country" name="country" required>
-									<option value="">Selecciona</option>
-									<option value="BO">Bolivia (BO)</option>
-									<option value="CL">Chile (CL)</option>
-									<option value="US">Estados Unidos (US)</option>
-									<option value="ES">España (ES)</option>
-									<option value="PE">Perú (PE)</option>
-									<option value="AR">Argentina (AR)</option>
+									<>
+										<option value="">Selecciona</option>
+										<option value="BO">Bolivia</option>
+										<option value="CL">Chile</option>
+										<option value="US">Estados Unidos</option>
+									</>
+									<>
+										<option value="ES">España</option>
+										<option value="PE">Perú</option>
+										<option value="AR">Argentina</option>
+									</>
 								</Select>
 							</FormField>
-							<FormField label="Moneda" htmlFor="currency" required>
+							<FormField label="Moneda de la cuenta" htmlFor="currency" required>
 								<Select id="currency" name="currency" required>
-									<option value="USD" selected={defaultCurrency === "USD"}>
-										USD
-									</option>
-									<option value="EUR" selected={defaultCurrency === "EUR"}>
-										EUR
-									</option>
-									<option value="CLP" selected={defaultCurrency === "CLP"}>
-										CLP
-									</option>
-									<option value="BOB" selected={defaultCurrency === "BOB"}>
-										BOB
-									</option>
+									{["USD", "EUR", "CLP", "BOB", "PEN", "ARS"].map((currency) => (
+										<option value={currency} selected={currency === defaultCurrency}>
+											{currency}
+										</option>
+									))}
 								</Select>
 							</FormField>
-							<FormField label="Tipo de método" htmlFor="method" required>
+							<FormField label="Tipo de transferencia" htmlFor="method" required>
 								<Select id="method" name="method" required>
-									{providerPayoutMethods.map((item) => (
-										<option value={item.value}>{item.label}</option>
-									))}
-								</Select>
-							</FormField>
-							<FormField label="Calendario de liquidación" htmlFor="payoutSchedule" required>
-								<Select id="payoutSchedule" name="payoutSchedule" required>
-									{providerPayoutSchedules.map((item) => (
-										<option value={item.value}>{item.label}</option>
-									))}
+									{providerPayoutMethods
+										.filter((item) => item.value !== "other")
+										.map((item) => (
+											<option value={item.value}>{item.label}</option>
+										))}
 								</Select>
 							</FormField>
 							<FormField
-								label="Número de cuenta / IBAN"
+								label="Número de cuenta o IBAN"
 								htmlFor="accountIdentifier"
-								description="Se guarda para revisión; en tu vista solo verás los últimos 4 dígitos."
+								description="Solo se mostrarán los últimos cuatro caracteres."
 								required
 							>
 								<Input
 									id="accountIdentifier"
 									name="accountIdentifier"
 									required
+									minlength="4"
+									maxlength="64"
 									autocomplete="off"
-									placeholder="ES9121000418450200051332 / 1234567890"
 								/>
 							</FormField>
 							<FormField
-								label="Routing / SWIFT-BIC"
+								label="Código bancario o SWIFT"
 								htmlFor="routingOrSwift"
-								description="Obligatorio para transferencias internacionales."
+								description="Necesario para transferencias internacionales."
 							>
-								<Input id="routingOrSwift" name="routingOrSwift" placeholder="BSCHESMMXXX" />
+								<Input id="routingOrSwift" name="routingOrSwift" maxlength="64" />
+							</FormField>
+							<FormField label="Información para el equipo (opcional)" htmlFor="submissionNotes">
+								<Input id="submissionNotes" name="submissionNotes" maxlength="2000" />
 							</FormField>
 						</div>
-
-						<FormField label="Notas de envío (opcional)" htmlFor="submissionNotes">
-							<Input
-								id="submissionNotes"
-								name="submissionNotes"
-								placeholder="Cuenta principal de liquidaciones"
-							/>
-						</FormField>
-
 						<div class="fastt-form-submit-footer">
-							<Button type="submit" variant="selection" class="w-full sm:w-auto">
-								Enviar cuenta
+							<Button type="submit" variant="selection">
+								Enviar a revisión
 							</Button>
 						</div>
 					</form>
 				</details>
 			</Card>
-		) : canManagePayments ? null : (
-			<Card>
-				<p class="text-sm text-slate-600">
-					Tu rol actual no puede gestionar cuentas de liquidación del proveedor.
-				</p>
-			</Card>
+		)
+	}
+	{
+		!canManagePayments && (
+			<p class="text-sm text-slate-600">
+				Tu rol permite consultar las cuentas. La gestión corresponde a un administrador del
+				proveedor.
+			</p>
 		)
 	}
 </section>

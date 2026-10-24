@@ -24,7 +24,10 @@ import { completeComplianceAssignment } from "@/lib/provider-compliance-ops"
 import { writeProviderAuditLog } from "@/lib/provider-audit"
 import { getLatestProviderVerificationStatus } from "@/lib/provider-admin-compliance"
 import { reviewProviderDocument } from "@/lib/provider-documents"
-import { reviewProviderPaymentAccount } from "@/lib/provider-payment-accounts"
+import {
+	reviewProviderPaymentAccount,
+	requirePaymentAccountReviewReason,
+} from "@/lib/provider-payment-accounts"
 import { reviewProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
 import { setProviderVerificationV2 } from "@/modules/catalog/public"
 
@@ -90,6 +93,11 @@ export async function proposeCaseDecision(input: {
 	if (current.status === "waiting_information") throw commandError("case_waiting_information", 409)
 	if (!["open", "in_review", "blocked"].includes(current.status))
 		throw commandError("case_not_actionable", 409)
+	if (current.domain === "payments" && input.decision !== "request_information")
+		requirePaymentAccountReviewReason(
+			input.decision === "approved" ? "verified" : "requires_attention",
+			input.comment
+		)
 
 	const reasons = await db
 		.select()
@@ -327,6 +335,7 @@ async function applyCanonicalDomainDecision(params: {
 			accountId: caseRow.sourceRef,
 			status: decision === "approved" ? "verified" : "requires_attention",
 			reason: comment ?? undefined,
+			manageCase: false,
 		})
 	}
 	await afterPostgresCommit(async () => {

@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro"
+import { synchronizeComplianceCaseCompat } from "@/lib/casework/compliance-casework"
 import {
 	copyVerificationNavigationQuery,
 	verificationSectionUrl,
@@ -133,6 +134,15 @@ export const POST: APIRoute = async ({ request }) => {
 			businessRegistrationNumber: parsed.businessRegistrationNumber,
 			taxRegime: parsed.taxRegime,
 		})
+		if (taxConfiguration.status === "pending") {
+			await synchronizeComplianceCaseCompat({
+				providerId,
+				domain: "fiscal",
+				sourceType: "ProviderTaxConfiguration",
+				sourceRef: providerId,
+				summary: "Revisión de identidad fiscal",
+			})
+		}
 		await invalidateProvider(providerId)
 		await invalidateProviderGovernance(providerId, "provider_tax_configuration_updated")
 

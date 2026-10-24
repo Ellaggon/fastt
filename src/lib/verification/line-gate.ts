@@ -70,6 +70,7 @@ export type LineGateInput = {
 	requirements: readonly VerificationRequirement[]
 	evidence: readonly LineGateEvidence[]
 	jurisdictionCode?: string | null
+	jurisdictionCodes?: string[]
 	activityClasses?: readonly string[]
 	departure?: readonly LineGateDepartureResource[]
 	/** When set, expiry is judged on this civil date. Booking passes the departure date. */
@@ -124,7 +125,8 @@ function operationContext(input: LineGateInput, resourceId?: string) {
 	return {
 		productId: input.productId,
 		resourceId,
-		territoryCodes: input.jurisdictionCode ? [input.jurisdictionCode] : [],
+		territoryCodes:
+			input.jurisdictionCodes ?? (input.jurisdictionCode ? [input.jurisdictionCode] : []),
 		activityClasses: [...(input.activityClasses ?? [])],
 		at: input.evaluatedAt,
 	}
@@ -450,6 +452,7 @@ export async function loadProductLineGate(params: {
 									: null,
 							activityClasses,
 							jurisdictionCode: tourContext?.jurisdictionCode ?? null,
+							jurisdictionCodes: tourContext?.jurisdictionCodes ?? undefined,
 							departureResourceIds: (params.departure ?? []).map((resource) => resource.resourceId),
 						},
 					]
@@ -469,6 +472,7 @@ export async function loadProductLineGate(params: {
 		requirements: requirements.requirements,
 		evidence: verifiedEvidence(documents),
 		jurisdictionCode: tourContext?.jurisdictionCode ?? null,
+		jurisdictionCodes: tourContext?.jurisdictionCodes ?? undefined,
 		activityClasses,
 		departure: params.departure,
 		evaluatedAt: params.evaluatedAt,

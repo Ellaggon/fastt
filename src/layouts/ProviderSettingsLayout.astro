@@ -1,6 +1,7 @@
 ---
 import ProviderSettingsSubnav from "@/components/provider/ProviderSettingsSubnav.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { ArrowLeft } from "@lucide/astro"
 import type { TrustLinkId } from "@/lib/provider-trust-map"
 import {
 	formatVerificationProgressBreakdownLine,
@@ -46,6 +47,9 @@ const {
 	verificationPageGuidanceByTab = null,
 } = Astro.props
 
+const currentPath = Astro.url.pathname.replace(/\/$/, "")
+const isVerificationPage = currentPath === "/provider/settings/verification"
+
 const verificationPageGuidanceJson =
 	verificationPageGuidanceByTab && Object.keys(verificationPageGuidanceByTab).length > 0
 		? JSON.stringify(verificationPageGuidanceByTab)
@@ -83,11 +87,24 @@ const progressBreakdownLine = hasProgressBreakdown
 
 <WorkspaceLayout title={title}>
 	<section class="space-y-6 text-slate-200 md:space-y-8" data-provider-settings-shell>
-		<a
-			href="/provider/compliance/requests"
-			class="inline-flex text-sm font-semibold underline underline-offset-4"
-			>Solicitudes del equipo de revisión</a
-		>
+		{
+			currentPath === "/provider/compliance/requests" ? (
+				<a
+					href="/provider/settings"
+					class="inline-flex items-center gap-2 text-sm font-semibold text-slate-300 hover:text-white"
+				>
+					<ArrowLeft class="size-4" aria-hidden="true" />
+					Configuración
+				</a>
+			) : !isVerificationPage ? (
+				<a
+					href="/provider/compliance/requests"
+					class="inline-flex text-sm font-semibold underline underline-offset-4"
+				>
+					Solicitudes del equipo de revisión
+				</a>
+			) : null
+		}
 		{
 			hasProgress ? (
 				<div class="mb-5 space-y-2" data-verification-wizard-progress>
@@ -152,6 +169,16 @@ const progressBreakdownLine = hasProgressBreakdown
 			>
 				{description}
 			</p>
+			{
+				isVerificationPage ? (
+					<a
+						href="/provider/compliance/requests"
+						class="inline-flex text-sm font-semibold underline underline-offset-4"
+					>
+						Solicitudes del equipo de revisión
+					</a>
+				) : null
+			}
 		</header>
 
 		{showSettingsTabs ? <ProviderSettingsSubnav /> : null}

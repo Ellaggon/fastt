@@ -29,6 +29,16 @@ const focusedRequest = String(Astro.url.searchParams.get("request") ?? "")
 const result = String(Astro.url.searchParams.get("result") ?? "")
 const error = String(Astro.url.searchParams.get("error") ?? "")
 const rawFrom = String(Astro.url.searchParams.get("from") ?? "")
+const territoryExperience = String(Astro.url.searchParams.get("experience") ?? "")
+const territoryRequest =
+	Astro.url.searchParams.get("context") === "tour_territory" &&
+	/^[a-zA-Z0-9-]{1,100}$/.test(territoryExperience)
+const initialMessage = territoryRequest
+	? `Solicito revisión del territorio operativo de la experiencia ${territoryExperience}.\nDepartamentos o territorio del recorrido: \nOperador responsable (si interviene un tercero): \nDetalle del recorrido: `
+	: Astro.url.searchParams.get("context") === "tour_safety" &&
+		  /^[a-zA-Z0-9-]{1,100}$/.test(territoryExperience)
+		? `Solicito revisión de los requisitos de seguridad y del modelo de cobro de la experiencia ${territoryExperience}. La operación está declarada, pero la evaluación comercial sigue pendiente.\nDetalle adicional: `
+		: ""
 const supportReturnHref = `${Astro.url.pathname}${Astro.url.search}`
 let backHref = routes.providerSettings()
 let backLabel = "Volver a configuración"
@@ -151,7 +161,9 @@ const lineOptions = Object.keys(supportLines) as Array<keyof typeof supportLines
 						minlength="12"
 						maxlength="2000"
 						class={messageInputClass}
-						placeholder="Explica qué ves, qué esperabas y en qué sección ocurrió."></textarea>
+						placeholder="Explica qué ves, qué esperabas y en qué sección ocurrió."
+						>{initialMessage}</textarea
+					>
 				</label>
 				<div class="flex flex-wrap items-center gap-3">
 					<Button type="submit">Enviar consulta</Button><p

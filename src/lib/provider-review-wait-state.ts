@@ -32,7 +32,7 @@ const domainCopy: Record<ProviderReviewWaitDomain, { body: string }> = {
 		body: "Te avisamos aquí cuando termine la revisión.",
 	},
 	payment: {
-		body: "Te avisamos aquí cuando los depósitos de prueba estén listos para confirmar.",
+		body: "Consulta aquí el resultado de la revisión de tu cuenta o una solicitud de corrección.",
 	},
 }
 

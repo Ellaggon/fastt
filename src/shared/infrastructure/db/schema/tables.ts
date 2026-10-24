@@ -667,6 +667,9 @@ export const ProviderPaymentAccount = pgTable(
 		index("ProviderPaymentAccount_providerId_status_idx").on(table.providerId, table.status),
 		index("ProviderPaymentAccount_providerId_provider_idx").on(table.providerId, table.provider),
 		index("ProviderPaymentAccount_country_idx").on(table.country),
+		uniqueIndex("ProviderPaymentAccount_one_pending_per_provider")
+			.on(table.providerId)
+			.where(sql`${table.status} = 'pending'`),
 	]
 )
 
@@ -2718,11 +2721,16 @@ export const TourComplianceContext = pgTable(
 		operatingRole: txtOpt("operatingRole"),
 		activityClassesJson: jsonb("activityClassesJson"),
 		jurisdictionCode: txtOpt("jurisdictionCode"),
+		jurisdictionCodes: jsonb("jurisdictionCodes").$type<string[]>(),
 		createdAt: now("createdAt"),
 		updatedAt: now("updatedAt"),
 	},
 	(table) => [
 		index("TourComplianceContext_provider_idx").on(table.providerId),
+		check(
+			"TourComplianceContext_territories_check",
+			sql`${table.jurisdictionCodes} IS NULL OR (jsonb_typeof(${table.jurisdictionCodes}) = 'array' AND jsonb_array_length(${table.jurisdictionCodes}) BETWEEN 1 AND 9 AND ${table.jurisdictionCodes} <@ '["BO-BN","BO-CH","BO-CB","BO-LP","BO-OR","BO-PN","BO-PT","BO-SC","BO-TJ"]'::jsonb)`
+		),
 		check(
 			"TourComplianceContext_operatingRole_check",
 			sql`${table.operatingRole} IS NULL OR ${table.operatingRole} IN ('operator', 'guide', 'intermediary')`

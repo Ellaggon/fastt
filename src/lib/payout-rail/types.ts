@@ -30,6 +30,9 @@ export type InitiatePayoutRailMicroDepositInput = {
 	accountIdentifier?: string | null
 	routingOrSwift?: string | null
 	accountHolderName?: string | null
+	idempotencyKey?: string
+	/** Stable start of this challenge, reused with its idempotency key. */
+	initiatedAt?: string
 }
 
 export type InitiatePayoutRailMicroDepositResult = {

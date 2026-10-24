@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { readFileSync } from "node:fs"
 
 import {
 	getPayoutRailStatus,
@@ -7,13 +6,6 @@ import {
 	resolvePayoutRailPreference,
 } from "@/lib/payout-rail"
 import { initiateStripeConnectMicroDeposit } from "@/lib/payout-rail/stripeConnect"
-import { readVerificationSurface } from "./read-verification-surface"
-
-const root = new URL("../../", import.meta.url)
-
-function read(relativePath: string) {
-	return readFileSync(new URL(relativePath, root), "utf8")
-}
 
 const envKeys = [
 	"PAYOUT_RAIL_PROVIDER",
@@ -53,7 +45,7 @@ describe("S5-4 payout rail adapter (ACH/Connect scaffold)", () => {
 		expect(status.hostLabel).toMatch(/simulado/i)
 	})
 
-	it("falls back to simulated when stripe_connect is preferred without key", async () => {
+	it("returns an unavailable result when Stripe has no key", async () => {
 		snapshotEnv()
 		process.env.PAYOUT_RAIL_PROVIDER = "stripe_connect"
 		delete process.env.STRIPE_SECRET_KEY
@@ -81,10 +73,9 @@ describe("S5-4 payout rail adapter (ACH/Connect scaffold)", () => {
 			accountNumberLast4: "1234",
 			country: "BO",
 		})
-		expect(initiated.ok).toBe(true)
-		expect(initiated.provider).toBe("simulated")
-		expect(initiated.fallbackFrom).toBe("stripe_connect")
-		expect(initiated.depositAmountsCents).toHaveLength(2)
+		expect(initiated.ok).toBe(false)
+		expect(initiated.provider).toBe("stripe_connect")
+		expect(initiated.depositAmountsCents).toBeNull()
 	})
 
 	it("marks scaffold when Connect key present but PAYOUT_RAIL_LIVE is off", async () => {
@@ -118,40 +109,9 @@ describe("S5-4 payout rail adapter (ACH/Connect scaffold)", () => {
 			accountNumberLast4: "1234",
 			country: "US",
 		})
-		expect(initiated.ok).toBe(true)
-		expect(initiated.provider).toBe("simulated")
-		expect(initiated.fallbackFrom).toBe("stripe_connect")
+		expect(initiated.ok).toBe(false)
+		expect(initiated.provider).toBe("stripe_connect")
 		expect(initiated.mode).toBe("scaffold")
-	})
-
-	it("wires initiate through payout rail and honest host/admin labels", () => {
-		const accountsLib = read("src/lib/provider-payment-accounts.ts")
-		const card = read("src/components/provider/ProviderPaymentAccountsCard.astro")
-		const paymentsPage = readVerificationSurface(
-			"src/pages/provider/settings/verification/payments.astro"
-		)
-		const admin = read("src/pages/admin/providers.astro")
-		const envExample = read(".env.example")
-
-		expect(accountsLib).toContain("initiatePayoutRailMicroDeposit")
-		expect(accountsLib).toContain("confirmStripeConnectMicroDeposit")
-		expect(accountsLib).toContain("verifyVia")
-		expect(accountsLib).toContain("payoutRail:")
-		expect(accountsLib).toContain("rail:")
-
-		expect(card).toContain("data-payout-rail-mode")
-		expect(card).toContain("data-payout-rail-status")
-		expect(card).toContain("getPayoutRailStatus")
-		expect(paymentsPage).toContain("payoutRail={payoutRail}")
-
-		expect(admin).toContain("data-admin-payout-rail")
-		expect(admin).toContain("Montos de prueba")
-		expect(admin).toContain("no salió ACH bancario real")
-
-		expect(envExample).toContain("PAYOUT_RAIL_PROVIDER")
-		expect(envExample).toContain("STRIPE_SECRET_KEY")
-		expect(envExample).toContain("PAYOUT_RAIL_LIVE")
-		expect(envExample).toContain("PAYOUT_RAIL_VERIFICATION")
 	})
 })
 
@@ -163,7 +123,7 @@ describe("P2 Stripe ACH SetupIntent / Financial Connections (mocked)", () => {
 
 	it("initiates SetupIntent microdeposits when live + US bank details", async () => {
 		snapshotEnv()
-		process.env.STRIPE_SECRET_KEY = "sk_test_live"
+		process.env.STRIPE_SECRET_KEY = "sk_live_mock"
 		process.env.PAYOUT_RAIL_LIVE = "1"
 		process.env.FASTT_LIVE_MONEY_APPROVAL_REFERENCE = "FIN-LEGAL-TEST"
 		delete process.env.PAYOUT_RAIL_VERIFICATION
@@ -214,7 +174,7 @@ describe("P2 Stripe ACH SetupIntent / Financial Connections (mocked)", () => {
 
 	it("creates Financial Connections session when PAYOUT_RAIL_VERIFICATION=fc", async () => {
 		snapshotEnv()
-		process.env.STRIPE_SECRET_KEY = "sk_test_live"
+		process.env.STRIPE_SECRET_KEY = "sk_live_mock"
 		process.env.PAYOUT_RAIL_LIVE = "1"
 		process.env.FASTT_LIVE_MONEY_APPROVAL_REFERENCE = "FIN-LEGAL-TEST"
 		process.env.PAYOUT_RAIL_VERIFICATION = "financial_connections"
@@ -262,7 +222,7 @@ describe("P2 Stripe ACH SetupIntent / Financial Connections (mocked)", () => {
 
 	it("confirms SetupIntent via verify_microdeposits", async () => {
 		snapshotEnv()
-		process.env.STRIPE_SECRET_KEY = "sk_test_live"
+		process.env.STRIPE_SECRET_KEY = "sk_live_mock"
 
 		const fetchMock = vi.fn(async (url: string) => {
 			expect(String(url)).toContain("/v1/setup_intents/seti_abc/verify_microdeposits")
@@ -281,5 +241,94 @@ describe("P2 Stripe ACH SetupIntent / Financial Connections (mocked)", () => {
 			amount2Cents: 45,
 		})
 		expect(confirmed.ok).toBe(true)
+	})
+	it.each(["requires_action", "processing"])(
+		"does not approve an incomplete %s response",
+		async (status) => {
+			snapshotEnv()
+			process.env.STRIPE_SECRET_KEY = "sk_live_mock"
+			vi.stubGlobal(
+				"fetch",
+				vi.fn(
+					async () => new Response(JSON.stringify({ id: "seti_test", status }), { status: 200 })
+				)
+			)
+			const { confirmStripeConnectMicroDeposit } = await import("@/lib/payout-rail/stripeConnect")
+			expect(
+				await confirmStripeConnectMicroDeposit({
+					externalRef: "seti_test",
+					amount1Cents: 10,
+					amount2Cents: 20,
+				})
+			).toEqual({ ok: false, error: "stripe_verification_incomplete" })
+		}
+	)
+	it("does not approve a sandbox response as live verification", async () => {
+		snapshotEnv()
+		process.env.STRIPE_SECRET_KEY = "sk_live_mock"
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(
+				async () =>
+					new Response(JSON.stringify({ id: "seti_test", status: "succeeded", livemode: false }), {
+						status: 200,
+					})
+			)
+		)
+		const { confirmStripeConnectMicroDeposit } = await import("@/lib/payout-rail/stripeConnect")
+		expect(
+			(
+				await confirmStripeConnectMicroDeposit({
+					externalRef: "seti_test",
+					amount1Cents: 10,
+					amount2Cents: 20,
+				})
+			).ok
+		).toBe(false)
+	})
+	it("reuses the exact setup parameters and key after a delayed retry", async () => {
+		snapshotEnv()
+		process.env.STRIPE_SECRET_KEY = "sk_live_mock"
+		process.env.PAYOUT_RAIL_LIVE = "1"
+		process.env.FASTT_LIVE_MONEY_APPROVAL_REFERENCE = "FIN-LEGAL-TEST"
+		delete process.env.PAYOUT_RAIL_VERIFICATION
+		const setups: RequestInit[] = []
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (url: string, init: RequestInit) => {
+				if (url.endsWith("/customers"))
+					return new Response(JSON.stringify({ id: "cus_retry" }), { status: 200 })
+				setups.push(init)
+				return new Response(
+					JSON.stringify({
+						id: "seti_retry",
+						status: "requires_action",
+						next_action: { type: "verify_with_microdeposits" },
+					}),
+					{ status: 200 }
+				)
+			})
+		)
+		const input = {
+			accountId: "account-a",
+			providerId: "provider-a",
+			actorUserId: "admin-a",
+			country: "US",
+			currency: "USD",
+			accountNumberLast4: "1234",
+			accountIdentifier: "0000001234",
+			routingOrSwift: "110000000",
+			idempotencyKey: "stable-challenge",
+			initiatedAt: "2026-10-01T00:00:00Z",
+		}
+		await initiateStripeConnectMicroDeposit(input)
+		await initiateStripeConnectMicroDeposit(input)
+		expect(String(setups[0].body)).toBe(String(setups[1].body))
+		expect(
+			new URLSearchParams(String(setups[0].body)).get(
+				"mandate_data[customer_acceptance][accepted_at]"
+			)
+		).toBe(String(Date.parse(input.initiatedAt) / 1000))
+		expect(setups[0].headers).toMatchObject({ "Idempotency-Key": "stable-challenge:setup" })
 	})
 })

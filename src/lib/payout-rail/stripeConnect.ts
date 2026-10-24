@@ -8,6 +8,10 @@ export function isStripeConnectKeyPresent(): boolean {
 	return Boolean(String(process.env.STRIPE_SECRET_KEY ?? "").trim())
 }
 
+export function isStripeLiveKeyPresent(): boolean {
+	return /^(sk|rk)_live_/.test(stripeSecret())
+}
+
 /**
  * Opt-in for real bank-account verification only. The approval reference is a
  * deploy-time release control; it does not enable charge capture or payouts.
@@ -50,7 +54,8 @@ function stripeErrorMessage(json: Record<string, unknown>, fallback: string): st
 
 async function stripeFormPost(
 	path: string,
-	body: Record<string, string>
+	body: Record<string, string>,
+	idempotencyKey?: string
 ): Promise<{ ok: boolean; status: number; json: Record<string, unknown> }> {
 	const key = stripeSecret()
 	const response = await fetch(`https://api.stripe.com${path}`, {
@@ -58,13 +63,23 @@ async function stripeFormPost(
 		headers: {
 			"Authorization": `Bearer ${key}`,
 			"Content-Type": "application/x-www-form-urlencoded",
+			...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
 			// Pin a recent API that supports us_bank_account SetupIntent microdeposits.
 			"Stripe-Version": "2024-11-20.acacia",
 		},
 		body: new URLSearchParams(body),
+		signal: AbortSignal.timeout(15_000),
 	})
 	const json = (await response.json().catch(() => ({}))) as Record<string, unknown>
 	return { ok: response.ok, status: response.status, json }
+}
+
+function isAmountMismatch(json: Record<string, unknown>): boolean {
+	const error =
+		json.error && typeof json.error === "object" ? (json.error as Record<string, unknown>) : {}
+	return /microdeposit.*(amounts_mismatch|verification_failed)|amounts_mismatch/.test(
+		String(error.code ?? "")
+	)
 }
 
 function digitsOnly(value: string): string {
@@ -96,12 +111,16 @@ function parseExternalRef(externalRef: string): {
 }
 
 async function createStripeCustomer(input: InitiatePayoutRailMicroDepositInput, holder: string) {
-	return stripeFormPost("/v1/customers", {
-		"name": holder,
-		"metadata[fastt_provider_id]": input.providerId,
-		"metadata[fastt_account_id]": input.accountId,
-		"metadata[fastt_actor_user_id]": input.actorUserId,
-	})
+	return stripeFormPost(
+		"/v1/customers",
+		{
+			"name": holder,
+			"metadata[fastt_provider_id]": input.providerId,
+			"metadata[fastt_account_id]": input.accountId,
+			"metadata[fastt_actor_user_id]": input.actorUserId,
+		},
+		input.idempotencyKey ? `${input.idempotencyKey}:customer` : undefined
+	)
 }
 
 /**
@@ -173,7 +192,7 @@ export async function initiateStripeConnectMicroDeposit(
 		}
 	}
 
-	if (!isStripePayoutRailLiveEnabled()) {
+	if (!isStripePayoutRailLiveEnabled() || !isStripeLiveKeyPresent()) {
 		return {
 			ok: false,
 			provider: "stripe_connect",
@@ -193,7 +212,7 @@ export async function initiateStripeConnectMicroDeposit(
 	const holder = String(input.accountHolderName ?? "").trim() || "Fastt Provider"
 	const verification = resolveStripeAchVerificationMethod()
 
-	if (!isUsCountry(input.country)) {
+	if (!isUsCountry(input.country) || input.currency.toUpperCase() !== "USD") {
 		return {
 			ok: false,
 			provider: "stripe_connect",
@@ -270,27 +289,33 @@ export async function initiateStripeConnectMicroDeposit(
 			String(input.currency || "usd")
 				.trim()
 				.toLowerCase() || "usd"
-		const acceptedAt = String(Math.floor(Date.now() / 1000))
+		const acceptedAt = String(
+			Math.floor(new Date(input.initiatedAt ?? Date.now()).getTime() / 1000)
+		)
 
-		const setup = await stripeFormPost("/v1/setup_intents", {
-			"customer": customerId,
-			"payment_method_types[0]": "us_bank_account",
-			"payment_method_options[us_bank_account][verification_method]": "microdeposits",
-			"usage": "off_session",
-			"confirm": "true",
-			"payment_method_data[type]": "us_bank_account",
-			"payment_method_data[billing_details][name]": holder,
-			"payment_method_data[us_bank_account][account_holder_type]": "company",
-			"payment_method_data[us_bank_account][routing_number]": routing,
-			"payment_method_data[us_bank_account][account_number]": accountNumber,
-			"mandate_data[customer_acceptance][type]": "offline",
-			"mandate_data[customer_acceptance][accepted_at]": acceptedAt,
-			"metadata[fastt_provider_id]": input.providerId,
-			"metadata[fastt_account_id]": input.accountId,
-			"metadata[fastt_currency]": currency,
-		})
+		const setup = await stripeFormPost(
+			"/v1/setup_intents",
+			{
+				"customer": customerId,
+				"payment_method_types[0]": "us_bank_account",
+				"payment_method_options[us_bank_account][verification_method]": "microdeposits",
+				"usage": "off_session",
+				"confirm": "true",
+				"payment_method_data[type]": "us_bank_account",
+				"payment_method_data[billing_details][name]": holder,
+				"payment_method_data[us_bank_account][account_holder_type]": "company",
+				"payment_method_data[us_bank_account][routing_number]": routing,
+				"payment_method_data[us_bank_account][account_number]": accountNumber,
+				"mandate_data[customer_acceptance][type]": "offline",
+				"mandate_data[customer_acceptance][accepted_at]": acceptedAt,
+				"metadata[fastt_provider_id]": input.providerId,
+				"metadata[fastt_account_id]": input.accountId,
+				"metadata[fastt_currency]": currency,
+			},
+			input.idempotencyKey ? `${input.idempotencyKey}:setup` : undefined
+		)
 
-		if (!setup.ok || typeof setup.json.id !== "string") {
+		if (!setup.ok || typeof setup.json.id !== "string" || setup.json.livemode === false) {
 			return {
 				ok: false,
 				provider: "stripe_connect",
@@ -374,6 +399,7 @@ export async function confirmStripeConnectMicroDeposit(params: {
 	amount1Cents: number
 	amount2Cents: number
 	descriptorCode?: string | null
+	idempotencyKey?: string
 }): Promise<{ ok: boolean; error?: string; message?: string }> {
 	if (!isStripeConnectKeyPresent()) {
 		return { ok: false, error: "not_configured", message: "Falta STRIPE_SECRET_KEY." }
@@ -406,16 +432,21 @@ export async function confirmStripeConnectMicroDeposit(params: {
 			}
 			const verified = await stripeFormPost(
 				`/v1/setup_intents/${encodeURIComponent(parsed.setupIntentId)}/verify_microdeposits`,
-				body
+				body,
+				params.idempotencyKey
 			)
 			if (!verified.ok) {
 				return {
 					ok: false,
-					error: "stripe_verify_failed",
+					error: isAmountMismatch(verified.json)
+						? "micro_deposit_mismatch"
+						: "stripe_verify_failed",
 					message: stripeErrorMessage(verified.json, `stripe_verify_http_${verified.status}`),
 				}
 			}
-			return { ok: true }
+			return verified.json.status === "succeeded" && verified.json.livemode !== false
+				? { ok: true }
+				: { ok: false, error: "stripe_verification_incomplete" }
 		}
 
 		if (parsed.kind === "legacy_source" && parsed.customerId && parsed.bankAccountId) {
@@ -424,16 +455,21 @@ export async function confirmStripeConnectMicroDeposit(params: {
 				{
 					"amounts[0]": String(params.amount1Cents),
 					"amounts[1]": String(params.amount2Cents),
-				}
+				},
+				params.idempotencyKey
 			)
 			if (!verified.ok) {
 				return {
 					ok: false,
-					error: "stripe_verify_failed",
+					error: isAmountMismatch(verified.json)
+						? "micro_deposit_mismatch"
+						: "stripe_verify_failed",
 					message: stripeErrorMessage(verified.json, `stripe_verify_http_${verified.status}`),
 				}
 			}
-			return { ok: true }
+			return verified.json.status === "verified" && verified.json.livemode !== false
+				? { ok: true }
+				: { ok: false, error: "stripe_verification_incomplete" }
 		}
 
 		return { ok: false, error: "invalid_external_ref", message: "Referencia Stripe inválida." }

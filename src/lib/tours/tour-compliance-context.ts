@@ -54,6 +54,7 @@ export function parseTourComplianceContext(input: {
 	operatingRole?: unknown
 	activityClasses?: unknown
 	jurisdictionCode?: unknown
+	jurisdictionCodes?: unknown
 }) {
 	const rawRole = String(input.operatingRole ?? "").trim()
 	const operatingRole = rawRole || null
@@ -67,13 +68,19 @@ export function parseTourComplianceContext(input: {
 		)
 	)
 		throw new Error("invalid_tour_activity_class")
-	const jurisdictionCode = String(input.jurisdictionCode ?? "").trim()
-	if (jurisdictionCode && !tourOperatingTerritory(jurisdictionCode))
+	const jurisdictionCodes = list(
+		input.jurisdictionCodes ?? (input.jurisdictionCode ? [input.jurisdictionCode] : [])
+	)
+	if (
+		jurisdictionCodes.length > 9 ||
+		jurisdictionCodes.some((code) => !tourOperatingTerritory(code))
+	)
 		throw new Error("invalid_tour_jurisdiction")
 	return {
 		operatingRole: operatingRole as TourOperatingRole | null,
 		activityClasses: activityClasses as TourComplianceActivityClass[],
-		jurisdictionCode: jurisdictionCode || null,
+		jurisdictionCode: jurisdictionCodes[0] || null,
+		jurisdictionCodes,
 	}
 }
 
@@ -104,6 +111,7 @@ export async function saveTourComplianceContext(params: {
 			operatingRole: params.input.operatingRole,
 			activityClassesJson: params.input.activityClasses,
 			jurisdictionCode: params.input.jurisdictionCode,
+			jurisdictionCodes: params.input.jurisdictionCodes,
 			createdAt: now,
 			updatedAt: now,
 		})
@@ -114,6 +122,7 @@ export async function saveTourComplianceContext(params: {
 				operatingRole: params.input.operatingRole,
 				activityClassesJson: params.input.activityClasses,
 				jurisdictionCode: params.input.jurisdictionCode,
+				jurisdictionCodes: params.input.jurisdictionCodes,
 				updatedAt: now,
 			},
 		})

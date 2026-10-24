@@ -836,6 +836,7 @@ CREATE TABLE "TourComplianceContext" (
 	"operatingRole" text,
 	"activityClassesJson" jsonb,
 	"jurisdictionCode" text,
+	"jurisdictionCodes" jsonb,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
@@ -4281,6 +4282,8 @@ CREATE INDEX "ProviderPaymentAccount_providerId_provider_idx" ON "ProviderPaymen
 
 CREATE INDEX "ProviderPaymentAccount_country_idx" ON "ProviderPaymentAccount" ("country");
 
+CREATE UNIQUE INDEX "ProviderPaymentAccount_one_pending_per_provider" ON "ProviderPaymentAccount" ("providerId") WHERE "status" = 'pending';
+
 CREATE INDEX "ProviderIntegrationConnection_provider_connector_idx" ON "ProviderIntegrationConnection" ("providerId", "connectorKey");
 
 CREATE INDEX "ProviderIntegrationConnection_providerId_status_idx" ON "ProviderIntegrationConnection" ("providerId", "status");
@@ -5110,6 +5113,8 @@ ALTER TABLE "Tour" ADD CONSTRAINT "Tour_experienceFormat_check" CHECK ("experien
 ALTER TABLE "Tour" ADD CONSTRAINT "Tour_formatContractVersion_check" CHECK ("formatContractVersion" IN (0, 1) AND ("formatContractVersion" = 1 OR "experienceFormat" IS NULL));
 
 ALTER TABLE "Tour" ADD CONSTRAINT "Tour_activity_contract_check" CHECK ("activityContractVersion" IN (0, 1) AND ("activityContractVersion" = 1 OR "primaryActivityCategoryId" IS NULL) AND "classificationRevision" >= 0);
+
+ALTER TABLE "TourComplianceContext" ADD CONSTRAINT "TourComplianceContext_territories_check" CHECK ("jurisdictionCodes" IS NULL OR (jsonb_typeof("jurisdictionCodes") = 'array' AND jsonb_array_length("jurisdictionCodes") BETWEEN 1 AND 9 AND "jurisdictionCodes" <@ '["BO-BN","BO-CH","BO-CB","BO-LP","BO-OR","BO-PN","BO-PT","BO-SC","BO-TJ"]'::jsonb));
 
 ALTER TABLE "TourComplianceContext" ADD CONSTRAINT "TourComplianceContext_operatingRole_check" CHECK ("operatingRole" IS NULL OR "operatingRole" IN ('operator', 'guide', 'intermediary'));
 

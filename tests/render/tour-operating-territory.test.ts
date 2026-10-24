@@ -2,13 +2,18 @@ import { experimental_AstroContainer as AstroContainer } from "astro/container"
 import { describe, expect, it } from "vitest"
 import Context from "@/components/provider/ProviderTourOperatingContext.astro"
 
-async function render(jurisdictionCode: string | null) {
+async function render(
+	context: {
+		jurisdictionCode: string | null
+		jurisdictionCodes?: string[] | null
+	} | null
+) {
 	const container = await AstroContainer.create()
 	return container.renderToString(Context, {
 		props: {
 			productId: "tour-a",
-			context: {
-				jurisdictionCode,
+			context: context && {
+				...context,
 				operatingRole: "guide",
 				activityClassesJson: ["urban_cultural"],
 			},
@@ -19,21 +24,20 @@ async function render(jurisdictionCode: string | null) {
 
 describe("tour territory declaration", () => {
 	it("restores a recognized code behind a readable selected label", async () => {
-		const html = await render("BO-LP")
-		expect(html).toMatch(/value="BO-LP"[^>]*selected[^>]*>\s*La Paz, Bolivia/)
-		expect(html).not.toContain('placeholder="Ej.: BO-LP"')
+		const html = await render({ jurisdictionCode: "BO-LP", jurisdictionCodes: ["BO-LP"] })
+		expect(html).toMatch(/name="jurisdictionCodes"[^>]*value="BO-LP"[^>]*checked/)
+		expect(html).toContain("La Paz")
 		expect(html).not.toContain("Territorio declarado por revisar")
 	})
 	it("shows historical data without selecting a replacement", async () => {
-		const html = await render("LP-legacy")
+		const html = await render({ jurisdictionCode: "LP-legacy" })
 		expect(html).toContain("Territorio declarado por revisar")
 		expect(html).toContain("LP-legacy")
-		expect(html).toMatch(/value=""[^>]*selected/)
-		expect(html).not.toMatch(/value="BO-LP"[^>]*selected/)
+		expect(html).not.toMatch(/name="jurisdictionCodes"[^>]*value="BO-LP"[^>]*checked/)
 	})
 	it("starts empty rather than defaulting a new declaration to La Paz", async () => {
 		const html = await render(null)
-		expect(html).toMatch(/value=""[^>]*selected/)
+		expect(html).not.toMatch(/name="jurisdictionCodes"[^>]*checked/)
 		expect(html).toContain("solicita revisión")
 	})
 })
@@ -70,12 +74,13 @@ it.each(["guide", "operator", "intermediary"])(
 				context: {
 					operatingRole: role,
 					jurisdictionCode: "BO-LP",
+					jurisdictionCodes: ["BO-LP"],
 					activityClassesJson: ["urban_cultural"],
 				},
 			},
 		})
 		expect(html).toMatch(new RegExp(`value="${role}"[^>]*selected`))
-		expect(html).toMatch(/value="BO-LP"[^>]*selected/)
+		expect(html).toMatch(/name="jurisdictionCodes"[^>]*value="BO-LP"[^>]*checked/)
 		expect(html).toMatch(/value="urban_cultural"[^>]*checked/)
 	}
 )

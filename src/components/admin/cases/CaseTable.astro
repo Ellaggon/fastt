@@ -1,5 +1,6 @@
 ---
 import CaseStatusBadge from "./CaseStatusBadge.astro"
+import Button from "@/components/ui/Button.astro"
 
 const { items = [], emptyMessage = "No hay casos en esta vista." } = Astro.props
 const fmt = new Intl.DateTimeFormat("es-BO", {
@@ -49,6 +50,9 @@ const returnTo = encodeURIComponent(Astro.url.pathname + Astro.url.search)
 						<th scope="col" class="px-4 py-3">
 							Responsable
 						</th>
+						<th scope="col" class="px-4 py-3">
+							Revisión
+						</th>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-slate-200 text-slate-800">
@@ -57,6 +61,7 @@ const returnTo = encodeURIComponent(Astro.url.pathname + Astro.url.search)
 							<td class="px-4 py-4">
 								<a
 									href={`/admin/cases/${encodeURIComponent(item.id)}?returnTo=${returnTo}`}
+									data-astro-reload
 									class="font-semibold text-slate-950 underline-offset-4 hover:underline focus:ring-2 focus:ring-amber-500 focus:outline-none"
 								>
 									{item.caseNumber}
@@ -89,6 +94,16 @@ const returnTo = encodeURIComponent(Astro.url.pathname + Astro.url.search)
 							<td class="px-4 py-4 text-xs">
 								{item.assigneeEmail || "Sin asignar"}
 								<p class="mt-1 text-slate-500">{item.openTasks} tarea(s) abierta(s)</p>
+							</td>
+							<td class="px-4 py-4">
+								<Button
+									href={`/admin/cases/${encodeURIComponent(item.id)}?returnTo=${returnTo}#case-evidence`}
+									reload
+									variant="secondary"
+									size="sm"
+								>
+									Revisar evidencia
+								</Button>
 							</td>
 						</tr>
 					))}

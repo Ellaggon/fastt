@@ -10,7 +10,6 @@ import {
 	ProviderDocument,
 	ProviderFinancialProfile,
 	ProviderIntegrationConnection,
-	ProviderPaymentAccount,
 	ProviderProfile,
 	ProviderTaxConfiguration,
 	ProviderUser,
@@ -18,6 +17,7 @@ import {
 	TaxFeeDefinition,
 } from "@/shared/infrastructure/db/compat"
 import { normalizeProviderRole, resolveProviderPermissions } from "@/lib/provider-permissions"
+import { listProviderPaymentAccounts } from "@/lib/provider-payment-accounts"
 import {
 	evaluateRequiredKycDocumentsComplete,
 	isTaxDocumentSatisfiedByFiscal,
@@ -401,15 +401,7 @@ export async function evaluateProviderGovernance(
 				.from(TaxFeeDefinition)
 				.where(eq(TaxFeeDefinition.providerId, id))
 		),
-		safe([], () =>
-			db
-				.select({
-					id: ProviderPaymentAccount.id,
-					status: ProviderPaymentAccount.status,
-				})
-				.from(ProviderPaymentAccount)
-				.where(eq(ProviderPaymentAccount.providerId, id))
-		),
+		safe([], () => listProviderPaymentAccounts(id)),
 		safe(null, () =>
 			db
 				.select({

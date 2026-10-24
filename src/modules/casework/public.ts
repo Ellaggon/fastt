@@ -14,6 +14,7 @@ export {
 	getProvider360,
 	getProviderOperationalSnapshot,
 	listCommandCenterCases,
+	listRelatedCaseReviews,
 	parseCommandCenterQueueFilters,
 	prioritizeProviderPendingCases,
 	summarizeProviderCaseCounts,

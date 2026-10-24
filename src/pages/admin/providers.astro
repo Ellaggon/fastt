@@ -1,19 +1,24 @@
 ---
 import AdminComplianceSlaAssign from "@/components/admin/AdminComplianceSlaAssign.astro"
+import ReviewedProviderDocuments from "@/components/admin/ReviewedProviderDocuments.astro"
+import ProviderBankAccountReview from "@/components/admin/ProviderBankAccountReview.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
 import { getFeatureFlag } from "@/config/featureFlags"
-import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
+import {
+	principalHasPermission,
+	requireInternalPermission,
+	type InternalPrincipal,
+} from "@/lib/auth/internal-authorization"
 import {
 	adminComplianceRejectTemplates,
 	loadProviderComplianceConsole,
 	loadProviderComplianceDetail,
 	parseProviderComplianceQueueFilter,
 } from "@/lib/provider-admin-compliance"
-import { getPayoutRailStatus } from "@/lib/payout-rail"
 import {
 	getSettingsFunnelQueryStatus,
 	summarizeProviderSettingsFunnel,
@@ -21,10 +26,11 @@ import {
 
 let isAdmin = false
 let adminEmail = ""
+let principal: InternalPrincipal | null = null
 try {
-	const { user } = await requireInternalAdmin(Astro.request)
+	principal = await requireInternalPermission(Astro.request, "internal.admin.access")
 	isAdmin = true
-	adminEmail = String(user.email ?? "")
+	adminEmail = String(principal.user.email ?? "")
 		.trim()
 		.toLowerCase()
 } catch (response) {
@@ -34,20 +40,55 @@ try {
 
 const filter = parseProviderComplianceQueueFilter(Astro.url.searchParams.get("filter"))
 const focusedProviderId = String(Astro.url.searchParams.get("providerId") ?? "").trim()
+const reviewPermissions = {
+	verification: "provider.verification.review",
+	fiscal: "provider.fiscal.review",
+	documents: "provider.document.review",
+	payments: "provider.payment.review",
+} as const
+function canReview(domain: keyof typeof reviewPermissions, providerId: string) {
+	return Boolean(
+		principal &&
+		principalHasPermission(principal, reviewPermissions[domain], {
+			type: "provider",
+			id: providerId,
+		})
+	)
+}
+function canPreviewDocument(providerId: string) {
+	return Boolean(
+		principal &&
+		principalHasPermission(principal, "sensitive_data.reveal", { type: "provider", id: providerId })
+	)
+}
 
 const consolePayload = isAdmin
 	? await loadProviderComplianceConsole({ filter, auditLimit: filter === "audit" ? 80 : 25 })
 	: null
 const focusedDetail =
 	isAdmin && focusedProviderId ? await loadProviderComplianceDetail(focusedProviderId) : null
+const focusedPendingCount = focusedDetail
+	? filter === "verification"
+		? Number(focusedDetail.pending.verification)
+		: filter === "fiscal"
+			? focusedDetail.pending.fiscal
+			: filter === "documents"
+				? focusedDetail.pending.documents
+				: filter === "payments"
+					? focusedDetail.pending.payments
+					: Number(focusedDetail.pending.verification) +
+						focusedDetail.pending.fiscal +
+						focusedDetail.pending.documents +
+						focusedDetail.pending.payments
+	: 0
 
-const payoutRail = getPayoutRailStatus()
 const funnelStatus = getSettingsFunnelQueryStatus()
-const funnelSummary = isAdmin
-	? await summarizeProviderSettingsFunnel({
-			providerId: focusedProviderId || null,
-		}).catch(() => null)
-	: null
+const funnelSummary =
+	isAdmin && filter !== "payments"
+		? await summarizeProviderSettingsFunnel({
+				providerId: focusedProviderId || null,
+			}).catch(() => null)
+		: null
 
 const counts = consolePayload?.counts ?? {
 	verification: 0,
@@ -65,10 +106,13 @@ const sections = consolePayload?.sections ?? {
 	payments: false,
 	audit: false,
 }
-const rows = consolePayload?.verification ?? []
-const taxRows = consolePayload?.fiscal ?? []
-const documentRows = consolePayload?.documents ?? []
-const paymentRows = consolePayload?.payments ?? []
+function focusedRows<T extends { providerId: string }>(items: T[]) {
+	return focusedProviderId ? items.filter((item) => item.providerId === focusedProviderId) : items
+}
+const rows = focusedRows(consolePayload?.verification ?? [])
+const taxRows = focusedRows(consolePayload?.fiscal ?? [])
+const documentRows = focusedRows(consolePayload?.documents ?? [])
+const paymentRows = focusedRows(consolePayload?.payments ?? [])
 const auditRows = consolePayload?.audit ?? []
 const assigneeShortcuts = Array.from(
 	new Set(
@@ -111,7 +155,7 @@ const queueButtons = [
 	{ id: "verification", label: "Verificación", count: counts.verification, sla: null },
 	{ id: "fiscal", label: "Fiscal", count: counts.fiscal, sla: null },
 	{ id: "documents", label: "Documentos", count: counts.documents, sla: null },
-	{ id: "payments", label: "Pagos", count: counts.payments, sla: null },
+	{ id: "payments", label: "Cuentas bancarias", count: counts.payments, sla: null },
 	{ id: "audit", label: "Auditoría", count: null as number | null, sla: null },
 ] as const
 
@@ -206,12 +250,15 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 											data-case-drawer-hint
 											data-row-reject-deferred
 										>
-											Caso abierto · {focusedDetail.provider.displayName} · rechazo solo en el
-											drawer
+											Caso abierto · {focusedDetail.provider.displayName} · revisión en el panel
+											lateral
 										</p>
 									) : null}
 								</div>
-								<div class="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible">
+								<div
+									class="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible"
+									data-compliance-queue-nav
+								>
 									{queueButtons.map((button) => (
 										<a
 											href={queueHref(button.id)}
@@ -240,40 +287,42 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 								class="fastt-notice hidden rounded-[var(--fastt-radius-card)] border px-3 py-2 text-sm"
 							/>
 
-							<Card
-								class="bg-slate-100"
-								data-admin-settings-funnel
-								data-funnel-sink={funnelStatus.sink}
-								data-funnel-queryable={funnelStatus.queryable ? "true" : "false"}
-							>
-								<div class="flex flex-wrap items-start justify-between gap-3">
-									<div class="space-y-1">
-										<p class="text-sm font-semibold text-slate-900">Settings funnel</p>
-										<p class="text-xs leading-5 text-slate-600">{funnelStatus.hostLabel}</p>
-										<p class="text-xs leading-5 text-slate-500">{funnelStatus.adminHint}</p>
-									</div>
-									{funnelSummary ? (
-										<div
-											class="flex flex-wrap gap-3 text-xs text-slate-700"
-											data-admin-funnel-summary
-										>
-											<span>Blockers: {funnelSummary.blockerShown}</span>
-											<span>CTAs: {funnelSummary.ctaClicked}</span>
-											<span>Completes: {funnelSummary.domainComplete}</span>
-											{funnelSummary.ctaRatePercent != null ? (
-												<span>CTA rate: {funnelSummary.ctaRatePercent}%</span>
-											) : null}
+							{filter !== "payments" && (
+								<Card
+									class="bg-slate-100"
+									data-admin-settings-funnel
+									data-funnel-sink={funnelStatus.sink}
+									data-funnel-queryable={funnelStatus.queryable ? "true" : "false"}
+								>
+									<div class="flex flex-wrap items-start justify-between gap-3">
+										<div class="space-y-1">
+											<p class="text-sm font-semibold text-slate-900">Settings funnel</p>
+											<p class="text-xs leading-5 text-slate-600">{funnelStatus.hostLabel}</p>
+											<p class="text-xs leading-5 text-slate-500">{funnelStatus.adminHint}</p>
 										</div>
-									) : null}
-								</div>
-								<p class="mt-2 text-xs text-slate-500">
-									API:{" "}
-									<code class="rounded bg-slate-200 px-1">
-										GET /api/admin/providers/settings-funnel
-									</code>
-									{focusedProviderId ? `?providerId=${focusedProviderId}` : ""}
-								</p>
-							</Card>
+										{funnelSummary ? (
+											<div
+												class="flex flex-wrap gap-3 text-xs text-slate-700"
+												data-admin-funnel-summary
+											>
+												<span>Blockers: {funnelSummary.blockerShown}</span>
+												<span>CTAs: {funnelSummary.ctaClicked}</span>
+												<span>Completes: {funnelSummary.domainComplete}</span>
+												{funnelSummary.ctaRatePercent != null ? (
+													<span>CTA rate: {funnelSummary.ctaRatePercent}%</span>
+												) : null}
+											</div>
+										) : null}
+									</div>
+									<p class="mt-2 text-xs text-slate-500">
+										API:{" "}
+										<code class="rounded bg-slate-200 px-1">
+											GET /api/admin/providers/settings-funnel
+										</code>
+										{focusedProviderId ? `?providerId=${focusedProviderId}` : ""}
+									</p>
+								</Card>
+							)}
 
 							<div
 								class:list={[
@@ -717,15 +766,15 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 																	) : null}
 																</td>
 																<td class="px-3 py-3 align-top">
-																	<div class="flex min-w-[320px] flex-col gap-2">
+																	<div class="flex flex-col gap-2">
 																		{!doc.isExpiredEvidence ? (
 																			<Button
-																				variant="primary"
+																				variant="secondary"
 																				className="w-fit"
-																				data-verify-document={doc.id}
-																				data-provider-id={doc.providerId}
+																				href={`/admin/providers?filter=documents&providerId=${encodeURIComponent(doc.providerId)}#document-review-${doc.id}`}
+																				reload
 																			>
-																				Verificar
+																				Revisar documento
 																			</Button>
 																		) : (
 																			<div class="fastt-notice rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-5 text-amber-950">
@@ -737,47 +786,16 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 																				</p>
 																			</div>
 																		)}
-																		{!doc.isExpiredEvidence && !focusedDetail && (
-																			<form
-																				class="flex flex-col gap-2"
-																				data-reject-document-form
-																				data-row-reject
-																				data-document-id={doc.id}
-																				data-provider-id={doc.providerId}
-																			>
-																				<select
-																					class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
-																					data-reject-template
-																					data-domain="documents"
-																				>
-																					<option value="">Plantilla de motivo…</option>
-																					{adminComplianceRejectTemplates
-																						.filter((item) => item.domain === "documents")
-																						.map((item) => (
-																							<option value={item.body}>{item.label}</option>
-																						))}
-																				</select>
-																				<Textarea
-																					name="reviewNotes"
-																					rows="2"
-																					required
-																					minlength="2"
-																					className="w-full"
-																					placeholder="Motivo del rechazo"
-																				/>
-																				<Button type="submit" variant="danger" className="w-fit">
-																					Rechazar
-																				</Button>
-																			</form>
+																		{!focusedDetail && (
+																			<AdminComplianceSlaAssign
+																				providerId={doc.providerId}
+																				domain="documents"
+																				entityId={doc.id}
+																				assignment={doc.assignment}
+																				currentAdminEmail={adminEmail}
+																				assigneeShortcuts={assigneeShortcuts}
+																			/>
 																		)}
-																		<AdminComplianceSlaAssign
-																			providerId={doc.providerId}
-																			domain="documents"
-																			entityId={doc.id}
-																			assignment={doc.assignment}
-																			currentAdminEmail={adminEmail}
-																			assigneeShortcuts={assigneeShortcuts}
-																		/>
 																	</div>
 																</td>
 															</tr>
@@ -794,132 +812,64 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 									)}
 
 									{sections.payments && (
-										<Card class="bg-slate-100">
+										<Card class="bg-slate-100" data-payment-queue-table>
 											<div class="mb-4 space-y-1">
-												<p class="text-lg font-semibold text-slate-900">Cuentas de payout</p>
+												<p class="text-lg font-semibold text-slate-900">Cuentas bancarias</p>
 												<p class="text-sm text-slate-600">
-													Validar titularidad bancaria (micro-depósito) o verificar manualmente. Al
-													verificar, la cuenta queda lista para liquidaciones del proveedor.
-												</p>
-												<p
-													class="text-xs leading-5 text-slate-500"
-													data-admin-payout-rail
-													data-payout-rail-mode={payoutRail.mode}
-												>
-													Rail: {payoutRail.adminHint}
+													Revisa los datos del titular y registra el resultado para futuras
+													liquidaciones.
 												</p>
 											</div>
 											<div class="overflow-x-auto">
 												<table class="min-w-full divide-y divide-slate-200">
 													<thead>
-														<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
+														<tr class="text-left text-xs text-slate-500">
 															<th class="px-3 py-2">Proveedor</th>
-															<th class="px-3 py-2">Cuenta</th>
-															<th class="px-3 py-2">Enviado</th>
-															<th class="px-3 py-2">Acciones</th>
+															<th class="px-3 py-2">Cuenta y titular</th>
+															<th class="px-3 py-2">Estado</th>
+															<th class="px-3 py-2">
+																<span class="sr-only">Acción</span>
+															</th>
 														</tr>
 													</thead>
 													<tbody class="divide-y divide-slate-200">
 														{paymentRows.map((account) => (
 															<tr>
-																<td class="px-3 py-3 align-top">
-																	<p class="text-sm font-semibold text-slate-900">
-																		{account.displayName}
-																	</p>
-																	<p class="text-xs text-slate-500">ID: {account.providerId}</p>
+																<td class="px-3 py-3 align-top text-sm font-medium text-slate-900">
+																	{account.displayName}
 																</td>
 																<td class="px-3 py-3 align-top text-sm text-slate-700">
-																	<p class="font-medium text-slate-900">
-																		{account.bankName || "Banco"} · {account.methodLabel}
-																	</p>
 																	<p>
-																		{account.accountHolderName || "Sin titular"} ·{" "}
-																		{account.country || "—"} · {account.currency}
+																		{account.bankName || "Banco"} ·{" "}
+																		{account.accountReference || "••••"}
 																	</p>
-																	<p class="font-mono text-xs">
-																		{account.accountIdentifier || account.accountReference || "—"}
+																	<p class="mt-1 text-xs text-slate-500">
+																		{account.accountHolderName} · {account.currency}
 																	</p>
-																	{account.routingOrSwift ? (
-																		<p class="text-xs text-slate-500">
-																			SWIFT/routing: {account.routingOrSwift}
-																		</p>
-																	) : null}
-																</td>
-																<td class="px-3 py-3 align-top text-sm text-slate-700">
-																	{account.createdAt
-																		? fmt.format(new Date(account.createdAt))
-																		: "—"}
 																</td>
 																<td class="px-3 py-3 align-top">
-																	<div class="flex min-w-[320px] flex-col gap-2">
-																		<Button
-																			variant="secondary"
-																			className="w-fit"
-																			data-micro-deposit={account.id}
-																			data-provider-id={account.providerId}
-																		>
-																			Iniciar micro-depósito
-																		</Button>
-																		<Button
-																			variant="primary"
-																			className="w-fit"
-																			data-verify-payment={account.id}
-																			data-provider-id={account.providerId}
-																		>
-																			Verificar manualmente
-																		</Button>
-																		<AdminComplianceSlaAssign
-																			providerId={account.providerId}
-																			domain="payments"
-																			entityId={account.id}
-																			assignment={account.assignment}
-																			currentAdminEmail={adminEmail}
-																			assigneeShortcuts={assigneeShortcuts}
-																		/>
-																		{!focusedDetail && (
-																			<form
-																				class="flex flex-col gap-2"
-																				data-payment-attention-form
-																				data-row-reject
-																				data-account-id={account.id}
-																				data-provider-id={account.providerId}
-																			>
-																				<select
-																					class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
-																					data-reject-template
-																					data-domain="payments"
-																				>
-																					<option value="">Plantilla de motivo…</option>
-																					{adminComplianceRejectTemplates
-																						.filter((item) => item.domain === "payments")
-																						.map((item) => (
-																							<option value={item.body}>{item.label}</option>
-																						))}
-																				</select>
-																				<Textarea
-																					name="reason"
-																					rows="2"
-																					required
-																					minlength="2"
-																					className="w-full"
-																					placeholder="Motivo (requiere atención)"
-																				/>
-																				<Button type="submit" variant="danger" className="w-fit">
-																					Requiere atención
-																				</Button>
-																			</form>
-																		)}
-																	</div>
+																	<Badge variant="warning">En revisión</Badge>
+																</td>
+																<td class="px-3 py-3 align-top">
+																	<Button
+																		href={`/admin/providers?filter=payments&providerId=${encodeURIComponent(account.providerId)}#provider-review-payments`}
+																		variant="secondary"
+																		size="sm"
+																	>
+																		Revisar
+																	</Button>
 																</td>
 															</tr>
 														))}
+														{paymentRows.length === 0 && (
+															<tr>
+																<td colspan="4" class="px-3 py-6 text-sm text-slate-600">
+																	No hay cuentas bancarias pendientes de revisión.
+																</td>
+															</tr>
+														)}
 													</tbody>
 												</table>
-												{paymentRows.length === 0 && (
-													<p class="px-3 py-6 text-sm text-slate-600">
-														No hay cuentas de payout pendientes de revisión.
-													</p>
-												)}
 											</div>
 										</Card>
 									)}
@@ -1038,9 +988,7 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 													<p id="case-drawer-title" class="text-lg font-semibold text-slate-900">
 														{focusedDetail.provider.displayName}
 													</p>
-													<p class="text-sm text-slate-600">
-														{focusedDetail.provider.legalName} · {focusedDetail.provider.id}
-													</p>
+													<p class="text-sm text-slate-600">{focusedDetail.provider.legalName}</p>
 												</div>
 												<Button
 													href={caseCloseHref}
@@ -1053,7 +1001,11 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 											</div>
 											<div class="mb-4 grid gap-2 sm:grid-cols-2">
 												{focusedDetail.checklist.map((item) => (
-													<Card variant="soft" class="space-y-1">
+													<Card
+														variant="soft"
+														class="space-y-1"
+														data-payment-checklist={item.id === "payments" ? "" : undefined}
+													>
 														<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
 															{item.label}
 														</p>
@@ -1062,38 +1014,85 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 																item.complete ? "success" : item.pending ? "warning" : "neutral"
 															}
 														>
-															{item.complete ? "OK" : item.pending ? "Pendiente" : "Revisar"}
+															{item.complete
+																? "OK"
+																: item.empty
+																	? "Sin cuenta"
+																	: item.pending
+																		? "Pendiente"
+																		: "Revisar"}
 														</Badge>
 													</Card>
 												))}
 											</div>
+											<p
+												class="fastt-notice mb-4 hidden rounded border px-3 py-2 text-sm"
+												data-case-drawer-feedback
+												role="status"
+												aria-live="polite"
+											/>
 											<div class="mb-4 space-y-1 text-sm text-slate-700">
 												<p>Fiscal en cola: {focusedDetail.pending.fiscal}</p>
 												<p>Documentos en cola: {focusedDetail.pending.documents}</p>
-												<p>Pagos en cola: {focusedDetail.pending.payments}</p>
+												<p data-payment-queue-count>
+													Cuentas en revisión: {focusedDetail.pending.payments}
+												</p>
 											</div>
+											<nav
+												class="mb-4 flex flex-wrap gap-2"
+												aria-label="Áreas de revisión del proveedor"
+											>
+												{[
+													{ domain: "verification", label: "Identidad y negocio" },
+													{ domain: "fiscal", label: "Fiscalidad" },
+													{ domain: "documents", label: "Documentos" },
+													{ domain: "payments", label: "Cuentas bancarias" },
+												].map((area) => (
+													<Button
+														href={`/admin/providers?filter=${area.domain}&providerId=${encodeURIComponent(focusedDetail.provider.id)}#provider-review-${area.domain}`}
+														reload
+														variant={filter === area.domain ? "primary" : "secondary"}
+														size="sm"
+														aria-current={filter === area.domain ? "page" : undefined}
+													>
+														{area.label}
+													</Button>
+												))}
+											</nav>
 
 											<section
 												class="mb-4 space-y-3"
 												data-case-templates
-												aria-labelledby="case-templates-heading"
+												aria-label="Revisión del proveedor"
 											>
-												<div>
-													<p
-														id="case-templates-heading"
-														class="text-sm font-semibold text-slate-900"
-													>
-														Plantillas y acciones del caso
-													</p>
-													<p class="mt-1 text-xs leading-5 text-slate-500">
-														Atajos de motivo y asignación sin salir del panel. Escape cierra el
-														caso.
-													</p>
-												</div>
+												{filter !== "payments" && (
+													<div>
+														<p
+															id="case-templates-heading"
+															class="text-sm font-semibold text-slate-900"
+														>
+															Revisar y registrar resultado
+														</p>
+														<p class="mt-1 text-xs leading-5 text-slate-500">
+															Corrobora la evidencia antes de aprobar o solicitar una corrección.
+														</p>
+													</div>
+												)}
 
-												{focusedDetail.verification?.verificationStatus === "pending" ? (
-													<Card variant="soft" class="space-y-3" data-case-domain="verification">
+												{sections.verification &&
+												focusedDetail.verification?.verificationStatus === "pending" ? (
+													<Card
+														id="provider-review-verification"
+														variant="soft"
+														class="scroll-mt-20 space-y-3"
+														data-case-domain="verification"
+													>
 														<p class="text-sm font-semibold text-slate-900">Verificación</p>
+														{canReview("verification", focusedDetail.provider.id) && (
+															<Button data-approve-provider={focusedDetail.provider.id}>
+																Aprobar identidad y negocio
+															</Button>
+														)}
 														<div class="flex flex-wrap gap-1.5" data-case-template-chips>
 															{templatesFor("verification").map((item) => (
 																<button
@@ -1146,9 +1145,37 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 													</Card>
 												) : null}
 
-												{focusedDetail.fiscal.slice(0, 2).map((row) => (
-													<Card variant="soft" class="space-y-3" data-case-domain="fiscal">
+												{(sections.fiscal ? focusedDetail.fiscal : []).map((row) => (
+													<Card
+														id="provider-review-fiscal"
+														variant="soft"
+														class="scroll-mt-20 space-y-3"
+														data-case-domain="fiscal"
+													>
 														<p class="text-sm font-semibold text-slate-900">Fiscal</p>
+														<dl class="grid grid-cols-2 gap-3 text-sm">
+															<div>
+																<dt class="text-xs text-slate-500">País</dt>
+																<dd>{row.taxResidenceCountry || "Sin informar"}</dd>
+															</div>
+															<div>
+																<dt class="text-xs text-slate-500">Registro fiscal</dt>
+																<dd>{row.businessRegistrationNumber || "Sin informar"}</dd>
+															</div>
+															<div>
+																<dt class="text-xs text-slate-500">Régimen</dt>
+																<dd>{row.taxRegime || "Sin informar"}</dd>
+															</div>
+															<div>
+																<dt class="text-xs text-slate-500">Estado</dt>
+																<dd>{row.statusLabel}</dd>
+															</div>
+														</dl>
+														{canReview("fiscal", row.providerId) && row.status !== "verified" && (
+															<Button data-verify-tax={row.providerId}>
+																Verificar datos fiscales
+															</Button>
+														)}
 														<div class="flex flex-wrap gap-1.5" data-case-template-chips>
 															{templatesFor("fiscal").map((item) => (
 																<button
@@ -1201,134 +1228,157 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 													</Card>
 												))}
 
-												{focusedDetail.documents.slice(0, 2).map((doc) => (
-													<Card variant="soft" class="space-y-3" data-case-domain="documents">
-														<p class="text-sm font-semibold text-slate-900">
-															Documento · {doc.typeLabel}
+												{sections.documents && (
+													<section
+														id="provider-review-documents"
+														class="scroll-mt-20 space-y-3"
+														aria-label="Revisión de documentos"
+													>
+														<p class="text-sm font-semibold text-slate-900" role="status">
+															{focusedDetail.documents.length
+																? `${focusedDetail.documents.length} documentos requieren atención`
+																: "No quedan documentos por revisar"}
 														</p>
-														<div class="flex flex-wrap gap-1.5" data-case-template-chips>
-															{templatesFor("documents").map((item) => (
-																<button
-																	type="button"
-																	class="fastt-button rounded border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-																	data-case-template
-																	data-domain="documents"
-																	data-template-body={item.body}
-																>
-																	{item.label}
-																</button>
-															))}
-														</div>
-														<form
-															class="flex flex-col gap-2"
-															data-reject-document-form
-															data-document-id={doc.id}
-															data-provider-id={doc.providerId}
-														>
-															<select
-																class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
-																data-reject-template
-																data-domain="documents"
+														{focusedDetail.documents.map((doc) => (
+															<Card
+																id={`document-review-${doc.id}`}
+																variant="soft"
+																class="scroll-mt-4 space-y-3"
+																data-case-domain="documents"
 															>
-																<option value="">Plantilla de motivo…</option>
-																{templatesFor("documents").map((item) => (
-																	<option value={item.body}>{item.label}</option>
-																))}
-															</select>
-															<Textarea
-																name="reviewNotes"
-																rows="2"
-																required
-																minlength="2"
-																className="w-full"
-																placeholder="Motivo del rechazo"
-																data-case-reason
-															/>
-															<Button type="submit" variant="danger" className="w-fit">
-																Rechazar documento
-															</Button>
-														</form>
-														<AdminComplianceSlaAssign
-															providerId={doc.providerId}
-															domain="documents"
-															entityId={doc.id}
-															assignment={doc.assignment}
-															currentAdminEmail={adminEmail}
-															assigneeShortcuts={assigneeShortcuts}
+																<p class="text-sm font-semibold text-slate-900">
+																	Documento · {doc.typeLabel}
+																</p>
+																<p class="text-sm break-words text-slate-600">
+																	{doc.fileName || "Sin nombre de archivo"}
+																</p>
+																{doc.expiresAt && (
+																	<p class="text-xs text-slate-600">
+																		Vigencia: {fmt.format(new Date(doc.expiresAt))}
+																	</p>
+																)}
+																{doc.submissionNotes && (
+																	<p class="text-sm text-slate-600">{doc.submissionNotes}</p>
+																)}
+																<div class="flex flex-wrap gap-2">
+																	{doc.fileUrl && canPreviewDocument(doc.providerId) && (
+																		<Button
+																			variant="secondary"
+																			data-preview-document={doc.id}
+																			data-provider-id={doc.providerId}
+																		>
+																			Abrir archivo seguro
+																		</Button>
+																	)}
+																</div>
+																{doc.isExpiredEvidence ? (
+																	<p class="text-sm text-amber-800">
+																		Documento vencido: solicita una renovación antes de verificarlo.
+																	</p>
+																) : doc.status === "pending" &&
+																  canReview("documents", doc.providerId) ? (
+																	<>
+																		<form
+																			class="flex flex-col gap-2"
+																			data-reject-document-form
+																			data-document-id={doc.id}
+																			data-provider-id={doc.providerId}
+																		>
+																			<select
+																				class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+																				data-reject-template
+																				data-domain="documents"
+																			>
+																				<option value="">Plantilla de motivo…</option>
+																				{templatesFor("documents").map((item) => (
+																					<option value={item.body}>{item.label}</option>
+																				))}
+																			</select>
+																			<Textarea
+																				name="reviewNotes"
+																				rows="2"
+																				required
+																				minlength="2"
+																				className="w-full"
+																				aria-label="Notas de revisión"
+																				placeholder="Justifica la aprobación manual o explica el rechazo."
+																				data-case-reason
+																			/>
+																			<p class="text-xs text-slate-600">
+																				La aprobación de identidad y negocio no verifica este
+																				archivo. Registra aquí el resultado de su revisión.
+																			</p>
+																			<p
+																				class="fastt-notice hidden rounded border px-3 py-2 text-sm"
+																				data-document-review-feedback
+																				role="status"
+																				aria-live="polite"
+																			/>
+																			<div class="flex flex-wrap gap-2">
+																				<Button
+																					data-verify-document={doc.id}
+																					data-provider-id={doc.providerId}
+																				>
+																					Verificar documento
+																				</Button>
+																				<Button type="submit" variant="danger">
+																					Rechazar documento
+																				</Button>
+																			</div>
+																		</form>
+																	</>
+																) : null}
+																<details class="border-t border-slate-200 pt-3">
+																	<summary class="cursor-pointer text-xs font-medium text-slate-600">
+																		Responsable y plazo
+																	</summary>
+																	<AdminComplianceSlaAssign
+																		providerId={doc.providerId}
+																		domain="documents"
+																		entityId={doc.id}
+																		assignment={doc.assignment}
+																		currentAdminEmail={adminEmail}
+																		assigneeShortcuts={assigneeShortcuts}
+																	/>
+																</details>
+															</Card>
+														))}
+														<ReviewedProviderDocuments
+															documents={focusedDetail.reviewedDocuments.filter(
+																(doc) =>
+																	!focusedDetail.documents.some((pending) => pending.id === doc.id)
+															)}
+															canPreview={canPreviewDocument(focusedDetail.provider.id)}
+															expanded={focusedDetail.documents.length === 0}
 														/>
-													</Card>
-												))}
+													</section>
+												)}
 
-												{focusedDetail.payments.slice(0, 2).map((account) => (
-													<Card variant="soft" class="space-y-3" data-case-domain="payments">
-														<p class="text-sm font-semibold text-slate-900">
-															Payout · {account.accountReference || account.id}
-														</p>
-														<div class="flex flex-wrap gap-1.5" data-case-template-chips>
-															{templatesFor("payments").map((item) => (
-																<button
-																	type="button"
-																	class="fastt-button rounded border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-																	data-case-template
-																	data-domain="payments"
-																	data-template-body={item.body}
-																>
-																	{item.label}
-																</button>
-															))}
-														</div>
-														<form
-															class="flex flex-col gap-2"
-															data-payment-attention-form
-															data-account-id={account.id}
-															data-provider-id={account.providerId}
-														>
-															<select
-																class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
-																data-reject-template
-																data-domain="payments"
-															>
-																<option value="">Plantilla de motivo…</option>
-																{templatesFor("payments").map((item) => (
-																	<option value={item.body}>{item.label}</option>
-																))}
-															</select>
-															<Textarea
-																name="reason"
-																rows="2"
-																required
-																minlength="2"
-																className="w-full"
-																placeholder="Motivo (requiere atención)"
-																data-case-reason
-															/>
-															<Button type="submit" variant="danger" className="w-fit">
-																Requiere atención
-															</Button>
-														</form>
-														<AdminComplianceSlaAssign
-															providerId={account.providerId}
-															domain="payments"
-															entityId={account.id}
-															assignment={account.assignment}
-															currentAdminEmail={adminEmail}
-															assigneeShortcuts={assigneeShortcuts}
-														/>
-													</Card>
-												))}
+												{sections.payments && (
+													<ProviderBankAccountReview
+														accounts={focusedDetail.paymentAccounts}
+														legalName={focusedDetail.provider.legalName}
+														canReview={canReview("payments", focusedDetail.provider.id)}
+														caseIds={focusedDetail.paymentCases}
+														assignments={Object.fromEntries(
+															focusedDetail.payments.map((account) => [
+																account.id,
+																account.assignment,
+															])
+														)}
+														adminEmail={adminEmail}
+													/>
+												)}
 
-												{!focusedDetail.pending.verification &&
-												focusedDetail.pending.fiscal === 0 &&
-												focusedDetail.pending.documents === 0 &&
-												focusedDetail.pending.payments === 0 ? (
+												{focusedPendingCount === 0 && !sections.payments ? (
 													<p class="text-sm text-slate-600" data-case-templates-empty>
-														Sin acciones pendientes en este caso.
+														Sin acciones pendientes en esta área.
 													</p>
 												) : null}
 											</section>
 
 											{focusedDetail.audit.length ? (
-												<div class="overflow-x-auto">
+												<div class="overflow-x-auto" data-case-audit>
 													<p class="mb-2 text-sm font-semibold text-slate-900">
 														Auditoría reciente
 													</p>
@@ -1376,277 +1426,286 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 	</section>
 </InternalAdminLayout>
 
-<script is:inline>
-	const feedback = document.getElementById("admin-compliance-feedback")
-	const currentReturnTo = `${window.location.pathname}${window.location.search}`
+<script is:inline data-astro-rerun>
+	;(() => {
+		const root = document.getElementById("admin-main")
+		if (!root || root.dataset.providerReviewBound) return
+		root.dataset.providerReviewBound = "true"
+		const currentReturnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`
 
-	function startMfaReauthentication() {
-		showFeedback(
-			"warning",
-			"Confirma tu MFA para continuar. Volverás a este caso y deberás repetir la acción."
-		)
-		window.location.assign(`/auth/mfa?returnTo=${encodeURIComponent(currentReturnTo)}`)
-	}
-
-	function showFeedback(kind, message) {
-		if (!feedback) return
-		feedback.classList.remove(
-			"hidden",
-			"border-emerald-200",
-			"bg-emerald-50",
-			"text-emerald-900",
-			"border-red-200",
-			"bg-red-50",
-			"text-red-900",
-			"border-amber-200",
-			"bg-amber-50",
-			"text-amber-950"
-		)
-		if (kind === "success") {
-			feedback.classList.add("border-emerald-200", "bg-emerald-50", "text-emerald-900")
-		} else if (kind === "warning") {
-			feedback.classList.add("border-amber-200", "bg-amber-50", "text-amber-950")
-		} else {
-			feedback.classList.add("border-red-200", "bg-red-50", "text-red-900")
+		function startMfaReauthentication() {
+			showFeedback(
+				"warning",
+				"Confirma tu MFA para continuar. Volverás a este caso y deberás repetir la acción."
+			)
+			window.location.assign(`/auth/mfa?returnTo=${encodeURIComponent(currentReturnTo)}`)
 		}
-		feedback.textContent = message
-	}
 
-	document.querySelectorAll("[data-reject-template]").forEach((select) => {
-		select.addEventListener("change", () => {
-			const form = select.closest("form")
-			if (!form) return
-			const textarea = form.querySelector("textarea")
-			if (!textarea || !select.value) return
-			textarea.value = select.value
+		function showFeedback(kind, message, target = null) {
+			const feedback =
+				target ||
+				document.querySelector("[data-case-drawer-feedback]") ||
+				document.getElementById("admin-compliance-feedback")
+			if (!feedback) return
+			feedback.setAttribute("role", kind === "error" ? "alert" : "status")
+			feedback.classList.remove(
+				"hidden",
+				"border-emerald-200",
+				"bg-emerald-50",
+				"text-emerald-900",
+				"border-red-200",
+				"bg-red-50",
+				"text-red-900",
+				"border-amber-200",
+				"bg-amber-50",
+				"text-amber-950"
+			)
+			if (kind === "success") {
+				feedback.classList.add("border-emerald-200", "bg-emerald-50", "text-emerald-900")
+			} else if (kind === "warning") {
+				feedback.classList.add("border-amber-200", "bg-amber-50", "text-amber-950")
+			} else {
+				feedback.classList.add("border-red-200", "bg-red-50", "text-red-900")
+			}
+			feedback.textContent = message
+		}
+
+		document.querySelectorAll("[data-reject-template]").forEach((select) => {
+			select.addEventListener("change", () => {
+				const form = select.closest("form")
+				if (!form) return
+				const textarea = form.querySelector("textarea")
+				if (!textarea || !select.value) return
+				textarea.value = select.value
+			})
 		})
-	})
 
-	document.querySelectorAll("[data-preview-document]").forEach((button) => {
-		button.addEventListener("click", async () => {
-			const documentId = button.getAttribute("data-preview-document")
-			const providerId = button.getAttribute("data-provider-id")
-			if (!documentId || !providerId) return
-			button.setAttribute("disabled", "true")
+		document.querySelectorAll("[data-preview-document]").forEach((button) => {
+			button.addEventListener("click", async () => {
+				const documentId = button.getAttribute("data-preview-document")
+				const providerId = button.getAttribute("data-provider-id")
+				if (!documentId || !providerId) return
+				button.setAttribute("disabled", "true")
+				try {
+					const res = await fetch(
+						`/api/admin/providers/documents/preview?providerId=${encodeURIComponent(providerId)}&documentId=${encodeURIComponent(documentId)}&reason=case_review`
+					)
+					const body = await res.json().catch(() => ({}))
+					if (res.status === 401) {
+						startMfaReauthentication()
+						return
+					}
+					if (!res.ok || !body.url) {
+						showFeedback("warning", body.error || "No se pudo abrir el archivo")
+						return
+					}
+					window.open(body.url, "_blank", "noopener,noreferrer")
+				} finally {
+					button.removeAttribute("disabled")
+				}
+			})
+		})
+
+		async function postJson(
+			url,
+			payload,
+			idempotencyKey = `admin_command:${crypto.randomUUID()}`,
+			feedbackTarget = null
+		) {
 			try {
-				const res = await fetch(
-					`/api/admin/providers/documents/preview?providerId=${encodeURIComponent(providerId)}&documentId=${encodeURIComponent(documentId)}&reason=case_review`
-				)
+				const headers = { "Content-Type": "application/json" }
+				if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey
+				const res = await fetch(url, {
+					method: "POST",
+					headers,
+					body: JSON.stringify(payload),
+				})
+				if (res.status === 200) {
+					showFeedback("success", "Resultado guardado. Actualizando pendientes…", feedbackTarget)
+					window.location.reload()
+					return
+				}
 				const body = await res.json().catch(() => ({}))
 				if (res.status === 401) {
 					startMfaReauthentication()
 					return
 				}
-				if (!res.ok || !body.url) {
-					showFeedback("warning", body.error || "No se pudo abrir el archivo")
-					return
-				}
-				window.open(body.url, "_blank", "noopener,noreferrer")
-			} finally {
-				button.removeAttribute("disabled")
-			}
-		})
-	})
-
-	async function postJson(url, payload, idempotencyKey = `admin_command:${crypto.randomUUID()}`) {
-		const headers = { "Content-Type": "application/json" }
-		if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey
-		const res = await fetch(url, {
-			method: "POST",
-			headers,
-			body: JSON.stringify(payload),
-		})
-		if (res.status === 200) {
-			showFeedback("success", "Estado actualizado. Recargando...")
-			window.location.reload()
-			return
-		}
-		const body = await res.json().catch(() => ({}))
-		if (res.status === 401) {
-			startMfaReauthentication()
-			return
-		}
-		if (res.status === 403) {
-			showFeedback("error", "Not authorized")
-			return
-		}
-		const msg = body?.error || "Error"
-		showFeedback(res.status === 400 ? "warning" : "error", msg)
-	}
-
-	document.querySelectorAll("[data-approve-provider]").forEach((button) => {
-		button.addEventListener("click", async () => {
-			const providerId = button.getAttribute("data-approve-provider")
-			if (!providerId) return
-			button.setAttribute("disabled", "true")
-			await postJson(
-				"/api/admin/providers/verification",
-				{ providerId, status: "approved" },
-				`provider_verification:${providerId}:approved:${crypto.randomUUID()}`
-			)
-			button.removeAttribute("disabled")
-		})
-	})
-
-	document.querySelectorAll("[data-reject-form]").forEach((form) => {
-		form.addEventListener("submit", async (event) => {
-			event.preventDefault()
-			const providerId = form.getAttribute("data-provider-id")
-			const reasonInput = form.querySelector("textarea[name='reason']")
-			const submitButton = form.querySelector("button[type='submit']")
-			if (!providerId || !reasonInput) return
-			const reason = reasonInput.value.trim()
-			if (reason.length < 2) {
-				showFeedback("warning", "El motivo debe tener al menos 2 caracteres.")
-				return
-			}
-			if (submitButton) submitButton.setAttribute("disabled", "true")
-			await postJson(
-				"/api/admin/providers/verification",
-				{
-					providerId,
-					status: "rejected",
-					reason,
-				},
-				`provider_verification:${providerId}:rejected:${crypto.randomUUID()}`
-			)
-			if (submitButton) submitButton.removeAttribute("disabled")
-		})
-	})
-
-	document.querySelectorAll("[data-verify-tax]").forEach((button) => {
-		button.addEventListener("click", async () => {
-			const providerId = button.getAttribute("data-verify-tax")
-			if (!providerId) return
-			button.setAttribute("disabled", "true")
-			await postJson("/api/admin/providers/tax-configuration", {
-				providerId,
-				status: "verified",
-			})
-			button.removeAttribute("disabled")
-		})
-	})
-
-	document.querySelectorAll("[data-tax-attention-form]").forEach((form) => {
-		form.addEventListener("submit", async (event) => {
-			event.preventDefault()
-			const providerId = form.getAttribute("data-provider-id")
-			const reasonInput = form.querySelector("textarea[name='reason']")
-			const submitButton = form.querySelector("button[type='submit']")
-			if (!providerId || !reasonInput) return
-			const reason = reasonInput.value.trim()
-			if (reason.length < 2) {
-				showFeedback("warning", "El motivo debe tener al menos 2 caracteres.")
-				return
-			}
-			if (submitButton) submitButton.setAttribute("disabled", "true")
-			await postJson("/api/admin/providers/tax-configuration", {
-				providerId,
-				status: "requires_attention",
-				reason,
-			})
-			if (submitButton) submitButton.removeAttribute("disabled")
-		})
-	})
-
-	document.querySelectorAll("[data-verify-document]").forEach((button) => {
-		button.addEventListener("click", async () => {
-			const documentId = button.getAttribute("data-verify-document")
-			const providerId = button.getAttribute("data-provider-id")
-			if (!documentId || !providerId) return
-			button.setAttribute("disabled", "true")
-			await postJson("/api/admin/providers/documents", {
-				providerId,
-				documentId,
-				status: "verified",
-			})
-			button.removeAttribute("disabled")
-		})
-	})
-
-	document.querySelectorAll("[data-reject-document-form]").forEach((form) => {
-		form.addEventListener("submit", async (event) => {
-			event.preventDefault()
-			const documentId = form.getAttribute("data-document-id")
-			const providerId = form.getAttribute("data-provider-id")
-			const notesInput = form.querySelector("textarea[name='reviewNotes']")
-			const submitButton = form.querySelector("button[type='submit']")
-			if (!documentId || !providerId || !notesInput) return
-			const reviewNotes = notesInput.value.trim()
-			if (reviewNotes.length < 2) {
-				showFeedback("warning", "El motivo debe tener al menos 2 caracteres.")
-				return
-			}
-			if (submitButton) submitButton.setAttribute("disabled", "true")
-			await postJson("/api/admin/providers/documents", {
-				providerId,
-				documentId,
-				status: "rejected",
-				reviewNotes,
-			})
-			if (submitButton) submitButton.removeAttribute("disabled")
-		})
-	})
-
-	document.querySelectorAll("[data-verify-payment]").forEach((button) => {
-		button.addEventListener("click", async () => {
-			const accountId = button.getAttribute("data-verify-payment")
-			const providerId = button.getAttribute("data-provider-id")
-			if (!accountId || !providerId) return
-			button.setAttribute("disabled", "true")
-			await postJson("/api/admin/providers/payment-accounts", {
-				providerId,
-				accountId,
-				status: "verified",
-			})
-			button.removeAttribute("disabled")
-		})
-	})
-
-	document.querySelectorAll("[data-micro-deposit]").forEach((button) => {
-		button.addEventListener("click", async () => {
-			const accountId = button.getAttribute("data-micro-deposit")
-			const providerId = button.getAttribute("data-provider-id")
-			if (!accountId || !providerId) return
-			button.setAttribute("disabled", "true")
-			try {
-				const res = await fetch("/api/admin/providers/payment-accounts", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						providerId,
-						accountId,
-						action: "initiate_micro_deposit",
-					}),
-				})
-				const body = await res.json().catch(() => ({}))
-				if (res.status === 200) {
-					const cents = Array.isArray(body.depositAmountsCents) ? body.depositAmountsCents : null
-					const railMode = body.rail?.mode || "simulated"
-					let msg = "Micro-depósito iniciado."
-					if (cents && cents.length === 2) {
-						msg += ` Montos de prueba (solo ops): ${cents[0]}¢ y ${cents[1]}¢.`
-					}
-					if (railMode !== "live") {
-						msg += " Rail simulado — no salió ACH bancario real."
-					}
-					showFeedback("success", msg + " Recargando...")
-					window.setTimeout(() => window.location.reload(), 1400)
-					return
-				}
 				if (res.status === 403) {
-					showFeedback("error", "Not authorized")
+					showFeedback("error", "Tu cuenta no tiene permiso para esta revisión.", feedbackTarget)
 					return
 				}
-				showFeedback(res.status === 400 ? "warning" : "error", body.error || "Error")
-			} finally {
-				button.removeAttribute("disabled")
+				const reviewErrors = {
+					not_pending: "Este documento ya fue revisado. Recarga para consultar su resultado.",
+					legacy_review_disabled:
+						"La revisión desde este panel está desactivada. Continúa en el expediente.",
+					casework_review_required:
+						"Esta revisión debe resolverse en su expediente, con los controles que correspondan.",
+					casework_decision_pending:
+						"Ya existe una decisión pendiente de control. Revísala en el expediente antes de continuar.",
+					case_waiting_information:
+						"El caso espera información del proveedor. Revisa la solicitud antes de emitir otro resultado.",
+					document_preview_required:
+						"El archivo no está disponible para corroboración. Solicita una nueva carga antes de verificarlo.",
+					document_expired: "El documento está vencido. Solicita su renovación.",
+					document_processing_gate_blocked:
+						"El documento debe completar sus controles de seguridad antes de verificarse.",
+					document_manual_review_notes_required:
+						"Escribe las notas de revisión que justifiquen la aprobación manual del documento.",
+				}
+				const msg = reviewErrors[body?.error] || body?.error || "No se pudo registrar la revisión."
+				showFeedback(res.status === 400 ? "warning" : "error", msg, feedbackTarget)
+			} catch {
+				showFeedback(
+					"error",
+					"No se pudo confirmar el resultado. Revisa la conexión y vuelve a intentarlo.",
+					feedbackTarget
+				)
 			}
-		})
-	})
+		}
 
-	document.querySelectorAll("[data-assign-ops]").forEach((form) => {
-		form.addEventListener("submit", async (event) => {
+		document.querySelectorAll("[data-approve-provider]").forEach((button) => {
+			button.addEventListener("click", async () => {
+				const providerId = button.getAttribute("data-approve-provider")
+				if (!providerId) return
+				button.setAttribute("disabled", "true")
+				await postJson(
+					"/api/admin/providers/verification",
+					{ providerId, status: "approved" },
+					`provider_verification:${providerId}:approved:${crypto.randomUUID()}`
+				)
+				button.removeAttribute("disabled")
+			})
+		})
+
+		document.querySelectorAll("[data-reject-form]").forEach((form) => {
+			form.addEventListener("submit", async (event) => {
+				event.preventDefault()
+				const providerId = form.getAttribute("data-provider-id")
+				const reasonInput = form.querySelector("textarea[name='reason']")
+				const submitButton = form.querySelector("button[type='submit']")
+				if (!providerId || !reasonInput) return
+				const reason = reasonInput.value.trim()
+				if (reason.length < 2) {
+					showFeedback("warning", "El motivo debe tener al menos 2 caracteres.")
+					return
+				}
+				if (submitButton) submitButton.setAttribute("disabled", "true")
+				await postJson(
+					"/api/admin/providers/verification",
+					{
+						providerId,
+						status: "rejected",
+						reason,
+					},
+					`provider_verification:${providerId}:rejected:${crypto.randomUUID()}`
+				)
+				if (submitButton) submitButton.removeAttribute("disabled")
+			})
+		})
+
+		document.querySelectorAll("[data-verify-tax]").forEach((button) => {
+			button.addEventListener("click", async () => {
+				const providerId = button.getAttribute("data-verify-tax")
+				if (!providerId) return
+				button.setAttribute("disabled", "true")
+				await postJson("/api/admin/providers/tax-configuration", {
+					providerId,
+					status: "verified",
+				})
+				button.removeAttribute("disabled")
+			})
+		})
+
+		document.querySelectorAll("[data-tax-attention-form]").forEach((form) => {
+			form.addEventListener("submit", async (event) => {
+				event.preventDefault()
+				const providerId = form.getAttribute("data-provider-id")
+				const reasonInput = form.querySelector("textarea[name='reason']")
+				const submitButton = form.querySelector("button[type='submit']")
+				if (!providerId || !reasonInput) return
+				const reason = reasonInput.value.trim()
+				if (reason.length < 2) {
+					showFeedback("warning", "El motivo debe tener al menos 2 caracteres.")
+					return
+				}
+				if (submitButton) submitButton.setAttribute("disabled", "true")
+				await postJson("/api/admin/providers/tax-configuration", {
+					providerId,
+					status: "requires_attention",
+					reason,
+				})
+				if (submitButton) submitButton.removeAttribute("disabled")
+			})
+		})
+
+		document.querySelectorAll("[data-verify-document]").forEach((button) => {
+			button.addEventListener("click", async () => {
+				const documentId = button.getAttribute("data-verify-document")
+				const providerId = button.getAttribute("data-provider-id")
+				if (!documentId || !providerId) return
+				const reviewContainer =
+					button.closest("[data-case-domain='documents']") || button.closest("tr")
+				const reviewNotes =
+					reviewContainer?.querySelector("textarea[name='reviewNotes']")?.value?.trim() || ""
+				const localFeedback = reviewContainer?.querySelector("[data-document-review-feedback]")
+				if (reviewNotes.length < 2) {
+					showFeedback(
+						"warning",
+						"Escribe las notas que sustentan la revisión del archivo antes de aprobarlo.",
+						localFeedback
+					)
+					reviewContainer?.querySelector("textarea[name='reviewNotes']")?.focus()
+					return
+				}
+				button.setAttribute("disabled", "true")
+				await postJson(
+					"/api/admin/providers/documents",
+					{
+						providerId,
+						documentId,
+						status: "verified",
+						reviewNotes,
+					},
+					undefined,
+					localFeedback
+				)
+				button.removeAttribute("disabled")
+			})
+		})
+
+		document.querySelectorAll("[data-reject-document-form]").forEach((form) => {
+			form.addEventListener("submit", async (event) => {
+				event.preventDefault()
+				const documentId = form.getAttribute("data-document-id")
+				const providerId = form.getAttribute("data-provider-id")
+				const notesInput = form.querySelector("textarea[name='reviewNotes']")
+				const submitButton = form.querySelector("button[type='submit']")
+				if (!documentId || !providerId || !notesInput) return
+				const reviewNotes = notesInput.value.trim()
+				const localFeedback = form.querySelector("[data-document-review-feedback]")
+				if (reviewNotes.length < 2) {
+					showFeedback("warning", "El motivo debe tener al menos 2 caracteres.", localFeedback)
+					return
+				}
+				if (submitButton) submitButton.setAttribute("disabled", "true")
+				await postJson(
+					"/api/admin/providers/documents",
+					{
+						providerId,
+						documentId,
+						status: "rejected",
+						reviewNotes,
+					},
+					undefined,
+					localFeedback
+				)
+				if (submitButton) submitButton.removeAttribute("disabled")
+			})
+		})
+
+		document.addEventListener("submit", async (event) => {
+			const form = event.target
+			if (!(form instanceof HTMLFormElement) || !form.matches("[data-assign-ops]")) return
 			event.preventDefault()
 			const providerId = form.getAttribute("data-provider-id")
 			const domain = form.getAttribute("data-domain")
@@ -1679,10 +1738,11 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 			}
 			if (submitButton) submitButton.removeAttribute("disabled")
 		})
-	})
 
-	document.querySelectorAll("[data-assignee-shortcut]").forEach((button) => {
-		button.addEventListener("click", () => {
+		document.addEventListener("click", (event) => {
+			const button =
+				event.target instanceof Element ? event.target.closest("[data-assignee-shortcut]") : null
+			if (!button) return
 			const email = button.getAttribute("data-assignee-shortcut")
 			const root = button.closest("[data-assignee-shortcuts-root]")
 			const input = root?.querySelector("[data-assignee-email-input]")
@@ -1690,97 +1750,79 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 			input.value = email
 			input.focus()
 		})
-	})
 
-	document.querySelectorAll("[data-case-template]").forEach((button) => {
-		button.addEventListener("click", () => {
-			const body = button.getAttribute("data-template-body")
-			const card = button.closest("[data-case-domain]")
-			const textarea = card?.querySelector("[data-case-reason]")
-			const select = card?.querySelector("[data-reject-template]")
-			if (!body || !(textarea instanceof HTMLTextAreaElement)) return
-			textarea.value = body
-			if (select instanceof HTMLSelectElement) {
-				select.value = body
-			}
-			textarea.focus()
-		})
-	})
-	;(function setupCaseDrawerA11y() {
-		const drawer = document.querySelector("[data-case-drawer]")
-		if (!(drawer instanceof HTMLElement)) return
-		const closeHref =
-			document.querySelector("[data-case-drawer-close]")?.getAttribute("href") || "/admin/providers"
-		const focusableSelector =
-			'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
-
-		function getFocusable() {
-			return Array.from(drawer.querySelectorAll(focusableSelector)).filter(
-				(el) => el instanceof HTMLElement && !el.hasAttribute("disabled")
-			)
-		}
-
-		const closeControl = drawer.querySelector("[data-case-drawer-close]")
-		if (closeControl instanceof HTMLElement) {
-			closeControl.focus()
-		} else {
-			drawer.focus()
-		}
-
-		const isMobile = window.matchMedia("(max-width: 1023px)").matches
-		if (isMobile) {
-			document.body.style.overflow = "hidden"
-		}
-
-		function onKeyDown(event) {
-			if (event.key === "Escape") {
-				event.preventDefault()
-				window.location.href = closeHref
-				return
-			}
-			if (event.key !== "Tab") return
-			const focusable = getFocusable()
-			if (focusable.length === 0) return
-			const first = focusable[0]
-			const last = focusable[focusable.length - 1]
-			const active = document.activeElement
-			if (event.shiftKey && active === first) {
-				event.preventDefault()
-				last.focus()
-			} else if (!event.shiftKey && active === last) {
-				event.preventDefault()
-				first.focus()
-			}
-		}
-
-		document.addEventListener("keydown", onKeyDown)
-		window.addEventListener("pagehide", () => {
-			document.body.style.overflow = ""
-			document.removeEventListener("keydown", onKeyDown)
-		})
-	})()
-
-	document.querySelectorAll("[data-payment-attention-form]").forEach((form) => {
-		form.addEventListener("submit", async (event) => {
-			event.preventDefault()
-			const accountId = form.getAttribute("data-account-id")
-			const providerId = form.getAttribute("data-provider-id")
-			const reasonInput = form.querySelector("textarea[name='reason']")
-			const submitButton = form.querySelector("button[type='submit']")
-			if (!accountId || !providerId || !reasonInput) return
-			const reason = reasonInput.value.trim()
-			if (reason.length < 2) {
-				showFeedback("warning", "El motivo debe tener al menos 2 caracteres.")
-				return
-			}
-			if (submitButton) submitButton.setAttribute("disabled", "true")
-			await postJson("/api/admin/providers/payment-accounts", {
-				providerId,
-				accountId,
-				status: "requires_attention",
-				reason,
+		document.querySelectorAll("[data-case-template]").forEach((button) => {
+			button.addEventListener("click", () => {
+				const body = button.getAttribute("data-template-body")
+				const card = button.closest("[data-case-domain]")
+				const textarea = card?.querySelector("[data-case-reason]")
+				const select = card?.querySelector("[data-reject-template]")
+				if (!body || !(textarea instanceof HTMLTextAreaElement)) return
+				textarea.value = body
+				if (select instanceof HTMLSelectElement) {
+					select.value = body
+				}
+				textarea.focus()
 			})
-			if (submitButton) submitButton.removeAttribute("disabled")
 		})
-	})
+		;(function setupCaseDrawerA11y() {
+			const drawer = document.querySelector("[data-case-drawer]")
+			if (!(drawer instanceof HTMLElement)) return
+			const closeHref =
+				document.querySelector("[data-case-drawer-close]")?.getAttribute("href") ||
+				"/admin/providers"
+			const focusableSelector =
+				'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+
+			function getFocusable() {
+				return Array.from(drawer.querySelectorAll(focusableSelector)).filter(
+					(el) => el instanceof HTMLElement && !el.hasAttribute("disabled")
+				)
+			}
+
+			const closeControl = drawer.querySelector("[data-case-drawer-close]")
+			const reviewTarget = document.getElementById(window.location.hash.slice(1))
+			if (reviewTarget instanceof HTMLElement && drawer.contains(reviewTarget)) {
+				reviewTarget.tabIndex = -1
+				reviewTarget.focus({ preventScroll: true })
+				reviewTarget.scrollIntoView({ block: "start" })
+			} else if (closeControl instanceof HTMLElement) {
+				closeControl.focus()
+			} else {
+				drawer.focus()
+			}
+
+			const isMobile = window.matchMedia("(max-width: 1023px)").matches
+			if (isMobile) {
+				document.body.style.overflow = "hidden"
+			}
+
+			function onKeyDown(event) {
+				if (event.key === "Escape") {
+					event.preventDefault()
+					window.location.href = closeHref
+					return
+				}
+				if (event.key !== "Tab") return
+				const focusable = getFocusable()
+				if (focusable.length === 0) return
+				const first = focusable[0]
+				const last = focusable[focusable.length - 1]
+				const active = document.activeElement
+				if (event.shiftKey && active === first) {
+					event.preventDefault()
+					last.focus()
+				} else if (!event.shiftKey && active === last) {
+					event.preventDefault()
+					first.focus()
+				}
+			}
+
+			document.addEventListener("keydown", onKeyDown)
+			window.addEventListener("pagehide", () => {
+				document.body.style.overflow = ""
+				document.removeEventListener("keydown", onKeyDown)
+			})
+		})()
+	})()
 </script>

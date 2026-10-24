@@ -4,7 +4,7 @@ import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
-	resolveComplianceCaseForSourceCompat,
+	assertLegacyComplianceReviewAllowed,
 	synchronizeComplianceCaseCompat,
 } from "@/lib/casework/compliance-casework"
 import {
@@ -78,6 +78,7 @@ export const POST: APIRoute = async ({ request }) => {
 			riskLevel: "high",
 		}
 		const command = await executeSensitiveCommand({
+			atomic: action === "review",
 			audit,
 			idempotency: {
 				scope: `provider.payment_account.${action}`,
@@ -102,13 +103,6 @@ export const POST: APIRoute = async ({ request }) => {
 			execute: async () => {
 				const actorUserId = audit.actorUserId
 				if (!actorUserId) throw new Error("sensitive_command_actor_missing")
-				await synchronizeComplianceCaseCompat({
-					providerId: payload.providerId,
-					domain: "payments",
-					sourceType: "ProviderPaymentAccount",
-					sourceRef: payload.accountId,
-					summary: "Revisión de cuenta de payout",
-				})
 				if (action === "initiate_micro_deposit") {
 					const result = await initiatePaymentAccountMicroDeposit({
 						providerId: payload.providerId,
@@ -122,6 +116,19 @@ export const POST: APIRoute = async ({ request }) => {
 					)
 					return { response: { ok: true, ...result }, afterJson: { action } }
 				}
+				await synchronizeComplianceCaseCompat({
+					providerId: payload.providerId,
+					domain: "payments",
+					sourceType: "ProviderPaymentAccount",
+					sourceRef: payload.accountId,
+					summary: "Revisión de cuenta bancaria",
+				})
+				await assertLegacyComplianceReviewAllowed({
+					providerId: payload.providerId,
+					domain: "payments",
+					sourceType: "ProviderPaymentAccount",
+					sourceRef: payload.accountId,
+				})
 				const account = await reviewProviderPaymentAccount({
 					providerId: payload.providerId,
 					actorUserId,
@@ -129,18 +136,6 @@ export const POST: APIRoute = async ({ request }) => {
 					status: payload.status,
 					reason: payload.reason,
 				})
-				if (payload.status === "verified" || payload.status === "requires_attention")
-					await resolveComplianceCaseForSourceCompat(
-						{
-							providerId: payload.providerId,
-							domain: "payments",
-							sourceType: "ProviderPaymentAccount",
-							sourceRef: payload.accountId,
-						},
-						payload.status === "verified" ? "requirements_satisfied" : "information_mismatch"
-					)
-				await invalidateProvider(payload.providerId)
-				await invalidateProviderGovernance(payload.providerId, "admin_payment_account_reviewed")
 				return { response: { ok: true, account }, afterJson: { status: payload.status } }
 			},
 		})

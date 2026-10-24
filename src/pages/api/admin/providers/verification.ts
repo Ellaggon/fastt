@@ -4,6 +4,7 @@ import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
+	assertLegacyComplianceReviewAllowed,
 	resolveComplianceCaseForSourceCompat,
 	synchronizeComplianceCaseCompat,
 } from "@/lib/casework/compliance-casework"
@@ -78,6 +79,7 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 		let actorEmail: string | undefined
 		const command = await executeSensitiveCommand({
+			atomic: true,
 			audit,
 			idempotency: {
 				scope: "provider.verification.review",
@@ -109,6 +111,12 @@ export const POST: APIRoute = async ({ request }) => {
 					summary: "Revisión de identidad y negocio del proveedor",
 				})
 
+				await assertLegacyComplianceReviewAllowed({
+					providerId: payload.providerId,
+					domain: "verification",
+					sourceType: "ProviderVerification",
+					sourceRef: payload.providerId,
+				})
 				const before = await getLatestProviderVerificationStatus(payload.providerId)
 				const result = await setProviderVerificationV2(
 					{ repo: providerV2Repository },
