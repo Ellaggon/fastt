@@ -1,6 +1,7 @@
 ---
 import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
 import Card from "@/components/ui/Card.astro"
+import Button from "@/components/ui/Button.astro"
 import type { VerificationScreen } from "@/lib/verification/screen-sections"
 import type { VerificationPlaybookTab } from "@/lib/verification/navigation"
 
@@ -10,6 +11,9 @@ type Props = {
 	tourArea?: "activity" | "safety" | null
 	experienceId?: string | null
 	safetyState?: VerificationPlaybookTab["uiState"]
+	operationComplete?: boolean
+	missingOperationFields?: string[]
+	collectionModelUndecided?: boolean
 }
 
 const {
@@ -18,10 +22,30 @@ const {
 	tourArea = null,
 	experienceId = null,
 	safetyState = "not_evaluable",
+	operationComplete = true,
+	missingOperationFields = [],
+	collectionModelUndecided = false,
 } = Astro.props as Props
 const lineSections = screen.sections.filter(
-	(section) => section.id !== "shared" && (!line || section.id === line) && section.items.length > 0
+	(section) =>
+		section.id !== "shared" &&
+		(!line || section.id === line) &&
+		(section.items.length > 0 || (section.id === "tour" && tourArea === "safety"))
 )
+const completeOperationUrl = new URL("/provider/settings/verification", Astro.url)
+copyVerificationNavigationQuery(completeOperationUrl, Astro.url)
+completeOperationUrl.searchParams.set("line", "tour")
+completeOperationUrl.searchParams.set("tab", "activity")
+completeOperationUrl.searchParams.set("tourTab", "activity")
+if (experienceId) completeOperationUrl.searchParams.set("experience", experienceId)
+completeOperationUrl.hash = "tour-operating-context"
+const safetyPending = tourArea === "safety" && operationComplete && safetyState === "not_evaluable"
+const reviewUrl = new URL("/provider/support", Astro.url)
+reviewUrl.searchParams.set("line", "tour")
+reviewUrl.searchParams.set("topic", "verification")
+reviewUrl.searchParams.set("context", "tour_safety")
+if (experienceId) reviewUrl.searchParams.set("experience", experienceId)
+reviewUrl.searchParams.set("from", `${Astro.url.pathname}${Astro.url.search}`)
 function contextualHref(href: string, area: "activity" | "safety" | null | undefined): string {
 	if (
 		line === "tour" &&
@@ -54,28 +78,61 @@ function contextualHref(href: string, area: "activity" | "safety" | null | undef
 				const listed = section.items.filter(
 					(entry) =>
 						entry.id !== "tour.operating_role_missing" &&
+						entry.id !== "tour.context_missing" &&
 						(section.id !== "tour" || !tourArea || entry.presentationArea === tourArea)
 				)
-				if (!listed.length && !(section.id === "tour" && tourArea === "safety")) return null
+				if (!listed.length && section.id !== "tour") return null
 				return (
 					<Card class="space-y-4" data-verification-line-section={section.id}>
 						<div class="max-w-3xl">
 							<p class="text-sm font-semibold text-slate-950">
 								{section.id === "tour"
 									? tourArea === "safety"
-										? "Seguridad aplicable"
-										: "Licencias aplicables"
+										? !operationComplete
+											? "Completa la operación de la experiencia"
+											: safetyPending
+												? "Evaluación pendiente de Fastt"
+												: safetyState === "not_applicable"
+													? "Sin respaldos adicionales requeridos"
+													: "Respaldos de seguridad"
+										: operationComplete
+											? "Licencias aplicables"
+											: "Licencias por determinar"
 									: section.title}
 							</p>
 							<p class="mt-1 text-sm leading-6 text-slate-600">
 								{section.id === "tour"
 									? tourArea === "safety"
-										? "Se determina por las actividades declaradas y la política vigente."
-										: "Se determina por quién opera y dónde se realiza la experiencia."
+										? "Según la operación declarada para esta experiencia."
+										: operationComplete
+											? "Respaldos según la operación declarada para esta experiencia."
+											: "Completa y guarda el formulario anterior para conocer los respaldos que corresponden."
 									: section.description}
 							</p>
 						</div>
-						{listed.length ? (
+						{safetyPending ? (
+							<div class="space-y-3">
+								<p class="text-sm leading-6 text-slate-600">
+									La operación está guardada. Todavía no se ha resuelto una política comercial
+									aprobada para esta experiencia. Por eso no podemos confirmar si necesitas
+									respaldos de seguridad adicionales.
+								</p>
+								{collectionModelUndecided && (
+									<p class="text-sm leading-6 text-slate-600">
+										También falta definir quién cobra al viajero. Esta decisión forma parte de la
+										revisión comercial; no se resuelve cambiando las actividades ni enviando otro
+										documento.
+									</p>
+								)}
+								<p class="text-sm leading-6 text-slate-600">
+									No necesitas volver a completar la operación. No envíes respaldos adicionales
+									hasta que se indiquen.
+								</p>
+								<Button href={`${reviewUrl.pathname}${reviewUrl.search}`} variant="secondary">
+									Solicitar revisión de requisitos
+								</Button>
+							</div>
+						) : operationComplete && listed.length ? (
 							<ul class="grid gap-2 sm:grid-cols-2">
 								{listed.map((entry) => (
 									<li
@@ -113,12 +170,26 @@ function contextualHref(href: string, area: "activity" | "safety" | null | undef
 									</li>
 								))}
 							</ul>
-						) : (
+						) : tourArea === "safety" ? (
 							<p class="text-sm leading-6 text-slate-600">
 								{safetyState === "not_applicable"
 									? "No aplica un documento de seguridad adicional a la actividad y el territorio declarados. Si cambian, volveremos a evaluarlo."
-									: "No evaluable todavía. Declara el papel operativo, la actividad y el territorio en Actividad y licencias para saber qué respaldo corresponde."}
+									: missingOperationFields.length
+										? `Falta completar: ${missingOperationFields.join(", ")}. Guarda la operación para determinar los respaldos correspondientes.`
+										: "Completa y guarda el papel operativo, las actividades y el territorio para determinar los respaldos correspondientes."}
 							</p>
+						) : operationComplete ? (
+							<p class="text-sm leading-6 text-slate-600">
+								No hay licencias adicionales identificadas para la operación declarada.
+							</p>
+						) : null}
+						{tourArea === "safety" && !operationComplete && (
+							<Button
+								href={`${completeOperationUrl.pathname}${completeOperationUrl.search}${completeOperationUrl.hash}`}
+								variant="selection"
+							>
+								Completar operación
+							</Button>
 						)}
 					</Card>
 				)

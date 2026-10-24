@@ -1,14 +1,8 @@
 ---
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
-import Button from "@/components/ui/Button.astro"
-import Card from "@/components/ui/Card.astro"
-import Notice from "@/components/ui/Notice.astro"
-import Textarea from "@/components/ui/Textarea.astro"
+import ProviderInformationRequestInbox from "@/components/provider/ProviderInformationRequestInbox.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
-import {
-	listProviderInformationRequests,
-	PROVIDER_WORK_VOCABULARY,
-} from "@/modules/casework/public"
+import { listProviderInformationRequests } from "@/modules/casework/public"
 import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
 const session = await requireProviderSessionSurface(Astro.request).catch((error) => {
 	if (error instanceof Response && error.status === 401) return null
@@ -20,84 +14,29 @@ const enabled =
 	getFeatureFlag("COMMAND_CENTER_V2_COMMANDS_ENABLED", { request: Astro.request }) &&
 	isCommandCenterV2PilotProvider(session.provider.providerId)
 Astro.response.headers.set("Cache-Control", "private, no-store")
-const fmt = new Intl.DateTimeFormat("es-BO", {
-	dateStyle: "medium",
-	timeStyle: "short",
-	timeZone: "America/La_Paz",
-})
+const permissions = session.provider.permissions
+const canReadRequests = Boolean(
+	permissions &&
+	(permissions.canEditProfile ||
+		permissions.canManageDocuments ||
+		permissions.canManageFiscality ||
+		permissions.canManagePayments)
+)
 ---
 
 <ProviderSettingsLayout
-	title="Solicitudes de revisión"
-	heading="Solicitudes de revisión"
-	description="Consulta qué información necesita el equipo y responde en este canal seguro."
+	title="Solicitudes del equipo"
+	heading="Solicitudes del equipo"
+	description="Responde a las aclaraciones que Fastt necesita para revisar tu cuenta."
 	showSettingsTabs={false}
 >
-	<div class="mx-auto max-w-3xl space-y-5">
-		{
-			Astro.url.searchParams.get("result") === "received" && (
-				<Notice variant="success">
-					Respuesta recibida. El equipo debe revisarla; todavía no implica aprobación.
-				</Notice>
-			)
-		}
-		{
-			!requests.length && (
-				<Notice variant="neutral">No hay solicitudes publicadas para tus permisos actuales.</Notice>
-			)
-		}
-		{
-			requests.map((item) => (
-				<Card class="p-5 text-slate-950">
-					<h2 class="text-lg font-semibold">
-						{
-							PROVIDER_WORK_VOCABULARY.domains[
-								item.domain as keyof typeof PROVIDER_WORK_VOCABULARY.domains
-							]
-						}{" "}
-						· {item.caseNumber}
-					</h2>
-					<p class="mt-2 text-sm text-slate-600">Publicada {fmt.format(item.publishedAt)}</p>
-					<p class="mt-4 whitespace-pre-wrap">{item.message}</p>
-					{item.response ? (
-						<div class="mt-4 border-t border-slate-200 pt-4">
-							<h3 class="font-semibold">Tu respuesta · pendiente de revisión</h3>
-							<p class="mt-2 whitespace-pre-wrap">{item.response}</p>
-							<p class="mt-2 text-sm">Recibida {fmt.format(item.respondedAt!)}</p>
-						</div>
-					) : enabled && item.status === "waiting_information" ? (
-						<form
-							method="post"
-							action="/api/provider/compliance/respond"
-							class="mt-4 space-y-3"
-							data-information-response
-							data-actor-id={session.user.id}
-						>
-							<input type="hidden" name="decisionId" value={item.decisionId} />
-							<input type="hidden" name="requestKey" value={crypto.randomUUID()} />
-							<label class="block font-semibold">
-								Respuesta
-								<Textarea
-									name="message"
-									required
-									minlength="12"
-									maxlength="4000"
-									className="mt-2 min-h-32"
-								/>
-							</label>
-							<p class="text-sm text-slate-600">
-								No incluyas contraseñas, números bancarios ni documentos aquí. Actualiza las
-								evidencias en su sección segura y describe qué corregiste.
-							</p>
-							<Button type="submit">Enviar respuesta</Button>
-							<p role="status" data-response-status />
-						</form>
-					) : (
-						<p class="mt-4">La respuesta no está habilitada en este momento.</p>
-					)}
-				</Card>
-			))
-		}
+	<div class="max-w-3xl">
+		<ProviderInformationRequestInbox
+			requests={requests}
+			enabled={enabled}
+			canReadRequests={canReadRequests}
+			actorId={session.user.id}
+		/>
 	</div>
 </ProviderSettingsLayout>
 <script>
@@ -111,16 +50,22 @@ const fmt = new Intl.DateTimeFormat("es-BO", {
 		const storageKey = `casework:provider-response:${form.dataset.actorId}:${decisionId}`
 		let pending: PendingCaseCommand | null = null
 		try {
-			pending = JSON.parse(sessionStorage.getItem(storageKey) || "null")
+			const stored = JSON.parse(sessionStorage.getItem(storageKey) || "null")
+			if (stored && typeof stored.key === "string" && typeof stored.body === "string") {
+				const values = JSON.parse(stored.body) as Record<string, string>
+				if (
+					values.decisionId === decisionId &&
+					values.requestKey === stored.key &&
+					typeof values.message === "string"
+				) {
+					pending = stored
+					form.querySelector<HTMLTextAreaElement>('textarea[name="message"]')!.value =
+						values.message
+					form.querySelector<HTMLInputElement>('input[name="requestKey"]')!.value = stored.key
+				}
+			}
 		} catch {
 			/* In-memory retry remains available. */
-		}
-		if (pending) {
-			const values = JSON.parse(pending.body) as Record<string, string>
-			for (const field of form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
-				"input[name],textarea[name]"
-			))
-				if (values[field.name] != null) field.value = values[field.name]
 		}
 		let busy = false
 		form.addEventListener("submit", async (event) => {
@@ -130,6 +75,7 @@ const fmt = new Intl.DateTimeFormat("es-BO", {
 			const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!
 			const status = form.querySelector<HTMLElement>("[data-response-status]")!
 			button.disabled = true
+			form.setAttribute("aria-busy", "true")
 			status.textContent = "Enviando respuesta…"
 			const values = Object.fromEntries(new FormData(form))
 			pending = prepareCaseCommand(pending, JSON.stringify(values), () => String(values.requestKey))
@@ -166,13 +112,18 @@ const fmt = new Intl.DateTimeFormat("es-BO", {
 				status.textContent =
 					response.status === 401
 						? "Tu sesión venció. Conserva el texto e inicia sesión antes de volver a intentar."
-						: "No se confirmó la recepción. Tu texto sigue aquí. El reintento consultará la misma referencia con el mensaje original."
+						: response.status === 422
+							? "Revisa tu respuesta: debe tener entre 12 y 4000 caracteres."
+							: response.status === 403
+								? "El envío no está habilitado para tu acceso. Contacta al titular o a Soporte."
+								: "No se confirmó la recepción. Tu texto sigue aquí. El reintento consultará la misma referencia con el mensaje original."
 			} catch {
 				status.textContent =
 					"Respuesta sin confirmar. Vuelve a intentar: se consultará la misma referencia con el mensaje original."
 			} finally {
 				busy = false
 				button.disabled = false
+				form.removeAttribute("aria-busy")
 			}
 		})
 	}

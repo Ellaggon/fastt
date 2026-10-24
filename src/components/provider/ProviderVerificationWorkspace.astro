@@ -19,6 +19,8 @@ import { resolveProviderRejectCategory } from "@/lib/provider-reject-categories"
 import type { ProviderVerificationWorkspaceModel } from "@/lib/provider-verification-workspace"
 import { isProviderTrustMapComplete } from "@/lib/provider-trust-map"
 import { routes } from "@/lib/routes"
+import { storedTourActivityClasses } from "@/lib/tours/tour-compliance-context"
+import { tourTerritoryCodes } from "@/lib/tours/tour-operating-territories"
 import {
 	verificationNavigationHref,
 	tourEvidenceReturnHref,
@@ -60,7 +62,6 @@ const {
 	taxConfiguration,
 	paymentAccounts,
 	defaultCurrency,
-	payoutRail,
 	identityVendorStatus,
 	nextStep,
 	crossLinks,
@@ -81,6 +82,16 @@ const {
 } = model
 
 const trustMapComplete = isProviderTrustMapComplete(trustLinks)
+const tourOperationComplete = Boolean(
+	tourContext?.operatingRole &&
+	tourTerritoryCodes(tourContext).length &&
+	storedTourActivityClasses(tourContext.activityClassesJson).length
+)
+const missingTourOperationFields = [
+	!tourContext?.operatingRole ? "papel operativo" : null,
+	!tourTerritoryCodes(tourContext).length ? "territorio" : null,
+	!storedTourActivityClasses(tourContext?.activityClassesJson).length ? "actividades" : null,
+].filter((field): field is string => field !== null)
 const trustLinkById = new Map(trustLinks.map((link) => [link.id, link]))
 const identitySlots = screen ? kycSlots.filter((slot) => slot.type === "government_id") : []
 const businessSlots = screen
@@ -197,14 +208,19 @@ const paymentResultMessages: Record<
 	string,
 	{ title: string; body: string; variant: "success" | "info" }
 > = {
+	primary_selected: {
+		title: "Cuenta principal actualizada",
+		body: "Esta cuenta será la referencia bancaria para futuras liquidaciones.",
+		variant: "success",
+	},
 	submitted: {
 		title: "Cuenta enviada",
-		body: "Paso 1 listo. Revisa el extracto en 1-2 días hábiles: verás dos depósitos pequeños. Esta pantalla te guía hasta confirmar montos.",
+		body: "El equipo revisará los datos y te indicará aquí si necesita una corrección o una verificación bancaria.",
 		variant: "success",
 	},
 	micro_deposit_confirmed: {
-		title: "Cuenta lista",
-		body: "Confirmaste los montos del extracto. La cuenta quedó verificada para liquidaciones.",
+		title: "Cuenta verificada",
+		body: "La titularidad quedó confirmada. Las liquidaciones aún no están habilitadas.",
 		variant: "success",
 	},
 }
@@ -213,6 +229,41 @@ const paymentErrorMessages: Record<
 	string,
 	{ title: string; body: string; variant: "warning" | "error" }
 > = {
+	account_changed_retry: {
+		title: "La cuenta cambió durante el envío",
+		body: "Consulta su estado actualizado antes de volver a enviar los datos.",
+		variant: "warning",
+	},
+	validation_error: {
+		title: "Revisa los datos de la cuenta",
+		body: "Completa el titular, banco, país, moneda y número de cuenta con los formatos indicados.",
+		variant: "warning",
+	},
+	swift_required_for_international_wire: {
+		title: "Falta el código bancario",
+		body: "Agrega el SWIFT de la cuenta para una transferencia internacional.",
+		variant: "warning",
+	},
+	micro_deposit_confirmation_uncertain: {
+		title: "La confirmación sigue en revisión",
+		body: "Reintenta con los mismos montos para recuperar el resultado del banco o contacta al equipo.",
+		variant: "warning",
+	},
+	bank_verification_unavailable: {
+		title: "Verificación bancaria no disponible",
+		body: "El equipo debe revisar esta cuenta. No ingreses montos de prueba.",
+		variant: "warning",
+	},
+	micro_deposit_confirmation_in_progress: {
+		title: "Confirmación en curso",
+		body: "Espera el resultado antes de volver a enviar los montos.",
+		variant: "warning",
+	},
+	not_pending: {
+		title: "La cuenta ya tiene un resultado",
+		body: "Consulta su estado actualizado antes de continuar.",
+		variant: "warning",
+	},
 	micro_deposit_mismatch: {
 		title: "Montos incorrectos",
 		body: "Los montos no coinciden con el extracto. Revisa los dos créditos pequeños e inténtalo de nuevo.",
@@ -570,10 +621,11 @@ const paymentErrorMessages: Record<
 							screen={screen}
 							line="tour"
 							tourArea="activity"
+							operationComplete={tourOperationComplete}
 							experienceId={navigation.experienceId}
 						/>
 					)}
-					{tourVerification[0]?.state === "waiting_on_fastt" ? (
+					{tourOperationComplete && tourVerification[0]?.state === "waiting_on_fastt" ? (
 						<Notice variant="info" title="Pendiente de política Fastt">
 							Esta combinación todavía requiere una regla comercial aprobada. Puedes guardar la
 							operación; no subas documentos que no aparezcan como aplicables.
@@ -596,7 +648,9 @@ const paymentErrorMessages: Record<
 								"Revisa el archivo y el alcance e inténtalo de nuevo."}
 						</Notice>
 					) : null}
-					{tourEvidenceOptions.activity.length && navigation?.experienceId ? (
+					{tourOperationComplete &&
+					tourEvidenceOptions.activity.length &&
+					navigation?.experienceId ? (
 						<ProviderVerificationOptionals
 							surface="tour-activity"
 							renewalDocumentId={Astro.url.searchParams.get("renewDocumentId")}
@@ -636,8 +690,13 @@ const paymentErrorMessages: Record<
 							screen={screen}
 							line="tour"
 							tourArea="safety"
+							operationComplete={tourOperationComplete}
 							experienceId={navigation?.experienceId}
 							safetyState={tourPlaybook.find((tab) => tab.id === "safety")?.uiState}
+							missingOperationFields={missingTourOperationFields}
+							collectionModelUndecided={
+								!commercialLine || commercialLine.collectionModel === "undecided"
+							}
 						/>
 					)}
 					{result === "submitted" ? (
@@ -651,7 +710,10 @@ const paymentErrorMessages: Record<
 								"Revisa el archivo y el alcance e inténtalo de nuevo."}
 						</Notice>
 					) : null}
-					{tourEvidenceOptions.safety.length && navigation?.experienceId ? (
+					{tourOperationComplete &&
+					tourEvidenceOptions.safety.length &&
+					tourPlaybook.find((tab) => tab.id === "safety")?.uiState !== "not_evaluable" &&
+					navigation?.experienceId ? (
 						<ProviderVerificationOptionals
 							surface="tour-safety"
 							renewalDocumentId={Astro.url.searchParams.get("renewDocumentId")}
@@ -802,7 +864,6 @@ const paymentErrorMessages: Record<
 				canManagePayments={canManagePayments}
 				defaultCurrency={defaultCurrency}
 				paymentAssignments={paymentAssignments}
-				payoutRail={payoutRail}
 				formReturnTo="verificationPayments"
 			/>
 		</section>

@@ -1,8 +1,13 @@
 ---
 import Button from "@/components/ui/Button.astro"
+import Input from "@/components/ui/Input.astro"
 import type { CaseEvidenceReadModel } from "@/modules/casework/public"
 
-const { evidence, caseId }: { evidence: CaseEvidenceReadModel; caseId: string } = Astro.props
+const {
+	evidence,
+	caseId,
+	canReveal = false,
+}: { evidence: CaseEvidenceReadModel; caseId: string; canReveal?: boolean } = Astro.props
 const signalLabel = {
 	pass: "Verificado",
 	review: "Revisar",
@@ -81,6 +86,7 @@ const processingErrorMessages: Record<string, string> = {
 ---
 
 <section
+	id="case-evidence"
 	class="space-y-5"
 	aria-labelledby="case-evidence-title"
 	data-case-evidence
@@ -129,6 +135,64 @@ const processingErrorMessages: Record<string, string> = {
 			))
 		}
 	</dl>
+	{
+		evidence.domain === "fiscal" && (
+			<p class="text-sm text-slate-600">
+				Esta revisión contiene los datos fiscales declarados. Los archivos adjuntos se abren desde
+				su revisión documental.
+			</p>
+		)
+	}
+	{
+		evidence.reveal && canReveal && (
+			<form
+				class="fastt-notice space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4"
+				data-evidence-reveal
+				data-endpoint={`/api/admin/v1/cases/${caseId}/evidence/reveal`}
+			>
+				<h3 class="text-sm font-semibold">
+					{evidence.reveal.kind === "document"
+						? "Consultar archivo original"
+						: evidence.reveal.kind === "tax_registration"
+							? "Consultar registro fiscal completo"
+							: "Consultar datos de la cuenta"}
+				</h3>
+				<p class="text-xs leading-5 text-slate-600">
+					Indica el motivo de acceso. Se solicitará MFA si hace falta y la consulta quedará
+					registrada.
+				</p>
+				<input type="hidden" name="kind" value={evidence.reveal.kind} />
+				<label class="block text-xs font-medium text-slate-700">
+					Motivo de acceso
+					<Input
+						name="reason"
+						required
+						minlength="8"
+						maxlength="240"
+						class="mt-1"
+						placeholder="Ej. comprobar el respaldo presentado para esta revisión"
+					/>
+				</label>
+				<Button type="submit" size="sm" variant="secondary">
+					{evidence.reveal.label}
+				</Button>
+				<div
+					class="fastt-notice hidden rounded-lg border border-slate-200 bg-white p-3 text-sm"
+					data-reveal-output
+					role="status"
+					aria-live="polite"
+				/>
+			</form>
+		)
+	}
+	{
+		evidence.reveal && !canReveal && (
+			<p class="text-sm text-amber-800">
+				Tu cuenta puede consultar el resumen, pero necesita permiso de acceso a información
+				protegida para abrir el contenido completo.
+			</p>
+		)
+	}
 
 	<div>
 		<h3 class="text-sm font-semibold text-slate-900">Criterios de decisión</h3>
@@ -332,50 +396,6 @@ const processingErrorMessages: Record<string, string> = {
 					))}
 				</ul>
 			</div>
-		)
-	}
-
-	{
-		evidence.reveal && (
-			<form
-				class="fastt-notice rounded-xl border border-amber-200 bg-amber-50 p-4"
-				data-evidence-reveal
-				data-endpoint={`/api/admin/v1/cases/${caseId}/evidence/reveal`}
-			>
-				<h3 class="text-sm font-semibold text-amber-950">Acceso puntual a información sensible</h3>
-				<p class="mt-1 text-xs leading-5 text-amber-900">
-					Requiere permiso de revelado, MFA reciente y una justificación. Cada intento queda en
-					auditoría.
-				</p>
-				<input type="hidden" name="kind" value={evidence.reveal.kind} />
-				<label class="mt-3 block text-xs font-medium text-amber-950">
-					Motivo de acceso
-					<input
-						name="reason"
-						required
-						minlength="8"
-						maxlength="240"
-						class="fastt-notice fastt-field mt-1 h-10 w-full rounded-lg border border-amber-300 bg-white px-3 text-sm"
-						placeholder="Ej. validar titularidad para resolver el caso"
-					/>
-				</label>
-				<div class="mt-3 flex flex-wrap items-center gap-3">
-					<>
-						<Button type="submit" size="sm" variant="secondary">
-							{evidence.reveal.label}
-						</Button>
-						<span class="text-xs text-amber-800">
-							El acceso caduca o se oculta automáticamente.
-						</span>
-					</>
-				</div>
-				<div
-					class="fastt-notice mt-3 hidden rounded-lg border border-amber-200 bg-white p-3 text-sm"
-					data-reveal-output
-					role="status"
-					aria-live="polite"
-				/>
-			</form>
 		)
 	}
 

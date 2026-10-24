@@ -1,0 +1,95 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+
+interface Props {
+	caseId: string
+	caseVersion: number
+	status: string
+	commandsEnabled: boolean
+	caseInPilot: boolean
+	canAssignCase: boolean
+	hasUnassignedTask: boolean
+	pendingDecisionReview: boolean
+	legacyReviewHref: string | null
+}
+
+const {
+	caseId,
+	caseVersion,
+	status,
+	commandsEnabled,
+	caseInPilot,
+	canAssignCase,
+	hasUnassignedTask,
+	pendingDecisionReview,
+	legacyReviewHref,
+} = Astro.props
+const actionable = ["open", "in_review", "waiting_information", "blocked"].includes(status)
+const waiting = status === "waiting_information"
+const canTakeCase =
+	actionable &&
+	!pendingDecisionReview &&
+	!waiting &&
+	commandsEnabled &&
+	caseInPilot &&
+	canAssignCase &&
+	hasUnassignedTask
+const canContinueReview = actionable && !pendingDecisionReview && !waiting && legacyReviewHref
+const message = !actionable
+	? "El caso está cerrado. Consulta el resultado y la cronología."
+	: pendingDecisionReview
+		? "Hay una decisión pendiente de control o reconciliación. Revisa su estado antes de continuar."
+		: waiting
+			? "El caso espera información del proveedor. Revisa la solicitud y su respuesta."
+			: !commandsEnabled
+				? "La asignación y las decisiones están en modo consulta en este entorno."
+				: !caseInPilot
+					? "La asignación y las decisiones de este proveedor aún no están habilitadas en este expediente."
+					: !hasUnassignedTask
+						? "Las tareas abiertas ya tienen responsable."
+						: !canAssignCase
+							? "Tu cuenta puede consultar el caso, pero no tiene permiso para asignarlo."
+							: "Toma el caso para figurar como responsable de la revisión."
+---
+
+<Card>
+	<h2 class="font-semibold">Siguiente acción</h2>
+	<p class="mt-2 text-sm text-slate-600">{message}</p>
+	{
+		canTakeCase ? (
+			<form class="mt-4" data-case-command data-endpoint={`/api/admin/v1/cases/${caseId}/assign`}>
+				<input type="hidden" name="caseVersion" value={caseVersion} />
+				<p
+					class="hidden rounded-xl px-4 py-3 text-sm"
+					data-command-message
+					role="status"
+					aria-live="polite"
+				/>
+				<Button type="submit" class="w-full">
+					Tomar caso
+				</Button>
+			</form>
+		) : canContinueReview ? (
+			<div class="mt-4 space-y-2">
+				<Button href={legacyReviewHref!} reload variant="secondary" class="w-full">
+					Continuar revisión del área
+				</Button>
+				<p class="text-xs leading-5 text-slate-500">
+					El panel de proveedores permite revisar la evidencia y registrar el resultado. Para
+					aprobar o rechazar se requiere confirmar MFA.
+				</p>
+			</div>
+		) : null
+	}
+	{
+		actionable && (pendingDecisionReview || waiting) ? (
+			<a
+				href="#case-decision-status"
+				class="mt-3 inline-flex text-sm font-semibold underline underline-offset-4"
+			>
+				Revisar estado de decisiones
+			</a>
+		) : null
+	}
+</Card>

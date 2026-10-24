@@ -1,0 +1,376 @@
+---
+import AdminComplianceSlaAssign from "@/components/admin/AdminComplianceSlaAssign.astro"
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import { canVerifyBankAccountAutomatically } from "@/lib/payout-rail"
+import {
+	buildPayoutVerificationTimeline,
+	type ProviderPaymentAccountRecord,
+} from "@/lib/provider-payment-accounts"
+import { listProviderRejectCategories } from "@/lib/provider-reject-categories"
+import type { ComponentProps } from "astro/types"
+
+type Props = {
+	accounts: ProviderPaymentAccountRecord[]
+	legalName: string
+	canReview: boolean
+	caseIds?: Record<string, string>
+	assignments?: Record<string, ComponentProps<typeof AdminComplianceSlaAssign>["assignment"]>
+	adminEmail?: string
+}
+const { accounts, legalName, canReview, caseIds = {}, assignments = {}, adminEmail } = Astro.props
+const current = accounts.filter((account) => account.status !== "superseded")
+const historical = accounts.filter((account) => account.status === "superseded")
+const fmt = new Intl.DateTimeFormat("es", { dateStyle: "medium", timeStyle: "short" })
+---
+
+<section id="provider-review-payments" class="space-y-4" data-payment-review-workspace>
+	<header>
+		<h3 class="text-base font-semibold text-slate-950">Cuentas bancarias</h3>
+		<p class="mt-1 text-sm text-slate-600">Datos para futuras liquidaciones.</p>
+	</header>
+	<p
+		class="fastt-notice hidden rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800"
+		data-bank-feedback
+		role="status"
+		aria-live="polite"
+	>
+	</p>
+	{
+		current.length === 0 && (
+			<p class="fastt-notice rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+				El proveedor aún no ha enviado una cuenta bancaria. La revisión estará disponible cuando la
+				registre.
+			</p>
+		)
+	}
+	{
+		current.map((account) => {
+			const timeline = buildPayoutVerificationTimeline(account)
+			const pending = account.status === "pending"
+			const sameHolder =
+				account.accountHolderName?.trim().toLocaleLowerCase() ===
+				legalName.trim().toLocaleLowerCase()
+			const canStart =
+				pending &&
+				canVerifyBankAccountAutomatically(account) &&
+				["none", "initiating"].includes(account.microDeposit.status)
+			return (
+				<article class="space-y-4 border-b border-slate-200 pb-5" data-bank-account={account.id}>
+					<div class="flex flex-wrap items-start justify-between gap-2">
+						<div class="min-w-0">
+							<h4 class="text-sm font-semibold break-words text-slate-950">
+								{account.bankName || "Banco"} · {account.accountReference || "••••"}
+							</h4>
+							<p class="mt-1 text-xs text-slate-500">
+								{account.country} · {account.currency}
+								{account.isPrimary ? " · Principal" : ""}
+							</p>
+						</div>
+						<Badge
+							variant={account.status === "verified" ? "success" : pending ? "warning" : "neutral"}
+						>
+							{timeline.phaseLabel}
+						</Badge>
+					</div>
+					<dl class="grid gap-3 text-sm sm:grid-cols-2">
+						<div>
+							<>
+								<dt class="text-xs text-slate-500">Titular bancario</dt>
+								<dd class="mt-1 break-words text-slate-900">
+									{account.accountHolderName || "Sin titular"}
+								</dd>
+							</>
+						</div>
+						<div>
+							<>
+								<dt class="text-xs text-slate-500">Titular del proveedor</dt>
+								<dd class="mt-1 break-words text-slate-900">{legalName}</dd>
+							</>
+						</div>
+						<div>
+							<>
+								<dt class="text-xs text-slate-500">Enviada</dt>
+								<dd class="mt-1 text-slate-900">
+									{account.createdAt ? fmt.format(new Date(account.createdAt)) : "Sin fecha"}
+								</dd>
+							</>
+						</div>
+						{account.reviewedAt && (
+							<div>
+								<dt class="text-xs text-slate-500">Revisada</dt>
+								<dd class="mt-1 text-slate-900">{fmt.format(new Date(account.reviewedAt))}</dd>
+							</div>
+						)}
+					</dl>
+					{pending && (
+						<p class="text-xs text-slate-600">
+							{sameHolder
+								? "El nombre del titular coincide con el declarado."
+								: "Los nombres de titular no coinciden exactamente. Corrobora el vínculo antes de aprobar."}
+						</p>
+					)}
+					{account.reviewReason && (
+						<p class="rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-700">
+							{account.reviewReason}
+						</p>
+					)}
+					{!pending && (
+						<p class="text-xs text-slate-500">
+							{account.verificationMethod === "manual"
+								? "Revisión manual documentada"
+								: account.verificationMethod === "bank"
+									? "Verificación bancaria"
+									: "Resultado registrado"}{" "}
+							· {timeline.helperText}
+						</p>
+					)}
+					{caseIds[account.id] && (
+						<Button href={`/admin/cases/${caseIds[account.id]}`} variant="secondary" size="sm">
+							Ver evidencia y expediente
+						</Button>
+					)}
+					{pending && canReview && (
+						<form
+							class="space-y-3"
+							data-bank-review-form
+							data-account-id={account.id}
+							data-provider-id={account.providerId}
+						>
+							<FormField
+								label="Resultado de la revisión"
+								htmlFor={`review-${account.id}`}
+								description="Identifica el respaldo revisado y explica la aprobación o la corrección necesaria."
+							>
+								<Textarea
+									id={`review-${account.id}`}
+									name="reason"
+									rows="3"
+									required
+									minlength="10"
+									maxlength="2000"
+									placeholder="Respaldo consultado, titularidad y resultado…"
+								/>
+							</FormField>
+							<details class="text-xs text-slate-600">
+								<summary class="cursor-pointer">Motivos de corrección</summary>
+								<div class="mt-2 flex flex-wrap gap-2">
+									{listProviderRejectCategories("payments").map((item) => (
+										<Button
+											type="button"
+											variant="secondary"
+											size="sm"
+											data-bank-reason={item.body}
+										>
+											{item.label}
+										</Button>
+									))}
+								</div>
+							</details>
+							<div class="flex flex-wrap gap-2">
+								<Button type="submit" name="decision" value="verified" size="sm">
+									Verificar cuenta
+								</Button>
+								<Button
+									type="submit"
+									name="decision"
+									value="requires_attention"
+									variant="secondary"
+									size="sm"
+								>
+									Solicitar corrección
+								</Button>
+							</div>
+							{canStart && (
+								<Button type="button" variant="secondary" size="sm" data-bank-start>
+									{account.microDeposit.status === "initiating"
+										? "Consultar inicio bancario"
+										: "Iniciar verificación bancaria"}
+								</Button>
+							)}
+							{account.microDeposit.status !== "none" && (
+								<p class="text-xs text-slate-500">{timeline.helperText}</p>
+							)}
+							<p class="text-xs text-slate-500">
+								La verificación de esta cuenta no habilita transferencias.
+							</p>
+						</form>
+					)}
+					{pending && !canReview && (
+						<p class="text-sm text-slate-600">
+							Tu cuenta puede consultar esta información. La decisión requiere permiso de revisión
+							bancaria.
+						</p>
+					)}
+					{pending && (
+						<details class="text-sm text-slate-600">
+							<summary class="cursor-pointer">Responsable y plazo</summary>
+							<div class="mt-3">
+								<AdminComplianceSlaAssign
+									providerId={account.providerId}
+									domain="payments"
+									entityId={account.id}
+									assignment={assignments[account.id]}
+									currentAdminEmail={adminEmail}
+								/>
+							</div>
+						</details>
+					)}
+				</article>
+			)
+		})
+	}
+	{
+		historical.length > 0 && (
+			<details class="text-sm text-slate-600">
+				<summary class="cursor-pointer">Cuentas anteriores · {historical.length}</summary>
+				<ul class="mt-3 divide-y divide-slate-200">
+					{historical.map((account) => (
+						<li class="py-3">
+							<p class="font-medium text-slate-900">
+								{account.bankName} · {account.accountReference}
+							</p>
+							<p class="mt-1 text-xs">
+								Reemplazada{account.reviewReason ? ` · ${account.reviewReason}` : ""}
+							</p>
+						</li>
+					))}
+				</ul>
+			</details>
+		)
+	}
+</section>
+<script>
+	const errors: Record<string, string> = {
+		payment_review_evidence_required:
+			"Describe el respaldo y la titularidad que sustentan la aprobación.",
+		reason_required: "Explica la corrección que debe realizar el proveedor.",
+		not_pending: "La cuenta ya tiene un resultado. Actualiza la revisión.",
+		casework_decision_pending: "Hay una decisión pendiente de control. Continúa en el expediente.",
+		casework_review_required: "Esta cuenta requiere los controles de su expediente.",
+		legacy_review_disabled: "Continúa la revisión desde el expediente.",
+		case_waiting_information: "El caso espera una respuesta del proveedor.",
+		bank_verification_unavailable:
+			"La verificación bancaria no está disponible. Puedes revisar los respaldos manualmente.",
+		micro_deposit_review_required:
+			"La verificación ya se inició o necesita revisión. Consulta su resultado antes de continuar.",
+	}
+	document.addEventListener("click", (event) => {
+		const target =
+			event.target instanceof Element
+				? event.target.closest<HTMLElement>("[data-bank-reason]")
+				: null
+		const input = target?.closest("form")?.querySelector<HTMLTextAreaElement>("textarea")
+		if (input && target) {
+			input.value = target.dataset.bankReason ?? ""
+			input.focus()
+		}
+	})
+	async function submit(form: HTMLFormElement, action: string, status?: string) {
+		const workspace = form.closest<HTMLElement>("[data-payment-review-workspace]")!
+		const feedback = workspace.querySelector<HTMLElement>("[data-bank-feedback]")!
+		const buttons = form.querySelectorAll<HTMLButtonElement>("button")
+		const reason = form.querySelector<HTMLTextAreaElement>("textarea")?.value.trim() ?? ""
+		if (action === "review" && reason.length < 10) {
+			form.reportValidity()
+			return
+		}
+		buttons.forEach((button) => (button.disabled = true))
+		feedback.classList.remove("hidden")
+		feedback.textContent = "Guardando revisión…"
+		try {
+			// Retain the key for an uncertain response; a changed decision gets a new key.
+			const payload = JSON.stringify({
+				providerId: form.dataset.providerId,
+				accountId: form.dataset.accountId,
+				action,
+				status,
+				reason,
+			})
+			if (form.dataset.lastPayload !== payload) {
+				form.dataset.commandKey = crypto.randomUUID()
+				form.dataset.lastPayload = payload
+			}
+			const response = await fetch("/api/admin/providers/payment-accounts", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"Idempotency-Key": form.dataset.commandKey!,
+				},
+				body: payload,
+			})
+			const body = await response.json().catch(() => ({}))
+			if (response.status === 401) {
+				const href = new URL("/auth/mfa", location.origin)
+				href.searchParams.set("returnTo", location.pathname + location.search + location.hash)
+				feedback.textContent = "Confirma tu sesión para continuar."
+				const link = document.createElement("a")
+				link.href = href.pathname + href.search
+				link.textContent = " Confirmar sesión"
+				link.className = "underline"
+				feedback.append(link)
+				return
+			}
+			if (!response.ok)
+				throw new Error(
+					response.status === 403
+						? "Tu cuenta no tiene permiso para esta revisión."
+						: errors[body.error] || "No se pudo guardar la revisión."
+				)
+			const page = await fetch(location.href, {
+				headers: { Accept: "text/html" },
+				cache: "no-store",
+			})
+			if (!page.ok)
+				throw new Error("La revisión se guardó. Actualiza la página para consultar el resultado.")
+			const html = new DOMParser().parseFromString(await page.text(), "text/html")
+			for (const selector of [
+				"[data-payment-review-workspace]",
+				"[data-payment-checklist]",
+				"[data-payment-queue-count]",
+				"[data-payment-queue-table]",
+				"[data-compliance-queue-nav]",
+				"[data-case-audit]",
+			]) {
+				const fresh = html.querySelector(selector),
+					current = document.querySelector(selector)
+				if (fresh && current) current.replaceWith(fresh)
+			}
+			const updated = document.querySelector<HTMLElement>("[data-bank-feedback]")
+			if (updated) {
+				updated.classList.remove("hidden")
+				updated.textContent =
+					action === "review" ? "Resultado guardado." : "Verificación bancaria iniciada."
+			}
+		} catch (error) {
+			feedback.setAttribute("role", "alert")
+			feedback.textContent =
+				error instanceof Error
+					? error.message
+					: "No se pudo confirmar el resultado. Revisa tu conexión."
+		} finally {
+			buttons.forEach((button) => (button.disabled = false))
+		}
+	}
+	document.addEventListener("submit", (event) => {
+		if (
+			!(event.target instanceof HTMLFormElement) ||
+			!event.target.matches("[data-bank-review-form]")
+		)
+			return
+		event.preventDefault()
+		const button =
+			event instanceof SubmitEvent && event.submitter instanceof HTMLButtonElement
+				? event.submitter
+				: null
+		void submit(event.target, "review", button?.value)
+	})
+	document.addEventListener("click", (event) => {
+		const button =
+			event.target instanceof Element ? event.target.closest("[data-bank-start]") : null
+		const form = button?.closest<HTMLFormElement>("form")
+		if (form) void submit(form, "initiate_micro_deposit")
+	})
+</script>

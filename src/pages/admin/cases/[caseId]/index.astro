@@ -6,13 +6,19 @@ import Textarea from "@/components/ui/Textarea.astro"
 import CaseStatusBadge from "@/components/admin/cases/CaseStatusBadge.astro"
 import InternalAccessDenied from "@/components/admin/InternalAccessDenied.astro"
 import CaseEvidencePanel from "@/components/admin/cases/CaseEvidencePanel.astro"
+import CaseNextAction from "@/components/admin/cases/CaseNextAction.astro"
+import CaseRelatedReviews from "@/components/admin/cases/CaseRelatedReviews.astro"
 import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
-import { requireInternalPermission } from "@/lib/auth/internal-authorization"
+import {
+	principalHasPermission,
+	requireInternalPermission,
+} from "@/lib/auth/internal-authorization"
 import {
 	describeCaseDecisionEffect,
 	getCaseEvidence,
 	getCaseWorkspace,
+	listRelatedCaseReviews,
 } from "@/modules/casework/public"
 
 let principal: Awaited<ReturnType<typeof requireInternalPermission>> | null = null
@@ -42,41 +48,34 @@ const decisionPermissionByDomain: Record<
 let canProposeDecision = false
 let canReviewDecision = false
 let canAssignCase = false
-async function hasPermission(permission: Parameters<typeof requireInternalPermission>[1]) {
-	try {
-		await requireInternalPermission(
-			Astro.request,
-			permission,
-			workspace ? { type: "provider", id: workspace.case.providerId } : undefined
-		)
-		return true
-	} catch (response) {
-		if (response instanceof Response && response.status === 403) return false
-		throw response
-	}
-}
+let canReviewArea = false
+const canAccessLegacy = Boolean(
+	principal && principalHasPermission(principal, "internal.admin.access")
+)
 if (principal && workspace) {
+	canReviewArea = principalHasPermission(
+		principal,
+		decisionPermissionByDomain[workspace.case.domain],
+		{ type: "provider", id: workspace.case.providerId }
+	)
 	canReviewDecision =
-		(await hasPermission("case.decision.approve_high_risk")) &&
-		(await hasPermission(decisionPermissionByDomain[workspace.case.domain]))
-	canAssignCase = await hasPermission("case.assign")
-	try {
-		await requireInternalPermission(Astro.request, "case.decision.propose")
-		await requireInternalPermission(
-			Astro.request,
-			decisionPermissionByDomain[workspace.case.domain] ?? "provider.compliance.read",
-			{ type: "provider", id: workspace.case.providerId }
-		)
-		canProposeDecision = true
-	} catch (response) {
-		if (!(response instanceof Response) || response.status !== 403) throw response
-	}
+		principalHasPermission(principal, "case.decision.approve_high_risk") && canReviewArea
+	canAssignCase = principalHasPermission(principal, "case.assign")
+	canProposeDecision = principalHasPermission(principal, "case.decision.propose") && canReviewArea
 }
-const evidence = workspace ? await getCaseEvidence(workspace) : null
+const [evidence, relatedReviews] = workspace
+	? await Promise.all([
+			getCaseEvidence(workspace),
+			listRelatedCaseReviews(workspace.case.providerId, workspace.case.id),
+		])
+	: [null, []]
 const commandsEnabled = getFeatureFlag("COMMAND_CENTER_V2_COMMANDS_ENABLED", {
 	request: Astro.request,
 })
 const caseInPilot = workspace ? isCommandCenterV2PilotProvider(workspace.case.providerId) : false
+const legacyWriteEnabled = getFeatureFlag("COMMAND_CENTER_LEGACY_WRITE_ENABLED", {
+	request: Astro.request,
+})
 const fmt = new Intl.DateTimeFormat("es-BO", {
 	dateStyle: "medium",
 	timeStyle: "short",
@@ -139,6 +138,18 @@ const pendingDecisionReview =
 	workspace?.decisions.some((decision) =>
 		["proposed", "pending_approval", "approved", "applying", "failed"].includes(decision.status)
 	) ?? false
+const legacyReviewHref =
+	workspace &&
+	caseActionable &&
+	workspace.case.status !== "waiting_information" &&
+	workspace.case.riskTier === "standard" &&
+	!pendingDecisionReview &&
+	(!commandsEnabled || !caseInPilot) &&
+	legacyWriteEnabled &&
+	canAccessLegacy &&
+	canReviewArea
+		? `${legacyHref}#provider-review-${workspace.case.domain}`
+		: null
 const noticeMessage =
 	notice === "request_published"
 		? "La solicitud está disponible en el buzón seguro del proveedor. Su lectura todavía no está confirmada."
@@ -370,7 +381,17 @@ const noticeMessage =
 
 							{evidence && (
 								<Card>
-									<CaseEvidencePanel evidence={evidence} caseId={workspace.case.id} />
+									<CaseEvidencePanel
+										evidence={evidence}
+										caseId={workspace.case.id}
+										canReveal={Boolean(
+											principal &&
+											principalHasPermission(principal, "sensitive_data.reveal", {
+												type: "provider",
+												id: workspace.case.providerId,
+											})
+										)}
+									/>
 								</Card>
 							)}
 
@@ -410,6 +431,7 @@ const noticeMessage =
 										data-case-command
 										data-endpoint={`/api/admin/v1/cases/${workspace.case.id}/propose-decision`}
 										data-approval-comment={evidence?.approvalWarnings.length ? "true" : "false"}
+										data-bank-review={workspace.case.domain === "payments" ? "true" : "false"}
 									>
 										<input type="hidden" name="caseVersion" value={workspace.case.version} />
 										<input type="hidden" name="evidenceRevision" value={evidence?.revision ?? ""} />
@@ -519,14 +541,21 @@ const noticeMessage =
 								) : !commandsEnabled ? (
 									<div class="fastt-card mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
 										<p class="text-sm text-slate-700">
-											Las decisiones en esta vista todavía no están habilitadas. Consulta la
-											evidencia y continúa en el panel anterior si necesitas resolver la revisión.
+											Las decisiones están en modo consulta en este entorno. Esta configuración no
+											indica que falten permisos en tu cuenta.
 										</p>
-										<div class="mt-4">
-											<Button href={legacyHref} variant="secondary">
-												Continuar en el panel anterior
-											</Button>
-										</div>
+										{legacyReviewHref ? (
+											<div class="mt-4">
+												<Button href={legacyReviewHref} reload variant="secondary">
+													Continuar revisión del área
+												</Button>
+											</div>
+										) : (
+											<p class="mt-2 text-sm text-slate-600">
+												Solicita al responsable de operaciones que habilite el flujo de revisión
+												correspondiente a este caso.
+											</p>
+										)}
 									</div>
 								) : !caseInPilot ? (
 									<div class="fastt-notice mt-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
@@ -538,11 +567,13 @@ const noticeMessage =
 											comprueba que la tarea admite esa ruta; las propuestas pendientes de segundo
 											control deben resolverse en su expediente.
 										</p>
-										<div class="mt-4">
-											<Button href={legacyHref} variant="secondary">
-												Continuar en el panel anterior
-											</Button>
-										</div>
+										{legacyReviewHref && (
+											<div class="mt-4">
+												<Button href={legacyReviewHref} reload variant="secondary">
+													Continuar revisión del área
+												</Button>
+											</div>
+										)}
 									</div>
 								) : (
 									<div class="fastt-notice mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
@@ -579,38 +610,26 @@ const noticeMessage =
 						</div>
 
 						<aside class="space-y-4">
-							<Card>
-								<h2 class="font-semibold">Siguiente acción</h2>
-								{caseActionable &&
-								workspace.tasks.some((task) => !task.assigneeUserId && !task.assigneeEmail) ? (
-									commandsEnabled && caseInPilot && canAssignCase ? (
-										<form
-											class="mt-4"
-											data-case-command
-											data-endpoint={`/api/admin/v1/cases/${workspace.case.id}/assign`}
-										>
-											<input type="hidden" name="caseVersion" value={workspace.case.version} />
-											<p
-												class="hidden rounded-xl px-4 py-3 text-sm"
-												data-command-message
-												role="status"
-												aria-live="polite"
-											/>
-											<Button type="submit" class="w-full">
-												Tomar caso
-											</Button>
-										</form>
-									) : (
-										<p class="mt-2 text-sm text-slate-600">
-											La asignación no está disponible para tu cuenta en esta vista.
-										</p>
-									)
-								) : (
-									<p class="mt-2 text-sm text-slate-600">
-										{caseActionable ? "El caso ya tiene responsable." : "El caso está cerrado."}
-									</p>
+							<CaseNextAction
+								caseId={workspace.case.id}
+								caseVersion={workspace.case.version}
+								status={workspace.case.status}
+								commandsEnabled={commandsEnabled}
+								caseInPilot={caseInPilot}
+								canAssignCase={canAssignCase}
+								hasUnassignedTask={workspace.tasks.some(
+									(task) =>
+										["open", "in_progress", "blocked"].includes(task.status) &&
+										!task.assigneeUserId &&
+										!task.assigneeEmail
 								)}
-							</Card>
+								pendingDecisionReview={pendingDecisionReview}
+								legacyReviewHref={legacyReviewHref}
+							/>
+							<CaseRelatedReviews
+								reviews={relatedReviews}
+								returnTo={requestedReturn ? returnHref : Astro.url.pathname}
+							/>
 							<Card>
 								<h2 class="font-semibold">Plazo de revisión · Bolivia</h2>
 								{workspace.timers.map((timer) => (
@@ -639,7 +658,7 @@ const noticeMessage =
 									</p>
 								</>
 							</Card>
-							<Card>
+							<Card id="case-decision-status">
 								<h2 class="font-semibold">Estado de decisiones</h2>
 								{workspace.decisions
 									.filter(
@@ -865,319 +884,369 @@ const noticeMessage =
 		prepareCaseCommand,
 		type PendingCaseCommand,
 	} from "@/modules/casework/command-recovery"
-	const recoveryMemory = new Map<string, string>()
-	const storage = {
-		getItem(key: string) {
-			try {
-				return sessionStorage.getItem(key) ?? recoveryMemory.get(key) ?? null
-			} catch {
-				return recoveryMemory.get(key) ?? null
-			}
-		},
-		setItem(key: string, value: string) {
-			recoveryMemory.set(key, value)
-			try {
-				sessionStorage.setItem(key, value)
-			} catch {
-				/* In-memory recovery remains available. */
-			}
-		},
-		removeItem(key: string) {
-			recoveryMemory.delete(key)
-			try {
-				sessionStorage.removeItem(key)
-			} catch {
-				/* Storage unavailable. */
-			}
-		},
-	}
-	const prepareEvidenceRequest = document.querySelector<HTMLButtonElement>(
-		"[data-prepare-evidence-request]"
-	)
-	prepareEvidenceRequest?.addEventListener("click", () => {
-		const composer = document.querySelector<HTMLFormElement>("[data-endpoint*='/propose-decision']")
-		const decision = composer?.querySelector<HTMLSelectElement>("select[name='decision']")
-		const reason = composer?.querySelector<HTMLSelectElement>("select[name='reasonCode']")
-		const comment = composer?.querySelector<HTMLTextAreaElement>("textarea[name='comment']")
-		if (!composer || !decision || !reason || !comment) return
-		decision.value = "request_information"
-		const matchingReason = [...reason.options].find(
-			(option) => option.dataset.decision === "request_information"
-		)
-		if (matchingReason) reason.value = matchingReason.value
-		comment.value =
-			"No hay un archivo disponible para corroborar el documento. Solicitar una nueva carga segura."
-		composer?.dispatchEvent(new Event("change", { bubbles: true }))
-		document
-			.querySelector("#decision-composer")
-			?.scrollIntoView({ behavior: "smooth", block: "start" })
-		comment.focus()
-	})
-
-	const revealForm = document.querySelector<HTMLFormElement>("[data-evidence-reveal]")
-	revealForm?.addEventListener("submit", async (event) => {
-		event.preventDefault()
-		const output = revealForm.querySelector<HTMLElement>("[data-reveal-output]")
-		const button = revealForm.querySelector<HTMLButtonElement>("button[type='submit']")
-		if (button) button.disabled = true
-		if (output) {
-			output.classList.remove("hidden")
-			output.textContent = "Validando acceso…"
-		}
-		try {
-			const response = await fetch(revealForm.dataset.endpoint || "", {
-				method: "POST",
-				headers: { "Content-Type": "application/json", "X-Request-Id": crypto.randomUUID() },
-				body: JSON.stringify(Object.fromEntries(new FormData(revealForm))),
-			})
-			const body = await response.json().catch(() => ({}))
-			if (response.status === 401 && body?.error === "reauthentication_required") {
-				window.location.assign(
-					`/auth/mfa?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`
-				)
-				return
-			}
-			if (!response.ok) throw new Error(body?.error || `evidence_reveal_failed_${response.status}`)
-			if (body.kind === "document" && body.url) {
-				if (output) {
-					output.textContent = "Documento autorizado. El enlace caduca en cinco minutos. "
-					const link = document.createElement("a")
-					link.href = String(body.url)
-					link.target = "_blank"
-					link.rel = "noopener noreferrer"
-					link.className = "underline font-semibold"
-					link.textContent = "Abrir documento autorizado"
-					output.append(link)
-				}
-			} else if (body.kind === "tax_registration") {
-				if (output)
-					output.innerHTML = `<span class="text-xs text-slate-500">Registro fiscal</span><br><strong class="font-mono"></strong>`
-				const target = output?.querySelector("strong")
-				if (target) target.textContent = String(body.businessRegistrationNumber || "No disponible")
-			} else {
-				if (output)
-					output.innerHTML = `<span class="text-xs text-slate-500">Identificador bancario</span><br><strong class="font-mono"></strong><br><span class="text-xs" data-routing></span>`
-				const target = output?.querySelector("strong")
-				const routing = output?.querySelector<HTMLElement>("[data-routing]")
-				if (target) target.textContent = String(body.accountIdentifier || "No disponible")
-				if (routing)
-					routing.textContent = body.routingOrSwift ? `SWIFT/routing: ${body.routingOrSwift}` : ""
-			}
-			if (body.hideAfterSeconds && output)
-				window.setTimeout(
-					() => {
-						output.textContent = "La información revelada se ocultó automáticamente."
-					},
-					Number(body.hideAfterSeconds) * 1000
-				)
-		} catch (error) {
-			if (output)
-				output.textContent =
-					error instanceof Error ? error.message : "No se pudo revelar la evidencia."
-		} finally {
-			if (button) button.disabled = false
-		}
-	})
-
-	const forms = document.querySelectorAll<HTMLFormElement>("[data-case-command]")
-	const composer = document.querySelector<HTMLFormElement>("[data-endpoint*='/propose-decision']")
-	const actorId = document.querySelector<HTMLElement>("[data-actor-id]")?.dataset.actorId || ""
-	const draftKey = composer
-		? `casework:decision-draft:${actorId}:${composer.closest<HTMLElement>("[data-case-id]")?.dataset.caseId}`
-		: null
-	const idempotencyKey = draftKey ? `${draftKey}:idempotency` : null
-	const readDraft = () => {
-		if (!draftKey) return null
-		try {
-			return JSON.parse(storage.getItem(draftKey) || "null") as Record<string, string> | null
-		} catch {
-			return null
-		}
-	}
-	const saveDraft = () => {
-		if (!composer || !draftKey) return
-		const values = Object.fromEntries(new FormData(composer).entries()) as Record<string, string>
-		storage.setItem(
-			draftKey,
-			JSON.stringify({
-				decision: values.decision || "",
-				reasonCode: values.reasonCode || "",
-				comment: values.comment || "",
-			})
-		)
-	}
-	const syncComposer = () => {
-		if (!composer) return
-		const decision = composer.querySelector<HTMLSelectElement>("[name='decision']")
-		const reason = composer.querySelector<HTMLSelectElement>("[name='reasonCode']")
-		const comment = composer.querySelector<HTMLTextAreaElement>("[name='comment']")
-		const effect = composer.querySelector<HTMLElement>("[data-decision-effect]")
-		const requirement = composer.querySelector<HTMLElement>("[data-comment-requirement]")
-		if (!decision || !reason || !comment || !effect || !requirement) return
-		for (const option of [...reason.options]) {
-			const allowed = !option.dataset.decision || option.dataset.decision === decision.value
-			option.hidden = !allowed
-			option.disabled = !allowed
-		}
-		if (reason.selectedOptions[0]?.disabled) reason.value = ""
-		const selectedReason = reason.selectedOptions[0]
-		const required =
-			selectedReason?.dataset.requiresComment === "true" ||
-			(decision.value === "approved" && composer.dataset.approvalComment === "true")
-		comment.required = required
-		requirement.textContent = required ? "Obligatorio para este motivo" : "Opcional según el motivo"
-		effect.innerHTML = `<strong>Efecto antes de decidir:</strong> ${decision.selectedOptions[0]?.dataset.effect || "selecciona un resultado para ver qué fuente cambiará."} La propuesta quedará ligada a la versión ${composer.querySelector<HTMLInputElement>("[name='caseVersion']")?.value || "actual"}.`
-	}
-	if (composer) {
-		const draft = readDraft()
-		if (draft) {
-			for (const [name, value] of Object.entries(draft)) {
-				const field = composer.querySelector<
-					HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-				>(`[name='${name}']`)
-				if (field) field.value = value
-			}
-		}
-		composer.addEventListener("input", saveDraft)
-		composer.addEventListener("change", () => {
-			syncComposer()
-			saveDraft()
-		})
-		syncComposer()
-	}
-	const commandErrorMessage = (code: string) =>
-		({
-			case_not_actionable:
-				"El caso ya fue resuelto. Revisa la cronología o la auditoría; no se creó una segunda decisión.",
-			case_version_conflict:
-				"El expediente cambió mientras lo revisabas. Recarga la página para consultar la versión vigente; tu borrador se conserva y debes revisarlo antes de enviarlo.",
-			approval_evidence_incomplete:
-				"No se puede aprobar hasta completar o corroborar la evidencia requerida.",
-			approval_evidence_review_comment_required:
-				"Explica la coincidencia probable de titularidad antes de proponer la aprobación.",
-			decision_not_supported_for_domain:
-				"Ese resultado no puede aplicarse a esta área. Elige una acción disponible y su motivo.",
-			case_evidence_changed:
-				"La evidencia cambió mientras revisabas. Se conservó tu borrador para que lo confirmes contra la versión actual.",
-		})[code] ?? code
-
-	for (const form of forms) {
-		if (form === composer) continue
-		try {
-			const previous = JSON.parse(
-				storage.getItem(`casework:command:${actorId}:${form.dataset.endpoint}`) || "null"
-			) as PendingCaseCommand | null
-			if (!previous) continue
-			const values = JSON.parse(previous.body) as Record<string, string>
-			for (const field of form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
-				"input[name],textarea[name]"
-			)) {
-				if (field.name !== "caseVersion" && values[field.name] != null)
-					field.value = values[field.name]
-			}
-		} catch {
-			/* No pending command to restore. */
-		}
-	}
-	for (const form of forms)
-		form.addEventListener("submit", async (event) => {
-			event.preventDefault()
-			if (form.dataset.submitting === "true") return
-			form.dataset.submitting = "true"
-			const button = form.querySelector<HTMLButtonElement>("button[type='submit']")
-			const message = form.querySelector<HTMLElement>("[data-command-message]")
-			if (button) button.disabled = true
-			if (message) {
-				message.className = "rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700"
-				message.textContent = "Procesando…"
-			}
-			try {
-				const commandKey =
-					form === composer && idempotencyKey
-						? idempotencyKey
-						: `casework:command:${actorId}:${form.dataset.endpoint}`
-				let previous: PendingCaseCommand | null = null
+	function initializeCaseWorkspace() {
+		const workspace = document.querySelector<HTMLElement>("[data-case-workspace]")
+		if (!workspace || workspace.dataset.controlsBound === "true") return
+		workspace.dataset.controlsBound = "true"
+		const recoveryMemory = new Map<string, string>()
+		const storage = {
+			getItem(key: string) {
 				try {
-					previous = JSON.parse(storage.getItem(commandKey) || "null")
+					return sessionStorage.getItem(key) ?? recoveryMemory.get(key) ?? null
 				} catch {
-					/* First attempt. */
+					return recoveryMemory.get(key) ?? null
 				}
-				const pending = prepareCaseCommand(
-					previous,
-					JSON.stringify(Object.fromEntries(new FormData(form))),
-					() => crypto.randomUUID()
-				)
-				storage.setItem(commandKey, JSON.stringify(pending))
-				const stableIdempotencyKey = pending.key
-				const response = await fetch(form.dataset.endpoint || "", {
+			},
+			setItem(key: string, value: string) {
+				recoveryMemory.set(key, value)
+				try {
+					sessionStorage.setItem(key, value)
+				} catch {
+					/* In-memory recovery remains available. */
+				}
+			},
+			removeItem(key: string) {
+				recoveryMemory.delete(key)
+				try {
+					sessionStorage.removeItem(key)
+				} catch {
+					/* Storage unavailable. */
+				}
+			},
+		}
+		const prepareEvidenceRequest = document.querySelector<HTMLButtonElement>(
+			"[data-prepare-evidence-request]"
+		)
+		prepareEvidenceRequest?.addEventListener("click", () => {
+			const composer = document.querySelector<HTMLFormElement>(
+				"[data-endpoint*='/propose-decision']"
+			)
+			const decision = composer?.querySelector<HTMLSelectElement>("select[name='decision']")
+			const reason = composer?.querySelector<HTMLSelectElement>("select[name='reasonCode']")
+			const comment = composer?.querySelector<HTMLTextAreaElement>("textarea[name='comment']")
+			if (!composer || !decision || !reason || !comment) return
+			decision.value = "request_information"
+			const matchingReason = [...reason.options].find(
+				(option) => option.dataset.decision === "request_information"
+			)
+			if (matchingReason) reason.value = matchingReason.value
+			comment.value =
+				"No hay un archivo disponible para corroborar el documento. Solicitar una nueva carga segura."
+			composer?.dispatchEvent(new Event("change", { bubbles: true }))
+			document
+				.querySelector("#decision-composer")
+				?.scrollIntoView({ behavior: "smooth", block: "start" })
+			comment.focus()
+		})
+
+		const revealForm = document.querySelector<HTMLFormElement>("[data-evidence-reveal]")
+		const evidenceDraftKey = `casework:evidence-reason:${workspace.dataset.actorId}:${workspace.dataset.caseId}`
+		const reasonField = revealForm?.querySelector<HTMLInputElement>("[name='reason']")
+		const previousReason = storage.getItem(evidenceDraftKey)
+		if (reasonField && previousReason && previousReason.length <= 240)
+			reasonField.value = previousReason
+		revealForm?.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			const output = revealForm.querySelector<HTMLElement>("[data-reveal-output]")
+			const button = revealForm.querySelector<HTMLButtonElement>("button[type='submit']")
+			if (button) button.disabled = true
+			if (output) {
+				output.classList.remove("hidden")
+				output.textContent = "Validando acceso…"
+			}
+			try {
+				const response = await fetch(revealForm.dataset.endpoint || "", {
 					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						"Idempotency-Key": stableIdempotencyKey,
-						"X-Request-Id": crypto.randomUUID(),
-					},
-					body: pending.body,
+					headers: { "Content-Type": "application/json", "X-Request-Id": crypto.randomUUID() },
+					body: JSON.stringify(Object.fromEntries(new FormData(revealForm))),
 				})
-				const body = await response.json()
+				const body = await response.json().catch(() => ({}))
 				if (response.status === 401 && body?.error === "reauthentication_required") {
+					if (reasonField) storage.setItem(evidenceDraftKey, reasonField.value)
 					window.location.assign(
-						`/auth/mfa?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`
+						`/auth/mfa?returnTo=${encodeURIComponent(window.location.pathname + window.location.search + "#case-evidence")}`
 					)
 					return
 				}
-				if (!response.ok) {
-					if (canDiscardCaseCommand(response.status, body?.error)) storage.removeItem(commandKey)
-					throw new Error(body?.error || `command_failed_${response.status}`)
+				if (!response.ok)
+					throw new Error(
+						{
+							Forbidden: "Tu cuenta no tiene permiso para abrir esta evidencia.",
+							access_reason_required: "Escribe un motivo de acceso de al menos 8 caracteres.",
+							evidence_not_found:
+								"No hay contenido disponible para esta referencia. Solicita una nueva carga.",
+							preview_unavailable:
+								"El archivo no está disponible. Solicita que el proveedor lo vuelva a cargar.",
+							document_processing_gate_blocked:
+								"El archivo necesita completar sus controles de seguridad antes de abrirse.",
+						}[body?.error as string] || "No se pudo abrir la evidencia. Inténtalo de nuevo."
+					)
+				storage.removeItem(evidenceDraftKey)
+				if (body.kind === "document" && body.url) {
+					if (output) {
+						output.textContent = "Documento autorizado. El enlace caduca en cinco minutos. "
+						const link = document.createElement("a")
+						link.href = String(body.url)
+						link.target = "_blank"
+						link.rel = "noopener noreferrer"
+						link.className = "underline font-semibold"
+						link.textContent = "Abrir documento autorizado"
+						output.append(link)
+					}
+				} else if (body.kind === "tax_registration") {
+					if (output)
+						output.innerHTML = `<span class="text-xs text-slate-500">Registro fiscal</span><br><strong class="font-mono"></strong>`
+					const target = output?.querySelector("strong")
+					if (target)
+						target.textContent = String(body.businessRegistrationNumber || "No disponible")
+				} else {
+					if (output)
+						output.innerHTML = `<span class="text-xs text-slate-500">Identificador bancario</span><br><strong class="font-mono"></strong><br><span class="text-xs" data-routing></span>`
+					const target = output?.querySelector("strong")
+					const routing = output?.querySelector<HTMLElement>("[data-routing]")
+					if (target) target.textContent = String(body.accountIdentifier || "No disponible")
+					if (routing)
+						routing.textContent = body.routingOrSwift ? `SWIFT/routing: ${body.routingOrSwift}` : ""
 				}
-				if (
-					body?.ok !== true ||
-					(!form.dataset.endpoint?.endsWith("/assign") &&
-						!body.pendingSecondControl &&
-						!body.rejected &&
-						!body.published &&
-						body.caseStatus !== "waiting_information" &&
-						body.applied !== true)
-				)
-					throw new SyntaxError("command_response_unconfirmed")
-				if (form === composer && draftKey && idempotencyKey) {
-					storage.removeItem(draftKey)
-					storage.removeItem(idempotencyKey)
+				const visibilitySeconds = body.hideAfterSeconds || body.expiresInSeconds
+				if (visibilitySeconds && output) {
+					const hideTimer = window.setTimeout(
+						() => {
+							output.textContent = "La información revelada se ocultó automáticamente."
+						},
+						Number(visibilitySeconds) * 1000
+					)
+					document.addEventListener(
+						"astro:before-swap",
+						() => {
+							window.clearTimeout(hideTimer)
+							output.textContent = ""
+						},
+						{ once: true }
+					)
 				}
-				storage.removeItem(commandKey)
-				if (message) {
-					message.className = "rounded-xl bg-emerald-100 px-4 py-3 text-sm text-emerald-800"
-					message.textContent = "Acción registrada correctamente. Actualizando el expediente…"
-				}
-				const destination = new URL(window.location.href)
-				const isAssignment = form.dataset.endpoint?.endsWith("/assign")
-				const isDecisionReturn = form.dataset.endpoint?.endsWith("/reject")
-				destination.searchParams.set(
-					"notice",
-					body?.published
-						? "request_published"
-						: isAssignment
-							? "assigned"
-							: body?.pendingSecondControl
-								? "decision_pending_second_control"
-								: isDecisionReturn || body?.rejected
-									? "decision_returned"
-									: body?.caseStatus === "waiting_information"
-										? "decision_waiting_information"
-										: "decision_applied"
-				)
-				window.location.assign(`${destination.pathname}${destination.search}${destination.hash}`)
 			} catch (error) {
-				if (message) {
-					message.className = "rounded-xl bg-red-100 px-4 py-3 text-sm text-red-800"
-					message.textContent =
-						error instanceof TypeError || error instanceof SyntaxError
-							? "Respuesta sin confirmar. El reintento consultará la misma operación con la misma clave y los datos originales; las ediciones posteriores no se enviarán hasta aclarar el resultado."
-							: error instanceof Error
-								? commandErrorMessage(error.message)
-								: "No se pudo completar la acción."
-				}
+				if (output)
+					output.textContent =
+						error instanceof Error ? error.message : "No se pudo revelar la evidencia."
+			} finally {
 				if (button) button.disabled = false
-				form.dataset.submitting = "false"
 			}
 		})
+
+		const forms = document.querySelectorAll<HTMLFormElement>("[data-case-command]")
+		const composer = document.querySelector<HTMLFormElement>("[data-endpoint*='/propose-decision']")
+		const actorId = document.querySelector<HTMLElement>("[data-actor-id]")?.dataset.actorId || ""
+		const draftKey = composer
+			? `casework:decision-draft:${actorId}:${composer.closest<HTMLElement>("[data-case-id]")?.dataset.caseId}`
+			: null
+		const idempotencyKey = draftKey ? `${draftKey}:idempotency` : null
+		const readDraft = () => {
+			if (!draftKey) return null
+			try {
+				return JSON.parse(storage.getItem(draftKey) || "null") as Record<string, string> | null
+			} catch {
+				return null
+			}
+		}
+		const saveDraft = () => {
+			if (!composer || !draftKey) return
+			const values = Object.fromEntries(new FormData(composer).entries()) as Record<string, string>
+			storage.setItem(
+				draftKey,
+				JSON.stringify({
+					decision: values.decision || "",
+					reasonCode: values.reasonCode || "",
+					comment: values.comment || "",
+				})
+			)
+		}
+		const syncComposer = () => {
+			if (!composer) return
+			const decision = composer.querySelector<HTMLSelectElement>("[name='decision']")
+			const reason = composer.querySelector<HTMLSelectElement>("[name='reasonCode']")
+			const comment = composer.querySelector<HTMLTextAreaElement>("[name='comment']")
+			const effect = composer.querySelector<HTMLElement>("[data-decision-effect]")
+			const requirement = composer.querySelector<HTMLElement>("[data-comment-requirement]")
+			if (!decision || !reason || !comment || !effect || !requirement) return
+			for (const option of [...reason.options]) {
+				const allowed = !option.dataset.decision || option.dataset.decision === decision.value
+				option.hidden = !allowed
+				option.disabled = !allowed
+			}
+			if (reason.selectedOptions[0]?.disabled) reason.value = ""
+			const selectedReason = reason.selectedOptions[0]
+			const bankReview =
+				composer.dataset.bankReview === "true" && decision.value !== "request_information"
+			const required =
+				bankReview ||
+				selectedReason?.dataset.requiresComment === "true" ||
+				(decision.value === "approved" && composer.dataset.approvalComment === "true")
+			comment.required = required
+			comment.minLength = bankReview ? 10 : 0
+			requirement.textContent = bankReview
+				? "Describe el respaldo y el resultado de la revisión (mínimo 10 caracteres)"
+				: required
+					? "Obligatorio para este motivo"
+					: "Opcional según el motivo"
+			effect.innerHTML = `<strong>Efecto antes de decidir:</strong> ${decision.selectedOptions[0]?.dataset.effect || "selecciona un resultado para ver qué fuente cambiará."} La propuesta quedará ligada a la versión ${composer.querySelector<HTMLInputElement>("[name='caseVersion']")?.value || "actual"}.`
+		}
+		if (composer) {
+			const draft = readDraft()
+			if (draft) {
+				for (const [name, value] of Object.entries(draft)) {
+					const field = composer.querySelector<
+						HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+					>(`[name='${name}']`)
+					if (field) field.value = value
+				}
+			}
+			composer.addEventListener("input", saveDraft)
+			composer.addEventListener("change", () => {
+				syncComposer()
+				saveDraft()
+			})
+			syncComposer()
+		}
+		const commandErrorMessage = (code: string) =>
+			({
+				case_not_actionable:
+					"El caso ya fue resuelto. Revisa la cronología o la auditoría; no se creó una segunda decisión.",
+				case_version_conflict:
+					"El expediente cambió mientras lo revisabas. Recarga la página para consultar la versión vigente; tu borrador se conserva y debes revisarlo antes de enviarlo.",
+				approval_evidence_incomplete:
+					"No se puede aprobar hasta completar o corroborar la evidencia requerida.",
+				approval_evidence_review_comment_required:
+					"Explica la coincidencia probable de titularidad antes de proponer la aprobación.",
+				payment_review_evidence_required:
+					"Describe el respaldo bancario y la titularidad que sustentan la aprobación.",
+				reason_required: "Explica qué debe corregir el proveedor antes de registrar el resultado.",
+				decision_not_supported_for_domain:
+					"Ese resultado no puede aplicarse a esta área. Elige una acción disponible y su motivo.",
+				case_evidence_changed:
+					"La evidencia cambió mientras revisabas. Se conservó tu borrador para que lo confirmes contra la versión actual.",
+			})[code] ?? code
+
+		for (const form of forms) {
+			if (form === composer) continue
+			try {
+				const previous = JSON.parse(
+					storage.getItem(`casework:command:${actorId}:${form.dataset.endpoint}`) || "null"
+				) as PendingCaseCommand | null
+				if (!previous) continue
+				const values = JSON.parse(previous.body) as Record<string, string>
+				for (const field of form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+					"input[name],textarea[name]"
+				)) {
+					if (field.name !== "caseVersion" && values[field.name] != null)
+						field.value = values[field.name]
+				}
+			} catch {
+				/* No pending command to restore. */
+			}
+		}
+		for (const form of forms)
+			form.addEventListener("submit", async (event) => {
+				event.preventDefault()
+				if (form.dataset.submitting === "true") return
+				form.dataset.submitting = "true"
+				const button = form.querySelector<HTMLButtonElement>("button[type='submit']")
+				const message = form.querySelector<HTMLElement>("[data-command-message]")
+				if (button) button.disabled = true
+				if (message) {
+					message.className = "rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700"
+					message.textContent = "Procesando…"
+				}
+				try {
+					const commandKey =
+						form === composer && idempotencyKey
+							? idempotencyKey
+							: `casework:command:${actorId}:${form.dataset.endpoint}`
+					let previous: PendingCaseCommand | null = null
+					try {
+						previous = JSON.parse(storage.getItem(commandKey) || "null")
+					} catch {
+						/* First attempt. */
+					}
+					const pending = prepareCaseCommand(
+						previous,
+						JSON.stringify(Object.fromEntries(new FormData(form))),
+						() => crypto.randomUUID()
+					)
+					storage.setItem(commandKey, JSON.stringify(pending))
+					const stableIdempotencyKey = pending.key
+					const response = await fetch(form.dataset.endpoint || "", {
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							"Idempotency-Key": stableIdempotencyKey,
+							"X-Request-Id": crypto.randomUUID(),
+						},
+						body: pending.body,
+					})
+					const body = await response.json()
+					if (response.status === 401 && body?.error === "reauthentication_required") {
+						window.location.assign(
+							`/auth/mfa?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`
+						)
+						return
+					}
+					if (!response.ok) {
+						if (canDiscardCaseCommand(response.status, body?.error)) storage.removeItem(commandKey)
+						throw new Error(body?.error || `command_failed_${response.status}`)
+					}
+					if (
+						body?.ok !== true ||
+						(!form.dataset.endpoint?.endsWith("/assign") &&
+							!body.pendingSecondControl &&
+							!body.rejected &&
+							!body.published &&
+							body.caseStatus !== "waiting_information" &&
+							body.applied !== true)
+					)
+						throw new SyntaxError("command_response_unconfirmed")
+					if (form === composer && draftKey && idempotencyKey) {
+						storage.removeItem(draftKey)
+						storage.removeItem(idempotencyKey)
+					}
+					storage.removeItem(commandKey)
+					if (message) {
+						message.className = "rounded-xl bg-emerald-100 px-4 py-3 text-sm text-emerald-800"
+						message.textContent = "Acción registrada correctamente. Actualizando el expediente…"
+					}
+					const destination = new URL(window.location.href)
+					const isAssignment = form.dataset.endpoint?.endsWith("/assign")
+					const isDecisionReturn = form.dataset.endpoint?.endsWith("/reject")
+					destination.searchParams.set(
+						"notice",
+						body?.published
+							? "request_published"
+							: isAssignment
+								? "assigned"
+								: body?.pendingSecondControl
+									? "decision_pending_second_control"
+									: isDecisionReturn || body?.rejected
+										? "decision_returned"
+										: body?.caseStatus === "waiting_information"
+											? "decision_waiting_information"
+											: "decision_applied"
+					)
+					window.location.assign(`${destination.pathname}${destination.search}${destination.hash}`)
+				} catch (error) {
+					if (message) {
+						message.className = "rounded-xl bg-red-100 px-4 py-3 text-sm text-red-800"
+						message.textContent =
+							error instanceof TypeError || error instanceof SyntaxError
+								? "Respuesta sin confirmar. El reintento consultará la misma operación con la misma clave y los datos originales; las ediciones posteriores no se enviarán hasta aclarar el resultado."
+								: error instanceof Error
+									? commandErrorMessage(error.message)
+									: "No se pudo completar la acción."
+					}
+					if (button) button.disabled = false
+					form.dataset.submitting = "false"
+				}
+			})
+	}
+	initializeCaseWorkspace()
+	document.addEventListener("astro:page-load", initializeCaseWorkspace)
 </script>

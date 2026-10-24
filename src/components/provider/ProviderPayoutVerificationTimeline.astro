@@ -36,7 +36,9 @@ const expiresLabel = timeline.expiresAt
 	<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
 		Verificación de titularidad
 	</p>
-	<ol class="grid gap-2 sm:grid-cols-4">
+	<ol
+		class:list={["grid gap-2", timeline.steps.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-4"]}
+	>
 		{
 			timeline.steps.map((step, index) => (
 				<li

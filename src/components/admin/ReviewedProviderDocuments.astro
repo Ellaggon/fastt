@@ -1,0 +1,86 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import type { ProviderDocumentRecord } from "@/lib/provider-documents"
+
+interface Props {
+	documents: ProviderDocumentRecord[]
+	canPreview: boolean
+	expanded?: boolean
+}
+const { documents, canPreview, expanded = false } = Astro.props
+const rows = documents.map((doc) => ({
+	...doc,
+	expired:
+		doc.status === "verified" &&
+		Boolean(doc.expiresAt && new Date(doc.expiresAt).getTime() <= Date.now()),
+	verified: doc.status === "verified",
+}))
+const format = new Intl.DateTimeFormat("es", { dateStyle: "medium" })
+const dateLabel = (value: Date | string | null) => {
+	if (!value) return null
+	const date = new Date(value)
+	return Number.isNaN(date.getTime()) ? null : format.format(date)
+}
+---
+
+{
+	documents.length > 0 && (
+		<details open={expanded} class="border-t border-slate-200 pt-3" data-reviewed-documents>
+			<summary class="cursor-pointer text-sm font-semibold text-slate-900">
+				Documentos revisados ({documents.length})
+			</summary>
+			<ul class="mt-3 divide-y divide-slate-200">
+				{rows.map((doc) => (
+					<li class="space-y-2 py-3">
+						<div class="flex flex-wrap items-center justify-between gap-2">
+							<p class="text-sm font-semibold text-slate-900">{doc.typeLabel}</p>
+							<Badge
+								variant={
+									doc.expired
+										? "warning"
+										: doc.verified
+											? "success"
+											: doc.status === "superseded"
+												? "neutral"
+												: "error"
+								}
+							>
+								{doc.expired
+									? "Vencido · requiere renovación"
+									: doc.verified
+										? "Verificado"
+										: doc.status === "superseded"
+											? "Sustituido"
+											: "Rechazado"}
+							</Badge>
+						</div>
+						<p class="text-sm break-words text-slate-600">
+							{doc.fileName || "Sin nombre de archivo"}
+						</p>
+						{dateLabel(doc.reviewedAt) && (
+							<p class="text-xs text-slate-500">Revisado el {dateLabel(doc.reviewedAt)}</p>
+						)}
+						{doc.reviewNotes && (
+							<p class="text-sm break-words whitespace-pre-wrap text-slate-600">
+								{doc.reviewNotes}
+							</p>
+						)}
+						{doc.expiresAt && (
+							<p class="text-xs text-slate-500">Vigencia: {dateLabel(doc.expiresAt)}</p>
+						)}
+						{canPreview && doc.fileUrl && (
+							<Button
+								variant="secondary"
+								data-preview-document={doc.id}
+								data-provider-id={doc.providerId}
+							>
+								Consultar archivo seguro
+							</Button>
+						)}
+					</li>
+				))}
+			</ul>
+		</details>
+	)
+}

@@ -1,0 +1,45 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import CaseStatusBadge from "./CaseStatusBadge.astro"
+import type { listRelatedCaseReviews } from "@/modules/casework/public"
+
+const {
+	reviews,
+	returnTo,
+}: {
+	reviews: Awaited<ReturnType<typeof listRelatedCaseReviews>>
+	returnTo: string
+} = Astro.props
+---
+
+{
+	reviews.length > 0 && (
+		<Card>
+			<h2 class="font-semibold">Revisiones relacionadas</h2>
+			<p class="mt-2 text-sm text-slate-600">Cada revisión conserva su propio resultado.</p>
+			<ul class="mt-3 divide-y divide-slate-200">
+				{reviews.map((review) => (
+					<li class="space-y-2 py-3 first:pt-0 last:pb-0">
+						<p class="text-sm font-semibold">{review.label}</p>
+						{review.documentName && (
+							<p class="text-xs break-words text-slate-500">{review.documentName}</p>
+						)}
+						<div class="flex flex-wrap items-center justify-between gap-2">
+							<CaseStatusBadge value={review.status} />
+							<Button
+								href={`/admin/cases/${encodeURIComponent(review.id)}?returnTo=${encodeURIComponent(returnTo)}#case-evidence`}
+								reload
+								variant="secondary"
+								size="sm"
+								aria-label={`Revisar ${review.label.toLocaleLowerCase("es")}`}
+							>
+								Revisar evidencia
+							</Button>
+						</div>
+					</li>
+				))}
+			</ul>
+		</Card>
+	)
+}
