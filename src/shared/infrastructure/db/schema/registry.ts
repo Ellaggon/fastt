@@ -15,6 +15,7 @@ export const databaseTablesByDomain = {
 		"Provider",
 		"ProviderHolderProfile",
 		"ProviderCommercialLine",
+		"ProviderCommercialAgreement",
 		"ProviderSupportRequest",
 		"ProviderSupportMessage",
 		"ProviderPreparationSession",

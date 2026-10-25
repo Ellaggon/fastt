@@ -98,3 +98,14 @@ END;
 $$;
 
 CREATE TRIGGER "trg_FinancialReviewEvent_immutable" BEFORE UPDATE OR DELETE ON "FinancialReviewEvent" FOR EACH ROW EXECUTE FUNCTION fastt_prevent_financial_review_event_mutation();
+
+CREATE FUNCTION protect_commercial_agreement_version() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF TG_OP = 'DELETE' THEN RAISE EXCEPTION 'commercial_agreement_immutable'; END IF;
+ IF NEW."providerId" IS DISTINCT FROM OLD."providerId" OR NEW."line" IS DISTINCT FROM OLD."line" OR NEW."version" IS DISTINCT FROM OLD."version" THEN RAISE EXCEPTION 'commercial_agreement_immutable'; END IF;
+ IF OLD."status" IN ('accepted','withdrawn') THEN RAISE EXCEPTION 'commercial_agreement_immutable'; END IF;
+ IF OLD."status" = 'offered' AND (NEW."termsJson" IS DISTINCT FROM OLD."termsJson" OR NEW."termsHash" IS DISTINCT FROM OLD."termsHash" OR NEW."authorizedSignerUserId" IS DISTINCT FROM OLD."authorizedSignerUserId" OR NEW."representationReference" IS DISTINCT FROM OLD."representationReference" OR NEW."offeredAt" IS DISTINCT FROM OLD."offeredAt" OR NEW."offeredByUserId" IS DISTINCT FROM OLD."offeredByUserId") THEN RAISE EXCEPTION 'commercial_agreement_immutable'; END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER "ProviderCommercialAgreement_immutable" BEFORE UPDATE OR DELETE ON "ProviderCommercialAgreement" FOR EACH ROW EXECUTE FUNCTION protect_commercial_agreement_version();
+ALTER TABLE "ProviderCommercialAgreement" ENABLE ROW LEVEL SECURITY;

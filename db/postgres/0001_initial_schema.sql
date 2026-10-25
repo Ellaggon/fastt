@@ -48,6 +48,27 @@ CREATE TABLE "ProviderCommercialLine" (
 	"enrolledAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE "ProviderCommercialAgreement" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"line" text NOT NULL DEFAULT 'tour',
+	"version" integer NOT NULL,
+	"status" text NOT NULL DEFAULT 'requested',
+	"termsJson" jsonb,
+	"termsHash" text,
+	"authorizedSignerUserId" text,
+	"representationReference" text,
+	"requestedByUserId" text NOT NULL,
+	"offeredByUserId" text,
+	"offeredAt" timestamp with time zone,
+	"acceptedByUserId" text,
+	"acceptedAt" timestamp with time zone,
+	"acceptanceHash" text,
+	"caseId" text,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE "ProviderSupportRequest" (
 	"id" text PRIMARY KEY,
 	"providerId" text NOT NULL,
@@ -2261,6 +2282,43 @@ ALTER TABLE "ProviderCommercialLine"
 	ON DELETE SET NULL
 ;
 
+ALTER TABLE "ProviderCommercialAgreement"
+	ADD CONSTRAINT "ProviderCommercialAgreement_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "ProviderCommercialAgreement"
+	ADD CONSTRAINT "ProviderCommercialAgreement_authorizedSignerUserId_fk"
+	FOREIGN KEY ("authorizedSignerUserId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "ProviderCommercialAgreement"
+	ADD CONSTRAINT "ProviderCommercialAgreement_requestedByUserId_fk"
+	FOREIGN KEY ("requestedByUserId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "ProviderCommercialAgreement"
+	ADD CONSTRAINT "ProviderCommercialAgreement_offeredByUserId_fk"
+	FOREIGN KEY ("offeredByUserId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "ProviderCommercialAgreement"
+	ADD CONSTRAINT "ProviderCommercialAgreement_acceptedByUserId_fk"
+	FOREIGN KEY ("acceptedByUserId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "ProviderCommercialAgreement"
+	ADD CONSTRAINT "ProviderCommercialAgreement_caseId_fk"
+	FOREIGN KEY ("caseId")
+	REFERENCES "ComplianceCase" ("id")
+;
+
 ALTER TABLE "ProviderSupportRequest"
 	ADD CONSTRAINT "ProviderSupportRequest_providerId_fk"
 	FOREIGN KEY ("providerId")
@@ -4228,6 +4286,12 @@ CREATE UNIQUE INDEX "ProviderCommercialLine_provider_line_unique" ON "ProviderCo
 
 CREATE INDEX "ProviderCommercialLine_provider_idx" ON "ProviderCommercialLine" ("providerId");
 
+CREATE UNIQUE INDEX "ProviderCommercialAgreement_version_unique" ON "ProviderCommercialAgreement" ("providerId", "line", "version");
+
+CREATE UNIQUE INDEX "ProviderCommercialAgreement_pending_unique" ON "ProviderCommercialAgreement" ("providerId", "line") WHERE "status" IN ('requested','offered');
+
+CREATE INDEX "ProviderCommercialAgreement_provider_idx" ON "ProviderCommercialAgreement" ("providerId", "line", "status");
+
 CREATE UNIQUE INDEX "ProviderSupportRequest_provider_key_unique" ON "ProviderSupportRequest" ("providerId", "requestKey");
 
 CREATE INDEX "ProviderSupportRequest_provider_updated_idx" ON "ProviderSupportRequest" ("providerId", "updatedAt");
@@ -4985,6 +5049,16 @@ ALTER TABLE "ProviderCommercialLine" ADD CONSTRAINT "ProviderCommercialLine_line
 ALTER TABLE "ProviderCommercialLine" ADD CONSTRAINT "ProviderCommercialLine_source_check" CHECK ("source" IN ('onboarding', 'product', 'admin'));
 
 ALTER TABLE "ProviderCommercialLine" ADD CONSTRAINT "ProviderCommercialLine_collectionModel_check" CHECK ("collectionModel" IN ('undecided', 'property_collect', 'platform_collect'));
+
+ALTER TABLE "ProviderCommercialAgreement" ADD CONSTRAINT "ProviderCommercialAgreement_line_check" CHECK ("line" = 'tour');
+
+ALTER TABLE "ProviderCommercialAgreement" ADD CONSTRAINT "ProviderCommercialAgreement_status_check" CHECK ("status" IN ('requested','offered','accepted','withdrawn'));
+
+ALTER TABLE "ProviderCommercialAgreement" ADD CONSTRAINT "ProviderCommercialAgreement_version_check" CHECK ("version" > 0);
+
+ALTER TABLE "ProviderCommercialAgreement" ADD CONSTRAINT "ProviderCommercialAgreement_offer_check" CHECK ("status" NOT IN ('offered','accepted') OR ("termsJson" IS NOT NULL AND "termsHash" IS NOT NULL AND "authorizedSignerUserId" IS NOT NULL AND "representationReference" IS NOT NULL AND "offeredAt" IS NOT NULL AND "offeredByUserId" IS NOT NULL));
+
+ALTER TABLE "ProviderCommercialAgreement" ADD CONSTRAINT "ProviderCommercialAgreement_acceptance_check" CHECK ("status" <> 'accepted' OR ("acceptedAt" IS NOT NULL AND "acceptedByUserId" IS NOT NULL AND "acceptedByUserId" = "authorizedSignerUserId" AND "acceptanceHash" IS NOT NULL AND "acceptanceHash" = "termsHash"));
 
 ALTER TABLE "ProviderSupportRequest" ADD CONSTRAINT "ProviderSupportRequest_topic_check" CHECK ("topic" IN ('historical_tour_collection', 'verification', 'payments', 'other'));
 
@@ -6615,6 +6689,17 @@ END;
 $$;
 
 CREATE TRIGGER "trg_FinancialReviewEvent_immutable" BEFORE UPDATE OR DELETE ON "FinancialReviewEvent" FOR EACH ROW EXECUTE FUNCTION fastt_prevent_financial_review_event_mutation();
+
+CREATE FUNCTION protect_commercial_agreement_version() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF TG_OP = 'DELETE' THEN RAISE EXCEPTION 'commercial_agreement_immutable'; END IF;
+ IF NEW."providerId" IS DISTINCT FROM OLD."providerId" OR NEW."line" IS DISTINCT FROM OLD."line" OR NEW."version" IS DISTINCT FROM OLD."version" THEN RAISE EXCEPTION 'commercial_agreement_immutable'; END IF;
+ IF OLD."status" IN ('accepted','withdrawn') THEN RAISE EXCEPTION 'commercial_agreement_immutable'; END IF;
+ IF OLD."status" = 'offered' AND (NEW."termsJson" IS DISTINCT FROM OLD."termsJson" OR NEW."termsHash" IS DISTINCT FROM OLD."termsHash" OR NEW."authorizedSignerUserId" IS DISTINCT FROM OLD."authorizedSignerUserId" OR NEW."representationReference" IS DISTINCT FROM OLD."representationReference" OR NEW."offeredAt" IS DISTINCT FROM OLD."offeredAt" OR NEW."offeredByUserId" IS DISTINCT FROM OLD."offeredByUserId") THEN RAISE EXCEPTION 'commercial_agreement_immutable'; END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER "ProviderCommercialAgreement_immutable" BEFORE UPDATE OR DELETE ON "ProviderCommercialAgreement" FOR EACH ROW EXECUTE FUNCTION protect_commercial_agreement_version();
+ALTER TABLE "ProviderCommercialAgreement" ENABLE ROW LEVEL SECURITY;
 
 
 
