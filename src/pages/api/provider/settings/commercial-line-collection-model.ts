@@ -51,6 +51,11 @@ function target(request: Request, formTarget: string, result: string) {
 }
 
 export const POST: APIRoute = async ({ request }) => {
+	if (
+		request.headers.get("sec-fetch-site") === "cross-site" ||
+		(request.headers.get("origin") && request.headers.get("origin") !== new URL(request.url).origin)
+	)
+		return Response.json({ error: "invalid_origin" }, { status: 403 })
 	const session = await requireProviderSessionSurface(request).catch((error: unknown) => {
 		if (error instanceof Response) return error
 		throw error
@@ -83,9 +88,7 @@ export const POST: APIRoute = async ({ request }) => {
 	)
 	if (declarationError) {
 		const code =
-			declarationError === "PLATFORM_COLLECTION_UNAVAILABLE"
-				? "platform_unavailable"
-				: "tour_agreement_required"
+			declarationError === "PLATFORM_COLLECTION_UNAVAILABLE" ? "platform_unavailable" : "invalid"
 		return response(
 			request,
 			returnTo,
@@ -93,7 +96,7 @@ export const POST: APIRoute = async ({ request }) => {
 			422,
 			declarationError === "PLATFORM_COLLECTION_UNAVAILABLE"
 				? "Fastt todavía no procesa cobros del viajero en esta línea."
-				: "El cobro directo de tours requiere un acuerdo comercial revisado por Fastt."
+				: "La modalidad declarada no es válida."
 		)
 	}
 	const providerId = session.provider.providerId

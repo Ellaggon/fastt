@@ -7,6 +7,7 @@ import {
 	ProviderProfile,
 	ProviderUser,
 	ProviderVerification,
+	ProviderHolderProfile,
 	sql,
 	User,
 } from "@/shared/infrastructure/db/compat"
@@ -179,14 +180,25 @@ export class ProviderV2Repository implements ProviderV2RepositoryPort {
 		metadataJson?: unknown
 	}): Promise<void> {
 		// Store the latest decision as an append-only record (new id each time).
-		await db.insert(ProviderVerification).values({
-			id: crypto.randomUUID(),
-			providerId: params.providerId,
-			status: params.status,
-			reason: params.reason ?? null,
-			reviewedAt: new Date(),
-			reviewedBy: params.reviewedByUserId ?? null,
-			metadataJson: params.metadataJson ?? null,
+		await db.transaction(async (tx) => {
+			await tx.insert(ProviderVerification).values({
+				id: crypto.randomUUID(),
+				providerId: params.providerId,
+				status: params.status,
+				reason: params.reason ?? null,
+				reviewedAt: new Date(),
+				reviewedBy: params.reviewedByUserId ?? null,
+				metadataJson: params.metadataJson ?? null,
+			})
+			if (params.reviewedByUserId && ["approved", "rejected"].includes(params.status)) {
+				await tx
+					.update(ProviderHolderProfile)
+					.set({
+						declarationStatus: params.status === "approved" ? "verified" : "changes_requested",
+						updatedAt: new Date(),
+					})
+					.where(eq(ProviderHolderProfile.providerId, params.providerId))
+			}
 		})
 	}
 }

@@ -36,6 +36,16 @@ export type HoldCommercialSnapshot = {
 	}
 	pricingSource?: "v2"
 	priceQuote: PriceQuote
+	commercialAgreement?: {
+		id: string
+		version: number
+		termsHash: string
+		sellerName: string
+		collectionModel: "property_collect"
+		commissionPercent: number
+		commissionBase: string
+		currency: string
+	}
 }
 
 function finiteMoney(value: unknown): value is number {
@@ -49,6 +59,27 @@ function finiteMoney(value: unknown): value is number {
 export function isHoldCommercialSnapshot(value: unknown): value is HoldCommercialSnapshot {
 	if (!value || typeof value !== "object") return false
 	const snapshot = value as HoldCommercialSnapshot
+	const agreement = snapshot.commercialAgreement
+	if (
+		agreement !== undefined &&
+		(!agreement ||
+			typeof agreement.id !== "string" ||
+			!agreement.id ||
+			!Number.isInteger(agreement.version) ||
+			agreement.version < 1 ||
+			typeof agreement.termsHash !== "string" ||
+			!/^[a-f0-9]{64}$/.test(agreement.termsHash) ||
+			typeof agreement.sellerName !== "string" ||
+			!agreement.sellerName ||
+			agreement.collectionModel !== "property_collect" ||
+			!finiteMoney(agreement.commissionPercent) ||
+			agreement.commissionPercent > 100 ||
+			typeof agreement.commissionBase !== "string" ||
+			!agreement.commissionBase ||
+			typeof agreement.currency !== "string" ||
+			!/^[A-Z]{3}$/.test(agreement.currency))
+	)
+		return false
 	if (
 		snapshot.version !== HOLD_COMMERCIAL_SNAPSHOT_VERSION ||
 		!hasCanonicalPriceQuoteIdentity(snapshot.priceQuote) ||

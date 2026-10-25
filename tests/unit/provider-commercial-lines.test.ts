@@ -18,9 +18,7 @@ describe("provider commercial lines", () => {
 		expect(providerCollectionDeclarationError("tour", "platform_collect")).toBe(
 			"PLATFORM_COLLECTION_UNAVAILABLE"
 		)
-		expect(providerCollectionDeclarationError("tour", "property_collect")).toBe(
-			"TOUR_COLLECTION_AGREEMENT_REQUIRED"
-		)
+		expect(providerCollectionDeclarationError("tour", "property_collect")).toBeNull()
 		expect(providerCollectionDeclarationError("lodging", "platform_collect")).toBe(
 			"PLATFORM_COLLECTION_UNAVAILABLE"
 		)
@@ -82,7 +80,7 @@ describe("provider commercial lines", () => {
 		)
 		expect(publish).not.toContain("commercial-lines")
 		expect(governance).not.toContain("commercial-lines")
-		expect(removal).not.toContain("ProviderCommercialLine")
+		expect(removal).not.toMatch(/\.delete\(ProviderCommercialLine\)/)
 	})
 
 	it("keeps collection declarations independent for a mixed provider", () => {

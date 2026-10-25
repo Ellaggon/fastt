@@ -32,6 +32,7 @@ import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
 import { assignTourRatePlanPolicies } from "../test-support/tour-policy-fixture"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { markProductPublished } from "../test-support/catalog-db-test-data"
+import { ensureTourCommercialAgreementFixture } from "../test-support/commercial-agreement-fixture"
 import { upsertGeoPlace } from "@/shared/infrastructure/test-support/db-test-data"
 
 type SupabaseTestUser = { id: string; email: string }
@@ -115,6 +116,7 @@ async function seedTourCommercialReady(params: {
 		.insert(Provider)
 		.values({ id: "prov_test", legalName: "Provider prov_test" })
 		.onConflictDoNothing()
+	await ensureTourCommercialAgreementFixture("prov_test")
 
 	await upsertGeoPlace({
 		id: params.geoPlaceId,
@@ -456,6 +458,13 @@ describe("integration/tour booking E2E (P0 1.1)", () => {
 			expect(String(lineItems[0]?.variantId)).toBe(morningId)
 			expect(Number(lineItems[0]?.adults)).toBe(adults)
 			expect(Number(lineItems[0]?.children)).toBe(children)
+			expect((lineItems[0]?.pricingBreakdownJson as any)?.commercialAgreement).toMatchObject({
+				version: expect.any(Number),
+				termsHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+				collectionModel: "property_collect",
+				commissionPercent: 0,
+				currency: "USD",
+			})
 
 			const voucher = await db
 				.select()

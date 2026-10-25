@@ -94,6 +94,46 @@ describe("tour verification readiness", () => {
 		expect(result.state).toBe("waiting_on_fastt")
 		expect(result.action).toBeNull()
 		expect(result.body).toContain("No subas documentos adicionales")
+		expect(result.policyEvaluationPending).toBe(true)
+	})
+	it("does not present a pending proposal as a missing safety or licensing policy", () => {
+		const result = buildTourVerificationReadiness({
+			product,
+			diagnosis: diagnosis({
+				blockers: [
+					{
+						id: "agreement_proposal_requested",
+						capabilities: ["publish"],
+						action: "Fastt está preparando la propuesta.",
+						policyVersionId: null,
+					},
+				],
+			}),
+		})
+		expect(result.state).toBe("waiting_on_fastt")
+		expect(result.policyEvaluationPending).toBe(false)
+		expect(result.action).toBeNull()
+	})
+	it.each([
+		["collection_model_undecided", "Configurar cobro"],
+		["agreement_proposal_required", "Solicitar propuesta"],
+		["agreement_acceptance_required", "Revisar propuesta"],
+	])("presents the commercial task %s outside verification evidence", (id, label) => {
+		const result = buildTourVerificationReadiness({
+			product,
+			diagnosis: diagnosis({
+				blockers: [
+					{
+						id,
+						capabilities: ["publish"],
+						action: "Completa la tarea comercial.",
+						policyVersionId: null,
+					},
+				],
+			}),
+		})
+		expect(result.action?.label).toBe(label)
+		expect(result.policyEvaluationPending).toBe(false)
 	})
 
 	it("separates explicit account reuse from evidence that belongs to this experience", () => {

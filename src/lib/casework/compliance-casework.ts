@@ -22,6 +22,7 @@ import { listPendingProviderPaymentAccountsForAdmin } from "@/lib/provider-payme
 import { listPendingProviderVerificationsForAdmin } from "@/lib/provider-admin-compliance"
 import { listProviderTaxConfigurationsForAdmin } from "@/lib/provider-tax-configuration"
 import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
+import { ProviderCommercialAgreement } from "@/shared/infrastructure/db/schema/tables"
 
 export const CASE_DOMAINS = ["verification", "fiscal", "documents", "payments"] as const
 export type CaseDomain = (typeof CASE_DOMAINS)[number]
@@ -137,13 +138,28 @@ export async function resolveRequirements(domain: CaseDomain) {
 }
 
 export async function listCurrentComplianceCaseSources(): Promise<ComplianceCaseSource[]> {
-	const [verifications, taxConfigurations, documents, paymentAccounts] = await Promise.all([
-		listPendingProviderVerificationsForAdmin(),
-		listProviderTaxConfigurationsForAdmin(),
-		listPendingProviderDocumentsForAdmin(),
-		listPendingProviderPaymentAccountsForAdmin(),
-	])
+	const [verifications, taxConfigurations, documents, paymentAccounts, agreements] =
+		await Promise.all([
+			listPendingProviderVerificationsForAdmin(),
+			listProviderTaxConfigurationsForAdmin(),
+			listPendingProviderDocumentsForAdmin(),
+			listPendingProviderPaymentAccountsForAdmin(),
+			db
+				.select({
+					id: ProviderCommercialAgreement.id,
+					providerId: ProviderCommercialAgreement.providerId,
+				})
+				.from(ProviderCommercialAgreement)
+				.where(inArray(ProviderCommercialAgreement.status, ["requested", "offered"])),
+		])
 	return [
+		...agreements.map((row) => ({
+			providerId: row.providerId,
+			domain: "verification" as const,
+			sourceType: "ProviderCommercialAgreement",
+			sourceRef: row.id,
+			summary: "Acuerdo comercial de Tours",
+		})),
 		...verifications.map((row) => ({
 			providerId: row.providerId,
 			domain: "verification" as const,

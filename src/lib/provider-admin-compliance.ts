@@ -4,6 +4,9 @@ import {
 	desc,
 	eq,
 	and,
+	inArray,
+	sql,
+	or,
 	ComplianceCase,
 	Provider,
 	ProviderAuditLog,
@@ -221,6 +224,7 @@ export async function listPendingProviderVerificationsForAdmin(): Promise<
 
 export async function listRecentProviderComplianceAudit(params?: {
 	limit?: number
+	providerId?: string
 }): Promise<ProviderComplianceAuditRow[]> {
 	const limit = Math.min(Math.max(params?.limit ?? 40, 1), 200)
 
@@ -238,7 +242,18 @@ export async function listRecentProviderComplianceAudit(params?: {
 			createdAt: ProviderAuditLog.createdAt,
 		})
 		.from(ProviderAuditLog)
+		.where(
+			and(
+				params?.providerId ? eq(ProviderAuditLog.providerId, params.providerId) : undefined,
+				or(
+					...COMPLIANCE_ACTION_PREFIXES.map(
+						(prefix) => sql`left(${ProviderAuditLog.action}, ${prefix.length}) = ${prefix}`
+					)
+				)
+			)
+		)
 		.orderBy(desc(ProviderAuditLog.createdAt), desc(ProviderAuditLog.id))
+		.limit(limit)
 
 		.catch(() => [])
 
@@ -256,6 +271,7 @@ export async function listRecentProviderComplianceAudit(params?: {
 	const providers = await db
 		.select({ id: Provider.id, displayName: Provider.displayName })
 		.from(Provider)
+		.where(inArray(Provider.id, [...new Set(complianceRows.map((row) => row.providerId))]))
 
 		.catch(() => [])
 	const providerNameById = new Map(providers.map((row) => [row.id, row.displayName ?? row.id]))
@@ -265,6 +281,7 @@ export async function listRecentProviderComplianceAudit(params?: {
 			? await db
 					.select({ id: User.id, email: User.email })
 					.from(User)
+					.where(inArray(User.id, actorIds))
 
 					.catch(() => [])
 			: []
@@ -349,7 +366,7 @@ export async function loadProviderComplianceConsole(params?: {
 			...doc,
 			isExpiredEvidence: doc.status === "verified",
 			expiryImpact:
-				doc.status === "verified"
+				doc.status === "verified" && showDocuments
 					? await assessExpiredDocumentOperationalImpact({
 							providerId: doc.providerId,
 							document: doc,
@@ -416,11 +433,13 @@ export async function loadProviderComplianceConsole(params?: {
 export async function getLatestProviderVerificationStatus(providerId: string): Promise<{
 	status: "pending" | "approved" | "rejected"
 	reason: string | null
+	createdAt: Date | null
 } | null> {
 	const row = await db
 		.select({
 			status: ProviderVerification.status,
 			reason: ProviderVerification.reason,
+			createdAt: ProviderVerification.createdAt,
 		})
 		.from(ProviderVerification)
 		.where(eq(ProviderVerification.providerId, providerId))
@@ -431,9 +450,9 @@ export async function getLatestProviderVerificationStatus(providerId: string): P
 	if (!row) return null
 	const status = String(row.status)
 	if (status !== "pending" && status !== "approved" && status !== "rejected") {
-		return { status: "pending", reason: row.reason ?? null }
+		return { status: "pending", reason: row.reason ?? null, createdAt: row.createdAt ?? null }
 	}
-	return { status, reason: row.reason ?? null }
+	return { status, reason: row.reason ?? null, createdAt: row.createdAt ?? null }
 }
 
 export async function loadProviderComplianceDetail(providerId: string) {
@@ -453,25 +472,73 @@ export async function loadProviderComplianceDetail(providerId: string) {
 		.catch(() => null)
 	if (!provider?.id) return null
 
-	const consolePayload = await loadProviderComplianceConsole({ filter: "all", auditLimit: 20 })
-	const verification = consolePayload.verification.find((row) => row.providerId === id) ?? null
-	const latestVerification = await getLatestProviderVerificationStatus(id)
-	const fiscal = consolePayload.fiscal.filter((row) => row.providerId === id)
-	const documents = consolePayload.documents.filter((row) => row.providerId === id)
-	const reviewedDocuments = (await listProviderDocuments(id)).filter(
-		(doc) => doc.status !== "pending"
+	const [latestVerification, allDocuments, taxConfiguration, paymentAccounts, assignments, audit] =
+		await Promise.all([
+			getLatestProviderVerificationStatus(id),
+			listProviderDocuments(id),
+			getProviderTaxConfiguration(id),
+			listProviderPaymentAccounts(id),
+			listOpenComplianceAssignments({ providerId: id }),
+			listRecentProviderComplianceAudit({ providerId: id, limit: 20 }),
+		])
+	const assignmentFor = (domain: string, entityId: string) =>
+		assignments.find((row) => row.domain === domain && row.entityId === entityId) ?? null
+	const verification =
+		latestVerification?.status === "pending" || !latestVerification
+			? {
+					providerId: id,
+					displayName: provider.displayName ?? "Sin nombre",
+					legalName: provider.legalName ?? "Sin razón social",
+					providerStatus: provider.status ?? "draft",
+					verificationStatus: "pending" as const,
+					verificationReason: latestVerification?.reason ?? null,
+					verificationUpdatedAt: latestVerification?.createdAt ?? null,
+					assignment: assignmentFor("verification", id),
+				}
+			: null
+	const fiscal =
+		taxConfiguration && ["pending", "requires_attention"].includes(taxConfiguration.status)
+			? [
+					{
+						...taxConfiguration,
+						displayName: provider.displayName ?? "Sin nombre",
+						assignment: assignmentFor("fiscal", id),
+					},
+				]
+			: []
+	const now = new Date()
+	const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+	const documents = await Promise.all(
+		allDocuments
+			.filter(
+				(doc) =>
+					doc.status === "pending" ||
+					(doc.status === "verified" && doc.expiresAt && doc.expiresAt < startOfToday)
+			)
+			.map(async (doc) => ({
+				...doc,
+				displayName: provider.displayName ?? "Sin nombre",
+				isExpiredEvidence: doc.status === "verified",
+				expiryImpact:
+					doc.status === "verified"
+						? await assessExpiredDocumentOperationalImpact({ providerId: id, document: doc })
+						: null,
+				assignment: assignmentFor("documents", doc.id),
+			}))
 	)
-	const [taxConfiguration, paymentAccounts] = await Promise.all([
-		getProviderTaxConfiguration(id),
-		listProviderPaymentAccounts(id),
-	])
-	const payments = consolePayload.payments.filter((row) => row.providerId === id)
+	const reviewedDocuments = allDocuments.filter((doc) => doc.status !== "pending")
+	const payments = paymentAccounts
+		.filter((account) => account.status === "pending")
+		.map((account) => ({
+			...account,
+			displayName: provider.displayName ?? "Sin nombre",
+			assignment: assignmentFor("payments", account.id),
+		}))
 	const paymentCases = await db
 		.select({ id: ComplianceCase.id, sourceRef: ComplianceCase.sourceRef })
 		.from(ComplianceCase)
 		.where(and(eq(ComplianceCase.providerId, id), eq(ComplianceCase.domain, "payments")))
 		.orderBy(desc(ComplianceCase.createdAt))
-	const audit = consolePayload.audit.filter((row) => row.providerId === id)
 
 	return {
 		provider: {

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest"
+import { markProductPublished } from "../test-support/catalog-db-test-data"
 import {
 	and,
 	Booking,
@@ -176,7 +177,7 @@ describe("integration/hold policy snapshot", () => {
 
 		await upsertGeoPlace({
 			id: geoPlaceId,
-			name: "HPS Dest",
+			name: `HPS Dest ${geoPlaceId}`,
 			type: "city",
 			country: "CL",
 			slug: `hps-${geoPlaceId}`,
@@ -398,7 +399,7 @@ describe("integration/hold policy snapshot", () => {
 
 		await upsertGeoPlace({
 			id: geoPlaceId,
-			name: "HPS Ctx Dest",
+			name: `HPS Ctx Dest ${geoPlaceId}`,
 			type: "city",
 			country: "CL",
 			slug: `hps-ctx-${geoPlaceId}`,
@@ -409,6 +410,7 @@ describe("integration/hold policy snapshot", () => {
 			productType: "Hotel",
 			geoPlaceId,
 		})
+		await markProductPublished(productId)
 		await upsertVariant({ id: variantId, productId, kind: "hotel_room", name: "Room" })
 		await upsertRatePlanTemplate({
 			id: templateId,
@@ -578,8 +580,8 @@ describe("integration/hold policy snapshot", () => {
 			const holdRes = await holdPost({
 				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form }),
 			} as any)
-			expect(holdRes.status).toBe(200)
 			const holdBody = (await readJson(holdRes)) as any
+			expect(holdRes.status, JSON.stringify(holdBody)).toBe(200)
 			const holdId = String(holdBody?.holdId ?? "")
 			expect(holdId.length).toBeGreaterThan(0)
 

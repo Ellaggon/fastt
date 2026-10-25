@@ -1,3 +1,4 @@
+import { commercialAgreementStatus } from "@/modules/financial/commercial-agreements"
 import {
 	first,
 	and,
@@ -31,10 +32,12 @@ import { quoteExtraAmount, type PriceQuote } from "@/modules/pricing/public"
 import {
 	HOLD_COMMERCIAL_SNAPSHOT_VERSION,
 	isHoldCommercialSnapshot,
+	type HoldCommercialSnapshot,
 } from "@/modules/inventory/public"
 import { readTourBookingQuestionSnapshot } from "@/lib/tours/tourBookingQuestionsSnapshot"
 
 type BookingPricingSnapshot = {
+	commercialAgreement?: HoldCommercialSnapshot["commercialAgreement"]
 	ratePlanId: string
 	currency: string
 	occupancy: number
@@ -170,6 +173,7 @@ function buildSnapshotFromHoldLifecycle(params: {
 	return {
 		ratePlanId,
 		currency,
+		commercialAgreement: snapshot.commercialAgreement,
 		occupancy: Math.max(1, Math.round(occupancyDetail.adults + occupancyDetail.children)),
 		occupancyDetail: {
 			adults: Math.max(1, Math.round(occupancyDetail.adults)),
@@ -368,6 +372,29 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				String(variant.kind ?? "")
 					.trim()
 					.toLowerCase() === "tour_slot"
+			if (isTourSlot) {
+				const agreement = product.providerId
+					? await commercialAgreementStatus(product.providerId)
+					: null
+				const terms = agreement?.agreement?.termsJson as {
+					sellerName?: string
+					commissionPercent?: number
+					commissionBase?: string
+					currency?: string
+				} | null
+				if (
+					agreement?.state !== "active" ||
+					!snapshot.commercialAgreement ||
+					snapshot.commercialAgreement.id !== agreement.agreement?.id ||
+					snapshot.commercialAgreement.termsHash !== agreement.agreement?.termsHash ||
+					snapshot.commercialAgreement.version !== agreement.agreement?.version ||
+					snapshot.commercialAgreement.sellerName !== terms?.sellerName ||
+					snapshot.commercialAgreement.commissionPercent !== terms?.commissionPercent ||
+					snapshot.commercialAgreement.commissionBase !== terms?.commissionBase ||
+					snapshot.commercialAgreement.currency !== terms?.currency
+				)
+					throw new Error("COMMERCIAL_AGREEMENT_CHANGED")
+			}
 			const snapshottedQuestions = readTourBookingQuestionSnapshot(
 				hold?.guestExpectationsSnapshotJson
 			)
@@ -516,6 +543,7 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				taxAmount: taxesAmount,
 				totalAmount: finalTotal,
 				pricingBreakdownJson: {
+					commercialAgreement: snapshot.commercialAgreement ?? null,
 					nights: snapshot.days.map((day) => ({ date: day.date, price: day.price })),
 					totalPrice: finalTotal,
 					currency: snapshot.currency,
