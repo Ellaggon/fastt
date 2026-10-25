@@ -3,7 +3,7 @@
 Status: active
 Document type: runbook
 Owner: Provider Policy / Finance / Tours
-Last verified: 2026-10-24
+Last verified: 2026-10-25
 Scope: ratificación, activación controlada y reversión de políticas comerciales de tours BO v1
 Source of truth: `CompliancePolicyVersion`, `CommercialPolicyApproval` y la [matriz BO v1](../domains/tours/policy-annex.md)
 Related code/tests: `src/lib/commercial-policy/ratification.ts`, `src/pages/api/admin/commercial-policies/[versionId]/approvals.ts`, `db/migrations/2026-11-08_commercial_tour_policy_ratification.sql`, `tests/unit/commercial-policy-evaluate.test.ts`
@@ -20,6 +20,10 @@ La matriz BO v1 sigue siendo un borrador hasta que **Políticas**, **Finanzas** 
 - La evidencia sin alcance registrado se conserva como histórica y no satisface un requisito de producto. Una versión firmada puede declarar `evidenceScope: "provider"` sólo para una evidencia realmente global; la omisión exige alcance explícito de producto u operación.
 
 ## Acuerdo particular del proveedor
+
+La implementación versionada está sujeta al [ADR 0007](../engineering/adr/0007-provider-commercial-agreement.md).
+Su estado y aprobación prevalecen: este runbook no autoriza integrar ni ejecutar una propuesta.
+El despliegue permanece desactivado por defecto y no exige acuerdos nuevos para reservar.
 
 La declaración de cobro directo de Tours se guarda en `ProviderCommercialLine` sin
 aprobar contratos ni activar una pasarela. El recorrido canónico está en
@@ -61,6 +65,45 @@ La aceptación particular no ratifica una política general. Los nuevos holds de
 conservan la referencia del acuerdo y sus términos económicos; al confirmar se
 comprueba la referencia y se conserva en el desglose de la reserva. Esto no acredita
 cobros ni genera por sí solo una comisión cobrable.
+
+## Transición del acuerdo versionado
+
+Responsable de decisión y rollout: `adm1n`. La asignación no habilita a firmar por un proveedor
+ni sustituye las tres identidades independientes requeridas para ratificar la política general.
+
+| Variable | Valor y alcance |
+| --- | --- |
+| `FASTT_TOUR_AGREEMENT_MODE` | `off` por defecto. `prepare` habilita preparación sin bloquear ventas; `enforce` exige acuerdo para nuevos holds/publicación en la cohorte. Un valor desconocido equivale a `off`. |
+| `FASTT_TOUR_AGREEMENT_PROVIDER_IDS` | IDs explícitos separados por comas. Sin cohorte o con `*`, el gate permanece apagado. |
+| `FASTT_TOUR_AGREEMENT_APPROVAL_REFERENCE` | Referencia no vacía a la aprobación real del rollout. No usar referencias de fixtures en un entorno operativo. |
+
+1. Completar y aceptar formalmente el ADR antes del merge o de aplicar el esquema. La excepción
+   pre-lanzamiento en revisión no se presenta como métrica ni incidente existente.
+2. Mantener `off` en todos los entornos operativos. Respaldar la base y usar el runner incremental
+   `pnpm db:migrate:apply-one` documentado en [operación PostgreSQL](../engineering/supabase-migration.md)
+   con `--dry-run --file <ruta>` para planificar, y sin `--dry-run` para aplicar primero
+   `2026-10-24_provider_commercial_agreements.sql` y después
+   `2026-10-25_provider_commercial_agreement_access.sql`. No ejecutar el baseline sobre una base existente.
+3. Verificar columnas, FKs, índices únicos de versión/propuesta pendiente, trigger de inmutabilidad
+   y RLS. Con el gate en `off`, certificar reservas y páginas sin depender de la tabla nueva.
+4. En un entorno aislado, configurar `prepare`, la referencia de aprobación y una cohorte explícita.
+   Certificar permisos, MFA, firma designada, hash/versiones e identidad. Un esquema ausente debe
+   corregirse antes de continuar; no ocultar ese error como aceptación o dato vacío.
+5. Preparar la cohorte operativa mediante solicitud, oferta revisada y aceptación real del firmante.
+   No hacer backfill de `accepted`, no presumir 0 % y no modificar reservas históricas.
+   Antes de `enforce`, el responsable verifica que el 100 % de la cohorte tenga acuerdo vigente,
+   identidad consistente y las aprobaciones generales independientes que correspondan.
+6. Certificar un hold anterior al corte y otro nuevo; el primero confirma con sus términos y
+   vencimiento originales. El nuevo conserva versión/hash y rechaza acuerdo ausente, vencido,
+   cambiado o identidad inconsistente. Proveedores fuera de cohorte mantienen el comportamiento anterior.
+7. Cambiar únicamente esa cohorte a `enforce`, desplegar y observar holds/confirmaciones, errores
+   `COMMERCIAL_AGREEMENT_REQUIRED`/`COMMERCIAL_AGREEMENT_CHANGED`, errores de esquema y latencia.
+   No ampliar mientras existan rechazos inesperados o divergencias en el recorrido.
+8. Ante una regresión, volver a `off` y desplegar. Conservar tablas, firmas y snapshots; nunca
+   borrar evidencia para revertir el requisito. Repetir las certificaciones antes de reactivar.
+
+Los tests usan referencias y aceptaciones ficticias sólo en bases aisladas. No prueban aceptación
+comercial en producción. Estos switches tampoco habilitan cobros, comisión exigible ni liquidaciones.
 
 ## Aprobación requerida por política general
 

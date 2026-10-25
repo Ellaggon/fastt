@@ -19,6 +19,7 @@ import {
 	CaseActivityEvent,
 } from "@/shared/infrastructure/db/compat"
 import { ProviderCommercialAgreement } from "@/shared/infrastructure/db/schema/tables"
+import { commercialAgreementRollout } from "../../commercial-agreement-rollout"
 import {
 	agreementTermsSchema,
 	agreementValidity,
@@ -42,6 +43,10 @@ export class AgreementError extends Error {
 	}
 }
 const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex")
+function assertAgreementRelease(providerId: string) {
+	if (!commercialAgreementRollout(providerId).enabled)
+		throw new AgreementError("commercial_agreements_disabled", 404)
+}
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 async function identity(tx: Tx, providerId: string) {
@@ -133,6 +138,7 @@ async function audit(
 		})
 }
 export async function listCommercialAgreements(providerId: string) {
+	if (!commercialAgreementRollout(providerId).enabled) return []
 	return db
 		.select()
 		.from(ProviderCommercialAgreement)
@@ -140,6 +146,7 @@ export async function listCommercialAgreements(providerId: string) {
 		.orderBy(desc(ProviderCommercialAgreement.version))
 }
 export async function requestCommercialAgreement(providerId: string, userId: string) {
+	assertAgreementRelease(providerId)
 	return db.transaction(async (tx) => {
 		await lock(tx, providerId)
 		const [line] = await tx
@@ -212,6 +219,7 @@ export async function offerCommercialAgreement(input: {
 	signerUserId: string
 	representationReference: string
 }) {
+	assertAgreementRelease(input.providerId)
 	const terms = agreementTermsSchema.parse(input.terms)
 	if (input.representationReference.trim().length < 8)
 		throw new AgreementError("representation_required", 422)
@@ -306,6 +314,7 @@ export async function acceptCommercialAgreement(input: {
 	termsHash: string
 	consent: boolean
 }) {
+	assertAgreementRelease(input.providerId)
 	if (!input.consent) throw new AgreementError("consent_required", 422)
 	return db.transaction(async (tx) => {
 		await lock(tx, input.providerId)
@@ -390,6 +399,7 @@ export async function withdrawCommercialAgreement(
 	agreementId: string,
 	actorUserId: string
 ) {
+	assertAgreementRelease(providerId)
 	return db.transaction(async (tx) => {
 		await lock(tx, providerId)
 		const [row] = await tx
@@ -434,6 +444,8 @@ export async function withdrawCommercialAgreement(
 	})
 }
 export async function commercialAgreementStatus(providerId: string) {
+	if (!commercialAgreementRollout(providerId).enabled)
+		return { state: "disabled" as const, agreement: null }
 	return db.transaction(async (tx) => {
 		const accepted = await tx
 			.select()
@@ -497,6 +509,7 @@ export async function requestCommercialAgreementCorrection(
 	actorUserId: string,
 	reason: string
 ) {
+	assertAgreementRelease(providerId)
 	if (reason.trim().length < 12 || reason.length > 2000)
 		throw new AgreementError("correction_reason_required", 422)
 	return db.transaction(async (tx) => {

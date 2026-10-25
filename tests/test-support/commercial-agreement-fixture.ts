@@ -16,6 +16,14 @@ import {
 
 /** Non-binding fixture contract, created through the same commands as the application. */
 export async function ensureTourCommercialAgreementFixture(providerId: string) {
+	process.env.FASTT_TOUR_AGREEMENT_MODE = "enforce"
+	process.env.FASTT_TOUR_AGREEMENT_APPROVAL_REFERENCE = "non-binding-isolated-test-fixture"
+	process.env.FASTT_TOUR_AGREEMENT_PROVIDER_IDS = [
+		...new Set([
+			...(process.env.FASTT_TOUR_AGREEMENT_PROVIDER_IDS ?? "").split(",").filter(Boolean),
+			providerId,
+		]),
+	].join(",")
 	const current = await commercialAgreementStatus(providerId)
 	if (current.state === "active") return
 	if (current.agreement?.status === "offered") {

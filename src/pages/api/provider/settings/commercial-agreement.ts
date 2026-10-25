@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro"
+import { commercialAgreementRollout } from "@/modules/financial/commercial-agreement-rollout"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
@@ -21,6 +22,8 @@ export const POST: APIRoute = async ({ request }) => {
 		if (!session.provider.permissions?.canEditProfile)
 			return Response.json({ error: "forbidden" }, { status: 403 })
 		const providerId = session.provider.providerId
+		if (!commercialAgreementRollout(providerId).enabled)
+			return Response.json({ error: "commercial_agreements_disabled" }, { status: 404 })
 		const action = form.get("action")
 		if (action === "request") await requestCommercialAgreement(providerId, session.user.id)
 		else if (action === "correction")

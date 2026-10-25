@@ -1,5 +1,6 @@
 import { listProviderCommercialLines } from "@/lib/verification/commercial-lines"
 import { commercialAgreementStatus } from "@/modules/financial/commercial-agreements"
+import { commercialAgreementRollout } from "@/modules/financial/commercial-agreement-rollout"
 import { db, desc, eq } from "@/shared/infrastructure/db/compat"
 import { ProviderCommercialAgreement } from "@/shared/infrastructure/db/schema/tables"
 
@@ -61,6 +62,7 @@ export function adminAgreementPresentation(
 }
 
 export async function loadAdminAgreementSurface(providerId: string) {
+	if (!commercialAgreementRollout(providerId).enabled) return null
 	const lines = await listProviderCommercialLines(providerId)
 	const tour = lines.find((line) => line.line === "tour")
 	if (!tour) return null

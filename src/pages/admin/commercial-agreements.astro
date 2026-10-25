@@ -11,6 +11,7 @@ import {
 	requireInternalPermission,
 } from "@/lib/auth/internal-authorization"
 import { loadAdminAgreementSurface } from "@/lib/commercial-policy/admin-agreement-surface"
+import { commercialAgreementRollout } from "@/modules/financial/commercial-agreement-rollout"
 import { agreementStateLabels, type OfferedTerms } from "@/modules/financial/commercial-agreements"
 import {
 	CaseActivityEvent,
@@ -35,11 +36,17 @@ try {
 	if (error instanceof Response) return error
 	throw error
 }
+const release = commercialAgreementRollout(providerId || undefined)
+if (!release.enabled) return new Response(null, { status: 404 })
 const rows = await db
 	.select({ agreement: ProviderCommercialAgreement, name: Provider.legalName })
 	.from(ProviderCommercialAgreement)
 	.innerJoin(Provider, eq(Provider.id, ProviderCommercialAgreement.providerId))
-	.where(providerId ? eq(ProviderCommercialAgreement.providerId, providerId) : undefined)
+	.where(
+		providerId
+			? eq(ProviderCommercialAgreement.providerId, providerId)
+			: inArray(ProviderCommercialAgreement.providerId, release.providerIds)
+	)
 	.orderBy(desc(ProviderCommercialAgreement.createdAt))
 	.limit(50)
 const focusedSummary = providerId ? await loadAdminAgreementSurface(providerId) : null

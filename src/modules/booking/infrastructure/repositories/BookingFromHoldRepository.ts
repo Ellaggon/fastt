@@ -1,4 +1,5 @@
 import { commercialAgreementStatus } from "@/modules/financial/commercial-agreements"
+import { revalidateTourAgreement } from "@/modules/financial/commercial-agreement-rollout"
 import {
 	first,
 	and,
@@ -372,7 +373,11 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				String(variant.kind ?? "")
 					.trim()
 					.toLowerCase() === "tour_slot"
-			if (isTourSlot) {
+			if (
+				isTourSlot &&
+				product.providerId &&
+				revalidateTourAgreement(product.providerId, Boolean(snapshot.commercialAgreement))
+			) {
 				const agreement = product.providerId
 					? await commercialAgreementStatus(product.providerId)
 					: null

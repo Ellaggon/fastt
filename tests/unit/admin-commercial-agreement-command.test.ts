@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { APIContext } from "astro"
 const mocks = vi.hoisted(() => ({
 	permission: vi.fn(),
@@ -33,11 +33,21 @@ function request(action = "offer") {
 	})
 }
 beforeEach(() => {
+	vi.stubEnv("FASTT_TOUR_AGREEMENT_MODE", "prepare")
+	vi.stubEnv("FASTT_TOUR_AGREEMENT_PROVIDER_IDS", "provider-a")
+	vi.stubEnv("FASTT_TOUR_AGREEMENT_APPROVAL_REFERENCE", "unit-test-review")
 	vi.resetAllMocks()
 	mocks.permission.mockResolvedValue({ user })
 	mocks.mfa.mockResolvedValue(undefined)
 })
+afterEach(() => vi.unstubAllEnvs())
 describe("admin agreement authorization", () => {
+	it("disables the API without executing a command when the release is off", async () => {
+		vi.stubEnv("FASTT_TOUR_AGREEMENT_MODE", "off")
+		expect((await POST({ request: request() } as APIContext)).status).toBe(404)
+		expect(mocks.offer).not.toHaveBeenCalled()
+		expect(mocks.withdraw).not.toHaveBeenCalled()
+	})
 	it("requires scoped financial permission before writing", async () => {
 		mocks.permission.mockRejectedValue(new Response("Forbidden", { status: 403 }))
 		const result = await POST({ request: request() } as APIContext)

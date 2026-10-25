@@ -23,6 +23,7 @@ import { listPendingProviderVerificationsForAdmin } from "@/lib/provider-admin-c
 import { listProviderTaxConfigurationsForAdmin } from "@/lib/provider-tax-configuration"
 import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
 import { ProviderCommercialAgreement } from "@/shared/infrastructure/db/schema/tables"
+import { commercialAgreementRollout } from "@/modules/financial/commercial-agreement-rollout"
 
 export const CASE_DOMAINS = ["verification", "fiscal", "documents", "payments"] as const
 export type CaseDomain = (typeof CASE_DOMAINS)[number]
@@ -138,19 +139,27 @@ export async function resolveRequirements(domain: CaseDomain) {
 }
 
 export async function listCurrentComplianceCaseSources(): Promise<ComplianceCaseSource[]> {
+	const release = commercialAgreementRollout()
 	const [verifications, taxConfigurations, documents, paymentAccounts, agreements] =
 		await Promise.all([
 			listPendingProviderVerificationsForAdmin(),
 			listProviderTaxConfigurationsForAdmin(),
 			listPendingProviderDocumentsForAdmin(),
 			listPendingProviderPaymentAccountsForAdmin(),
-			db
-				.select({
-					id: ProviderCommercialAgreement.id,
-					providerId: ProviderCommercialAgreement.providerId,
-				})
-				.from(ProviderCommercialAgreement)
-				.where(inArray(ProviderCommercialAgreement.status, ["requested", "offered"])),
+			release.enabled
+				? db
+						.select({
+							id: ProviderCommercialAgreement.id,
+							providerId: ProviderCommercialAgreement.providerId,
+						})
+						.from(ProviderCommercialAgreement)
+						.where(
+							and(
+								inArray(ProviderCommercialAgreement.status, ["requested", "offered"]),
+								inArray(ProviderCommercialAgreement.providerId, release.providerIds)
+							)
+						)
+				: Promise.resolve([]),
 		])
 	return [
 		...agreements.map((row) => ({

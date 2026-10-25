@@ -38,7 +38,10 @@ import {
 import { ratifyCommercialTourPolicy } from "@/lib/commercial-policy/ratification"
 
 let providerId: string, signer: string, manager: string, reviewer: string
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+	vi.restoreAllMocks()
+	vi.unstubAllEnvs()
+})
 const terms = {
 	commissionPercent: 12,
 	commissionBase: "Precio del servicio cobrado y no devuelto, excluyendo impuestos separados.",
@@ -56,6 +59,9 @@ const terms = {
 beforeEach(async () => {
 	const suffix = crypto.randomUUID()
 	providerId = `agreement-${suffix}`
+	vi.stubEnv("FASTT_TOUR_AGREEMENT_MODE", "enforce")
+	vi.stubEnv("FASTT_TOUR_AGREEMENT_PROVIDER_IDS", providerId)
+	vi.stubEnv("FASTT_TOUR_AGREEMENT_APPROVAL_REFERENCE", "isolated-test-review")
 	signer = `signer-${suffix}`
 	manager = `manager-${suffix}`
 	reviewer = `reviewer-${suffix}`
@@ -291,6 +297,7 @@ describe("provider commercial agreement lifecycle", () => {
 				consent: true,
 			})
 		).rejects.toThrow("authorized_signer_required")
+		vi.stubEnv("FASTT_TOUR_AGREEMENT_PROVIDER_IDS", `${providerId},other-${providerId}`)
 		await expect(
 			acceptCommercialAgreement({
 				providerId: `other-${providerId}`,

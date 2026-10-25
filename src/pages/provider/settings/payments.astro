@@ -8,6 +8,7 @@ import { loadProviderContractSurface } from "@/lib/commercial-policy/provider-co
 import { resolveFinancialApiProductScope } from "@/lib/financial/financialApiProductScope"
 import { safeFinancialReturn } from "@/lib/financial/financialReturn"
 import { listProviderCommercialLines } from "@/lib/verification/commercial-lines"
+import { commercialAgreementRollout } from "@/modules/financial/commercial-agreement-rollout"
 import {
 	agreementReturnTo,
 	commercialAgreementStatus,
@@ -37,7 +38,11 @@ const returnLabel = returnTo?.startsWith("/provider/settings/verification")
 		: "Volver"
 const lines = await listProviderCommercialLines(providerId)
 const tourLine = lines.find((line) => line.line === "tour")
-const showTourAgreement = Boolean(tourLine && Astro.url.searchParams.get("scope") !== "hotel")
+const showTourAgreement = Boolean(
+	commercialAgreementRollout(providerId).enabled &&
+	tourLine &&
+	Astro.url.searchParams.get("scope") !== "hotel"
+)
 const [agreements, agreementStatus, provider] = await Promise.all([
 	showTourAgreement ? listCommercialAgreements(providerId) : Promise.resolve([]),
 	showTourAgreement ? commercialAgreementStatus(providerId) : Promise.resolve(null),

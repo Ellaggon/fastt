@@ -1,5 +1,5 @@
 import { experimental_AstroContainer as AstroContainer } from "astro/container"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => ({ canOffer: true, canRead: true, rows: [] as unknown[][] }))
 vi.mock("@/lib/auth/internal-authorization", () => ({
 	requireInternalPermission: vi.fn(async () => {
@@ -22,6 +22,9 @@ vi.mock("@/shared/infrastructure/db/compat", async (importOriginal) => {
 })
 import Page from "@/pages/admin/commercial-agreements.astro"
 beforeEach(() => {
+	vi.stubEnv("FASTT_TOUR_AGREEMENT_MODE", "prepare")
+	vi.stubEnv("FASTT_TOUR_AGREEMENT_PROVIDER_IDS", "provider-fixture")
+	vi.stubEnv("FASTT_TOUR_AGREEMENT_APPROVAL_REFERENCE", "render-fixture-review")
 	mocks.canOffer = true
 	mocks.canRead = true
 	mocks.rows = [
@@ -41,6 +44,7 @@ beforeEach(() => {
 		[{ providerId: "provider-fixture", userId: "signer", email: "signer@fastt.test" }],
 	]
 })
+afterEach(() => vi.unstubAllEnvs())
 async function render() {
 	return (await AstroContainer.create()).renderToString(Page, {
 		request: new Request(
@@ -49,6 +53,18 @@ async function render() {
 	})
 }
 describe("admin commercial agreement editor", () => {
+	it("returns 404 before consuming a schema query when disabled", async () => {
+		vi.stubEnv("FASTT_TOUR_AGREEMENT_MODE", "off")
+		const response = await (
+			await AstroContainer.create()
+		).renderToResponse(Page, {
+			request: new Request(
+				"https://fastt.test/admin/commercial-agreements?providerId=provider-fixture"
+			),
+		})
+		expect(response.status).toBe(404)
+		expect(mocks.rows).toHaveLength(2)
+	})
 	it("does not reveal contract data without read permission", async () => {
 		mocks.canRead = false
 		const container = await AstroContainer.create()

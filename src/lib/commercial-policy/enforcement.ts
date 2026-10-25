@@ -14,6 +14,7 @@ import {
 import { commercialPolicyEnforcementDecision } from "@/lib/commercial-policy/gate"
 import { resolveCommercialPolicyRollout } from "@/lib/commercial-policy/rollout"
 import { commercialAgreementStatus } from "@/modules/financial/commercial-agreements"
+import { commercialAgreementRollout } from "@/modules/financial/commercial-agreement-rollout"
 import {
 	collectionModelForCommercialLine,
 	commercialLineForProductType,
@@ -247,7 +248,11 @@ export async function resolveProductCommercialDiagnosis(params: {
 		},
 		evidence,
 	})
-	if (vertical === "tour" && collectionModel === "property_collect") {
+	if (
+		vertical === "tour" &&
+		collectionModel === "property_collect" &&
+		commercialAgreementRollout(params.providerId).enforce
+	) {
 		const agreement = params.agreementStatus ?? (await commercialAgreementStatus(params.providerId))
 		if (agreement.state !== "active") {
 			diagnosis.blockers.push({

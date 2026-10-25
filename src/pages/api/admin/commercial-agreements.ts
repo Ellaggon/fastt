@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro"
+import { commercialAgreementRollout } from "@/modules/financial/commercial-agreement-rollout"
 import { ZodError } from "zod"
 import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
@@ -25,6 +26,8 @@ export const POST: APIRoute = async ({ request }) => {
 			{ type: "provider", id: providerId }
 		)
 		await requireRecentInternalAuthentication({ request, user: principal.user })
+		if (!commercialAgreementRollout(providerId).enabled)
+			return Response.json({ error: "commercial_agreements_disabled" }, { status: 404 })
 		const agreementId = String(form.get("agreementId") ?? "")
 		if (form.get("action") === "withdraw")
 			await withdrawCommercialAgreement(providerId, agreementId, principal.user.id)

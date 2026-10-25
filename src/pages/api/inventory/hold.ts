@@ -1,4 +1,5 @@
 import { experienceFormatSnapshot } from "@/shared/domain/experience-format"
+import { commercialAgreementRollout } from "@/modules/financial/commercial-agreement-rollout"
 import {
 	commercialAgreementStatus,
 	type OfferedTerms,
@@ -706,9 +707,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 								;(error as any).details = { priceQuote }
 								throw error
 							}
+							const enforceAgreement = Boolean(
+								isTourSlot && providerId && commercialAgreementRollout(providerId).enforce
+							)
 							const commercialAgreement =
-								isTourSlot && providerId ? await commercialAgreementStatus(providerId) : null
-							if (isTourSlot && commercialAgreement?.state !== "active")
+								enforceAgreement && providerId ? await commercialAgreementStatus(providerId) : null
+							if (enforceAgreement && commercialAgreement?.state !== "active")
 								throw new Error("COMMERCIAL_AGREEMENT_REQUIRED")
 							const agreementRow = commercialAgreement?.agreement
 							const agreementTerms = agreementRow?.termsJson as OfferedTerms | undefined
