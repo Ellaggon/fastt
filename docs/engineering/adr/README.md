@@ -3,7 +3,7 @@
 Status: active
 Document type: index
 Owner: Engineering
-Last verified: 2026-10-01
+Last verified: 2026-10-25
 Scope: decisiones de expansión de esquema y capacidades de tours
 Source of truth: ADRs enlazados; respetar el estado individual de cada decisión
 Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
@@ -15,11 +15,12 @@ ADRs in this folder gate **schema expansions** for the tour vertical.
 Any new physical table (or parallel booking path) for tours requires an ADR **before**
 migration + drizzle schema land. This includes, at minimum:
 
-| Capability                  | Proposed tables                                    | ADR                                       |
-| --------------------------- | -------------------------------------------------- | ----------------------------------------- |
-| Guide roster / assignment   | `Guide`, `TourGuideAssignment`                     | [0002](./0002-tour-guide-assignment.md)   |
-| Date-level salida overrides | `TourDepartureInstance`                            | [0003](./0003-tour-departure-instance.md) |
-| Viator / channel sync       | Channel mapping + sync runs (no parallel bookings) | [0004](./0004-viator-channel-sync.md)     |
+| Capability                    | Proposed tables                                      | ADR                                             |
+| ----------------------------- | ---------------------------------------------------- | ----------------------------------------------- |
+| Guide roster / assignment     | `Guide`, `TourGuideAssignment`                       | [0002](./0002-tour-guide-assignment.md)         |
+| Date-level salida overrides   | `TourDepartureInstance`                              | [0003](./0003-tour-departure-instance.md)       |
+| Viator / channel sync         | Channel mapping + sync runs (no parallel bookings)   | [0004](./0004-viator-channel-sync.md)           |
+| Provider commercial agreement | Versioned provider/line terms, signer and acceptance | [0007](./0007-provider-commercial-agreement.md) |
 
 Hotel channel **content** ownership (property / unit / rate; ARI unchanged):
 [0005](./0005-channel-content-ownership.md).
