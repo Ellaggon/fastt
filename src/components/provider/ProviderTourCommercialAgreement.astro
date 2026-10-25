@@ -1,0 +1,343 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Checkbox from "@/components/ui/Checkbox.astro"
+import Notice from "@/components/ui/Notice.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import {
+	agreementStateLabels,
+	type AgreementRow,
+	type OfferedTerms,
+} from "@/modules/financial/commercial-agreements"
+type Props = {
+	agreements: AgreementRow[]
+	collectionModel: string
+	canEdit: boolean
+	userId: string
+	agreementStatus: string
+	sellerName: string
+}
+const { agreements, collectionModel, canEdit, userId, agreementStatus, sellerName } =
+	Astro.props as Props
+const pending = agreements.find((row) => ["requested", "offered"].includes(row.status))
+const current = pending ?? agreements.find((row) => row.status === "accepted")
+const terms = current?.termsJson as OfferedTerms | null
+const statusLabel =
+	agreementStatus === "active"
+		? "Acuerdo vigente"
+		: agreementStatus === "expired"
+			? "Acuerdo vencido"
+			: agreementStatus === "review_required"
+				? "Requiere revisión"
+				: agreementStatus === "not_started"
+					? "Vigencia pendiente"
+					: current
+						? agreementStateLabels[current.status as keyof typeof agreementStateLabels]
+						: "Por configurar"
+---
+
+<section class="space-y-5" aria-label="Acuerdo comercial de Tours">
+	<div class="flex flex-wrap items-start justify-between gap-3">
+		<div>
+			<h2 class="text-base font-semibold">{sellerName || "Titular pendiente"}</h2><p
+				class="mt-1 text-sm text-slate-400"
+			>
+				Un acuerdo para todas tus experiencias.
+			</p>
+		</div><Badge variant={agreementStatus === "active" ? "success" : "neutral"}
+			>{
+				pending
+					? agreementStateLabels[pending.status as keyof typeof agreementStateLabels]
+					: statusLabel
+			}</Badge
+		>
+	</div>
+	<Card class="space-y-4">
+		<div class="flex flex-wrap items-center justify-between gap-2">
+			<h3 class="font-semibold text-slate-950">Quién cobra al viajero</h3>
+			{collectionModel === "property_collect" && <Badge variant="success">Confirmado</Badge>}
+		</div>
+		<p class="text-sm text-slate-600">
+			{
+				collectionModel === "property_collect"
+					? "Tu negocio cobra directamente al viajero. Fastt facilita la reserva, sin recibir ni transferir ese pago."
+					: "En la modalidad disponible, tu negocio cobra directamente al viajero y Fastt facilita la reserva. Confirmarla no implica aceptar un acuerdo."
+			}
+		</p>
+		{
+			collectionModel === "platform_collect" && (
+				<Notice variant="warning" title="Modalidad histórica por revisar">
+					El cobro por Fastt todavía no está disponible. Declara la modalidad de cobro directo para
+					continuar.
+				</Notice>
+			)
+		}
+		{
+			collectionModel !== "property_collect" &&
+				(canEdit ? (
+					<form
+						action="/api/provider/settings/commercial-line-collection-model"
+						method="post"
+						data-agreement-form
+					>
+						<>
+							<input type="hidden" name="line" value="tour" />
+							<input type="hidden" name="collectionModel" value="property_collect" />
+						</>
+						<>
+							<Button type="submit" variant="selection">
+								Confirmar cobro directo
+							</Button>
+							<p class="mt-2 text-sm text-slate-600" role="status" data-agreement-feedback />
+						</>
+					</form>
+				) : (
+					<p class="text-sm text-slate-600">Pide al titular acceso para declarar la modalidad.</p>
+				))
+		}
+	</Card>
+	<Card class="space-y-4">
+		<h3 class="font-semibold text-slate-950">
+			{
+				terms
+					? current?.status === "accepted"
+						? "Condiciones acordadas"
+						: "Propuesta comercial"
+					: "Propuesta comercial"
+			}
+		</h3>
+		{
+			terms ? (
+				<>
+					<dl class="grid gap-4 text-sm sm:grid-cols-2">
+						<div>
+							<>
+								<dt class="text-slate-500">Vendedor y beneficiario</dt>
+								<dd class="mt-1 font-medium text-slate-950">{terms.sellerName}</dd>
+							</>
+						</div>
+						<div>
+							<>
+								<dt class="text-slate-500">Comisión sobre la base acordada</dt>
+								<dd class="mt-1 font-medium text-slate-950">
+									{terms.commissionPercent}% · {terms.currency}
+								</dd>
+							</>
+						</div>
+						<div>
+							<>
+								<dt class="text-slate-500">Vigencia</dt>
+								<dd class="mt-1 text-slate-800">
+									{new Intl.DateTimeFormat("es-BO", {
+										dateStyle: "medium",
+										timeZone: "UTC",
+									}).format(new Date(terms.effectiveFrom))}{" "}
+									→{" "}
+									{new Intl.DateTimeFormat("es-BO", {
+										dateStyle: "medium",
+										timeZone: "UTC",
+									}).format(new Date(terms.effectiveTo))}
+								</dd>
+							</>
+						</div>
+						<div>
+							<>
+								<dt class="text-slate-500">Pago del viajero</dt>
+								<dd class="mt-1 text-slate-800">{terms.paymentTiming}</dd>
+							</>
+						</div>
+					</dl>
+					<div class="space-y-3 border-t border-slate-200 pt-4 text-sm text-slate-700">
+						<p>
+							<span class="font-semibold">Base de comisión: </span>
+							{terms.commissionBase}
+						</p>
+						<p>
+							<span class="font-semibold">Cancelaciones: </span>
+							{terms.cancellationTerms}
+						</p>
+						<p>
+							<span class="font-semibold">Conciliación: </span>
+							{terms.settlementTerms}
+						</p>
+						<p>
+							<span class="font-semibold">Responsabilidades fiscales: </span>
+							{terms.fiscalResponsibilities}
+						</p>
+					</div>
+					<details class="border-t border-slate-200 pt-4">
+						<>
+							<summary class="cursor-pointer text-sm font-semibold text-slate-800">
+								Ver condiciones completas · Versión {current?.version}
+							</summary>
+							<p class="mt-3 text-sm leading-6 whitespace-pre-wrap text-slate-700">
+								{terms.fullTerms}
+							</p>
+							<p class="mt-3 text-xs text-slate-500">Referencia: {terms.documentReference}</p>
+						</>
+					</details>
+				</>
+			) : (
+				<p class="text-sm text-slate-600">
+					{collectionModel !== "property_collect"
+						? "Primero confirma quién cobra al viajero. Después podrás solicitar y revisar la propuesta de Fastt."
+						: pending
+							? "Fastt está preparando la propuesta. Podrás revisar y aceptar aquí las condiciones cuando estén disponibles."
+							: "Solicita las condiciones de comisión, cobro y vigencia. Podrás revisarlas antes de aceptar."}
+				</p>
+			)
+		}
+		{
+			collectionModel === "property_collect" && (
+				<div class="space-y-4 border-t border-slate-200 pt-4">
+					{current?.status === "offered" && canEdit && (
+						<details>
+							<>
+								<summary class="cursor-pointer text-sm font-semibold text-slate-700">
+									Solicitar una corrección
+								</summary>
+								<form
+									method="post"
+									action="/api/provider/settings/commercial-agreement"
+									class="mt-3 space-y-3"
+									data-agreement-form
+								>
+									<>
+										<input type="hidden" name="action" value="correction" />
+										<input type="hidden" name="agreementId" value={current.id} />
+										<Textarea
+											name="reason"
+											required
+											minlength="12"
+											maxlength="2000"
+											aria-label="Qué debe corregirse"
+											placeholder="Indica qué condición o representante debe revisarse."
+										/>
+										<p class="text-xs text-slate-500">
+											La propuesta actual quedará retirada y Fastt recibirá una solicitud de nueva
+											versión.
+										</p>
+										<Button type="submit" variant="secondary">
+											Solicitar corrección
+										</Button>
+										<p role="status" class="text-sm text-slate-600" data-agreement-feedback />
+									</>
+								</form>
+							</>
+						</details>
+					)}
+					{current?.status === "offered" ? (
+						canEdit && current.authorizedSignerUserId === userId ? (
+							<form
+								method="post"
+								action="/api/provider/settings/commercial-agreement"
+								class="space-y-4"
+								data-agreement-form
+							>
+								<>
+									<input type="hidden" name="action" value="accept" />
+									<input type="hidden" name="agreementId" value={current.id} />
+									<input type="hidden" name="termsHash" value={current.termsHash!} />
+								</>
+								<Checkbox
+									name="consent"
+									required
+									label={`He leído y acepto la versión ${current.version} en representación de ${terms?.sellerName}.`}
+								/>
+								<>
+									<Button type="submit" variant="selection">
+										Aceptar acuerdo
+									</Button>
+									<p class="text-sm text-slate-600" role="status" data-agreement-feedback />
+								</>
+							</form>
+						) : (
+							<p class="text-sm text-slate-600">
+								Esta propuesta debe aceptarla el representante cuya facultad fue revisada. Si esa
+								persona cambió, solicita una corrección desde el caso comercial.
+							</p>
+						)
+					) : !pending && collectionModel === "property_collect" && canEdit ? (
+						<form
+							method="post"
+							action="/api/provider/settings/commercial-agreement"
+							data-agreement-form
+						>
+							<>
+								<input type="hidden" name="action" value="request" />
+								{agreementStatus === "active" ? (
+									<details>
+										<summary class="cursor-pointer text-sm font-medium text-slate-600">
+											Solicitar nuevas condiciones
+										</summary>
+										<p class="my-3 text-sm text-slate-600">
+											El acuerdo vigente se mantiene mientras revisas una nueva propuesta.
+										</p>
+										<Button type="submit" variant="secondary">
+											Solicitar nueva propuesta
+										</Button>
+									</details>
+								) : (
+									<Button type="submit" variant="selection">
+										{current ? "Solicitar nueva propuesta" : "Solicitar propuesta"}
+									</Button>
+								)}
+								<p class="mt-2 text-sm text-slate-600" role="status" data-agreement-feedback />
+							</>
+						</form>
+					) : null}
+					{pending?.caseId && (
+						<p class="text-sm text-slate-600">
+							{pending.status === "requested"
+								? "Pendiente de Fastt · Tu solicitud está registrada."
+								: "Pendiente de aceptación del representante autorizado."}
+						</p>
+					)}
+					{agreementStatus === "active" && (
+						<p class="text-sm text-slate-600">
+							El acuerdo está vigente. La publicación también comprueba identidad, fiscalidad y
+							respaldos aplicables a cada experiencia.
+						</p>
+					)}
+				</div>
+			)
+		}
+	</Card>
+	{
+		agreements.length > 1 && (
+			<details class="border-t border-slate-200 pt-4">
+				<>
+					<summary class="cursor-pointer text-sm font-semibold">Versiones anteriores</summary>
+					<ul class="mt-3 divide-y divide-slate-100">
+						{agreements
+							.filter((row) => row.id !== current?.id)
+							.map((row) => (
+								<li class="py-3 text-sm text-slate-400">
+									Versión {row.version} ·{" "}
+									{agreementStateLabels[row.status as keyof typeof agreementStateLabels]} ·{" "}
+									{row.acceptedAt
+										? new Intl.DateTimeFormat("es-BO", { dateStyle: "medium" }).format(
+												row.acceptedAt
+											)
+										: "Sin aceptación"}
+									<details class="mt-2">
+										<summary class="cursor-pointer">Ver condiciones</summary>
+										<p class="mt-2 whitespace-pre-wrap">
+											{(row.termsJson as OfferedTerms | null)?.fullTerms ??
+												"No se emitió una propuesta."}
+										</p>
+									</details>
+								</li>
+							))}
+					</ul>
+				</>
+			</details>
+		)
+	}
+</section>
+<script>
+	import { bindAgreementForms } from "@/lib/commercial-policy/agreement-forms"
+	bindAgreementForms()
+	document.addEventListener("astro:page-load", bindAgreementForms)
+</script>

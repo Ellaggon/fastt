@@ -13,7 +13,7 @@ type Props = {
 	safetyState?: VerificationPlaybookTab["uiState"]
 	operationComplete?: boolean
 	missingOperationFields?: string[]
-	collectionModelUndecided?: boolean
+	evaluationPending?: boolean
 }
 
 const {
@@ -24,13 +24,14 @@ const {
 	safetyState = "not_evaluable",
 	operationComplete = true,
 	missingOperationFields = [],
-	collectionModelUndecided = false,
+	evaluationPending = false,
 } = Astro.props as Props
 const lineSections = screen.sections.filter(
 	(section) =>
 		section.id !== "shared" &&
 		(!line || section.id === line) &&
-		(section.items.length > 0 || (section.id === "tour" && tourArea === "safety"))
+		(section.items.length > 0 ||
+			(section.id === "tour" && (tourArea === "safety" || evaluationPending)))
 )
 const completeOperationUrl = new URL("/provider/settings/verification", Astro.url)
 copyVerificationNavigationQuery(completeOperationUrl, Astro.url)
@@ -40,12 +41,6 @@ completeOperationUrl.searchParams.set("tourTab", "activity")
 if (experienceId) completeOperationUrl.searchParams.set("experience", experienceId)
 completeOperationUrl.hash = "tour-operating-context"
 const safetyPending = tourArea === "safety" && operationComplete && safetyState === "not_evaluable"
-const reviewUrl = new URL("/provider/support", Astro.url)
-reviewUrl.searchParams.set("line", "tour")
-reviewUrl.searchParams.set("topic", "verification")
-reviewUrl.searchParams.set("context", "tour_safety")
-if (experienceId) reviewUrl.searchParams.set("experience", experienceId)
-reviewUrl.searchParams.set("from", `${Astro.url.pathname}${Astro.url.search}`)
 function contextualHref(href: string, area: "activity" | "safety" | null | undefined): string {
 	if (
 		line === "tour" &&
@@ -96,7 +91,9 @@ function contextualHref(href: string, area: "activity" | "safety" | null | undef
 													? "Sin respaldos adicionales requeridos"
 													: "Respaldos de seguridad"
 										: operationComplete
-											? "Licencias aplicables"
+											? evaluationPending
+												? "Evaluación pendiente de Fastt"
+												: "Licencias aplicables"
 											: "Licencias por determinar"
 									: section.title}
 							</p>
@@ -110,27 +107,22 @@ function contextualHref(href: string, area: "activity" | "safety" | null | undef
 									: section.description}
 							</p>
 						</div>
-						{safetyPending ? (
+						{tourArea === "activity" && operationComplete && evaluationPending ? (
+							<p class="text-sm leading-6 text-slate-600">
+								Tu operación está guardada. Fastt está determinando las licencias aplicables a esta
+								experiencia. No necesitas volver a completar estos datos ni enviar documentos
+								adicionales.
+							</p>
+						) : safetyPending ? (
 							<div class="space-y-3">
 								<p class="text-sm leading-6 text-slate-600">
-									La operación está guardada. Todavía no se ha resuelto una política comercial
-									aprobada para esta experiencia. Por eso no podemos confirmar si necesitas
-									respaldos de seguridad adicionales.
+									Tu operación está guardada. Te indicaremos aquí los respaldos de seguridad que
+									correspondan cuando Fastt complete la evaluación.
 								</p>
-								{collectionModelUndecided && (
-									<p class="text-sm leading-6 text-slate-600">
-										También falta definir quién cobra al viajero. Esta decisión forma parte de la
-										revisión comercial; no se resuelve cambiando las actividades ni enviando otro
-										documento.
-									</p>
-								)}
 								<p class="text-sm leading-6 text-slate-600">
 									No necesitas volver a completar la operación. No envíes respaldos adicionales
 									hasta que se indiquen.
 								</p>
-								<Button href={`${reviewUrl.pathname}${reviewUrl.search}`} variant="secondary">
-									Solicitar revisión de requisitos
-								</Button>
 							</div>
 						) : operationComplete && listed.length ? (
 							<ul class="grid gap-2 sm:grid-cols-2">

@@ -9,6 +9,8 @@ import {
 } from "./financial-contract-presentation"
 import { listProviderDocuments } from "@/lib/provider-documents"
 import { readProviderHolderProfile } from "@/lib/provider-holder-profile"
+import { commercialAgreementStatus } from "@/modules/financial/commercial-agreements"
+import { commercialAgreementRollout } from "@/modules/financial/commercial-agreement-rollout"
 import {
 	collectionModelForCommercialLine,
 	commercialLineForProductType,
@@ -120,6 +122,11 @@ export async function loadProviderContractSurface(
 	])
 
 	const documents = holder ? await listProviderDocuments(providerId) : []
+	const agreementStatus =
+		commercialAgreementRollout(providerId).enforce &&
+		products.some((product) => String(product.productType).toLowerCase() === "tour")
+			? await commercialAgreementStatus(providerId)
+			: undefined
 	const offerings: ProviderContractOffering[] = await Promise.all(
 		products.map(async (product): Promise<ProviderContractOffering> => {
 			const productId = String(product.id)
@@ -136,6 +143,7 @@ export async function loadProviderContractSurface(
 					productId,
 					holder,
 					documents,
+					agreementStatus,
 				})
 				const presentation = presentFinancialContract({
 					diagnosis: current,

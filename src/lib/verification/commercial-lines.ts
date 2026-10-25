@@ -13,7 +13,6 @@ export type CommercialLineCollectionModel = (typeof commercialLineCollectionMode
 export type ProviderCollectionDeclarationError =
 	| "COMMERCIAL_LINE_COLLECTION_MODEL_INVALID"
 	| "PLATFORM_COLLECTION_UNAVAILABLE"
-	| "TOUR_COLLECTION_AGREEMENT_REQUIRED"
 
 /** Provider declarations cannot enable a payment rail or replace a tour agreement. */
 export function providerCollectionDeclarationError(
@@ -27,9 +26,6 @@ export function providerCollectionDeclarationError(
 		return "COMMERCIAL_LINE_COLLECTION_MODEL_INVALID"
 	}
 	if (collectionModel === "platform_collect") return "PLATFORM_COLLECTION_UNAVAILABLE"
-	if (line === "tour" && collectionModel === "property_collect") {
-		return "TOUR_COLLECTION_AGREEMENT_REQUIRED"
-	}
 	return null
 }
 export const commercialLineSources = ["onboarding", "product", "admin"] as const

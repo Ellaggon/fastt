@@ -54,7 +54,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 			approvalReference: body.data.approvalReference,
 			approverUserId: principal.user.id,
 		})
-		return json(result, result.status === "published" ? 201 : 202)
+		return json({ ...result, ok: true }, result.status === "published" ? 201 : 202)
 	} catch (error) {
 		if (error instanceof CommercialPolicyRatificationError) {
 			const status =

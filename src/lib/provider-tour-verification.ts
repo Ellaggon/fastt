@@ -3,6 +3,10 @@ import type {
 	CommercialPolicyDiagnosis,
 } from "@/lib/commercial-policy/evaluate"
 import { routes } from "@/lib/routes"
+import {
+	commercialBlockerIsWaiting,
+	tourCommercialAction,
+} from "@/lib/tours/tourCommercialNavigation"
 import type { VerificationRequirement } from "@/lib/verification/requirement-resolver"
 
 export type TourVerificationProduct = {
@@ -54,6 +58,8 @@ export type TourVerificationReadiness = {
 	paymentLabel: string
 	paymentBody: string
 	action: TourVerificationAction | null
+	/** Licenses and safety depend on policy evaluation, not the agreement lifecycle. */
+	policyEvaluationPending?: boolean
 	blockers: Array<{ id: string; body: string }>
 	/** Account evidence explicitly allowed by the approved policy. */
 	reusedAccountEvidenceCount: number
@@ -89,19 +95,33 @@ function actionForBlocker(
 	product: TourVerificationProduct,
 	blocker: CommercialPolicyBlocker
 ): TourVerificationAction | null {
+	if (commercialBlockerIsWaiting(blocker.id)) return null
+	const commercial = tourCommercialAction(blocker.id, product.id)
+	if (commercial) return commercial
 	if (blocker.id.startsWith("requirement_")) {
 		if (blocker.evidenceState === "pending_review") return null
 		return { label: "Abrir evidencia de esta experiencia", href: scopedDocumentsHref(product.id) }
 	}
-	if (blocker.id.startsWith("holder_declaration_")) {
+	if (
+		blocker.id.startsWith("holder_declaration_") ||
+		blocker.id === "policy_context_missing_holder"
+	) {
 		return { label: "Revisar identidad del titular", href: routes.providerSettingsVerification() }
 	}
-	if (blocker.id === "product_location_missing") {
+	if (
+		blocker.id === "product_location_missing" ||
+		blocker.id === "policy_context_missing_product"
+	) {
 		return {
 			label: "Completar ubicación de la experiencia",
 			href: routes.productDetail(product.id),
 		}
 	}
+	if (blocker.id === "policy_context_missing_tax")
+		return {
+			label: "Completar identidad fiscal",
+			href: routes.providerSettingsVerificationFiscal(),
+		}
 	if (blocker.id === "experience_format_missing") {
 		return {
 			label: "Completar formato",
@@ -130,14 +150,16 @@ export function buildTourVerificationReadiness(params: {
 		firstBlocker?.id === "holder_declaration_in_review"
 	)
 	const policyWaiting = Boolean(
-		firstBlocker?.id.startsWith("policy_context_") ||
-		firstBlocker?.id.startsWith("policy_contract_")
+		firstBlocker &&
+		firstBlocker.id.startsWith("policy_") &&
+		commercialBlockerIsWaiting(firstBlocker.id)
 	)
+	const agreementWaiting = Boolean(firstBlocker && commercialBlockerIsWaiting(firstBlocker.id))
 	const state = publishAndBookingReady
 		? "ready"
 		: pendingReview
 			? "in_review"
-			: policyWaiting
+			: policyWaiting || agreementWaiting
 				? "waiting_on_fastt"
 				: "action_needed"
 	const stateLabel =
@@ -146,7 +168,9 @@ export function buildTourVerificationReadiness(params: {
 			: state === "in_review"
 				? "En revisión"
 				: state === "waiting_on_fastt"
-					? "En espera de Fastt"
+					? firstBlocker?.id === "agreement_not_started"
+						? "Vigencia pendiente"
+						: "En espera de Fastt"
 					: "Acción requerida"
 	const body = publishAndBookingReady
 		? "Esta experiencia ya cumple sus requisitos comerciales para publicar y aceptar reservas."
@@ -188,6 +212,9 @@ export function buildTourVerificationReadiness(params: {
 		paymentLabel,
 		paymentBody,
 		action: firstBlocker ? actionForBlocker(product, firstBlocker) : null,
+		policyEvaluationPending: diagnosis.blockers.some(
+			(blocker) => blocker.id.startsWith("policy_") && commercialBlockerIsWaiting(blocker.id)
+		),
 		blockers: visibleBlockers.slice(0, 3).map((blocker) => ({
 			id: blocker.id,
 			body: blockerDescription(blocker),

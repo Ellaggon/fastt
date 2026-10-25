@@ -33,6 +33,7 @@ import { GET as tripGet } from "@/pages/api/trips/[bookingId]"
 import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
 import { deriveBookingLifecycle } from "@/modules/booking/public"
 import { assignTourRatePlanPolicies } from "../test-support/tour-policy-fixture"
+import { ensureTourCommercialAgreementFixture } from "../test-support/commercial-agreement-fixture"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { markProductPublished } from "../test-support/catalog-db-test-data"
 
@@ -125,6 +126,7 @@ async function seedTourBookingReady(params: {
 		.insert(Provider)
 		.values({ id: "prov_test", legalName: "Provider prov_test" })
 		.onConflictDoNothing()
+	await ensureTourCommercialAgreementFixture("prov_test")
 	await db
 		.insert(User)
 		.values({

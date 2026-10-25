@@ -77,7 +77,7 @@ describe("financial commercial presentation", () => {
 			{ collectionModel: "undecided" }
 		)
 		expect(result.status).toBe("unsupported")
-		expect(result.primaryAction?.href).toContain("/provider/support")
+		expect(result.primaryAction?.href).toContain("/provider/settings/payments")
 	})
 	it("only a submitted review is shown as in review", () => {
 		const missing = {

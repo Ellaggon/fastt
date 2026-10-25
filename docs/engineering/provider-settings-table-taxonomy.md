@@ -3,7 +3,7 @@
 Status: active
 Document type: canonical
 Owner: Engineering
-Last verified: 2026-10-01
+Last verified: 2026-10-24
 Scope: propiedad y semántica de datos de configuración del proveedor
 Source of truth: src/shared/infrastructure/db/schema/ y contratos de dominio
 Review trigger: cambio de contrato, controles o procedimiento; revisar evidencia del entorno antes de ejecutar
@@ -66,6 +66,7 @@ providers redefine the fact.
 | `Provider` | Catalog | Commercial identity: legal name, display name, lifecycle status. |
 | `ProviderProfile` | Settings / Ops | Operational defaults only: timezone, default currency and support contacts. |
 | `ProviderUser` | Settings / Ops | Provider membership, role, grants and the member's Esencial/Profesional workspace preference. |
+| `ProviderCommercialAgreement` | Financial | Provider/line proposal version, reviewed signer and immutable acceptance. Collection declaration remains on `ProviderCommercialLine`; general requirements remain on `CompliancePolicyVersion`. Requests reuse `ComplianceCase` and `CaseTask`. |
 
 `ProviderProfile` must **not** store fiscal identity, payout readiness or
 integration readiness. Those belong to the tables below.

@@ -3,7 +3,7 @@
 Status: active
 Document type: runbook
 Owner: Provider Policy / Finance / Tours
-Last verified: 2026-09-28
+Last verified: 2026-10-25
 Scope: ratificación, activación controlada y reversión de políticas comerciales de tours BO v1
 Source of truth: `CompliancePolicyVersion`, `CommercialPolicyApproval` y la [matriz BO v1](../domains/tours/policy-annex.md)
 Related code/tests: `src/lib/commercial-policy/ratification.ts`, `src/pages/api/admin/commercial-policies/[versionId]/approvals.ts`, `db/migrations/2026-11-08_commercial_tour_policy_ratification.sql`, `tests/unit/commercial-policy-evaluate.test.ts`
@@ -19,7 +19,95 @@ La matriz BO v1 sigue siendo un borrador hasta que **Políticas**, **Finanzas** 
 - La aplicación de publicación y confirmación requiere el kill switch `FASTT_ENFORCE_COMMERCIAL_POLICY=true` **y** una cohorte explícita. Si la etapa no se declara, queda en `off`; desplegar código no cambia autorizaciones históricas.
 - La evidencia sin alcance registrado se conserva como histórica y no satisface un requisito de producto. Una versión firmada puede declarar `evidenceScope: "provider"` sólo para una evidencia realmente global; la omisión exige alcance explícito de producto u operación.
 
-## Aprobación requerida
+## Acuerdo particular del proveedor
+
+La implementación versionada está sujeta al [ADR 0007](../engineering/adr/0007-provider-commercial-agreement.md).
+La excepción pre-lanzamiento fue aprobada el 2026-10-25 para integrar código desactivado;
+no autoriza ejecutar ahora migraciones ni activar el requisito en producción.
+El despliegue permanece desactivado por defecto y no exige acuerdos nuevos para reservar.
+
+La declaración de cobro directo de Tours se guarda en `ProviderCommercialLine` sin
+aprobar contratos ni activar una pasarela. El recorrido canónico está en
+`/provider/settings/payments` (Acuerdo comercial), con acceso permanente desde
+Configuración. Actividad y licencias y Seguridad y permisos no contienen tareas
+contractuales. Publicar tour ofrece «Configurar cobro», «Solicitar propuesta» o
+«Revisar propuesta» según la acción pendiente del proveedor, conservando la
+experiencia y el retorno. Una evaluación interna o una propuesta solicitada no
+genera otra tarea para el proveedor. La experiencia es contexto de navegación;
+el acuerdo pertenece al proveedor y a la línea Tours, no a una oferta individual.
+
+`ProviderCommercialAgreement` conserva una fila por propuesta versionada de proveedor
+y línea Tours. Sus estados son `requested`, `offered`, `accepted` y `withdrawn`.
+La representación se revisa antes de emitir la propuesta y nombra al único usuario
+autorizado para aceptarla. La aceptación registra la huella de la versión exacta.
+Los términos emitidos y las versiones aceptadas se protegen contra modificación;
+una corrección retira la propuesta y abre otra versión. No se inventan tasas ni se
+presume aceptación desde un rol de cuenta.
+
+Las solicitudes usan `ComplianceCase` y `CaseTask`, con fuente
+`ProviderCommercialAgreement`; sus decisiones se registran en el área de acuerdos,
+nunca mediante la aprobación genérica de identidad. `/admin/commercial-agreements`
+permite preparar las propuestas y revisar la referencia de representación.
+La ficha `/admin/providers?filter=payments&providerId=…` separa el resumen comercial
+de la revisión bancaria y enlaza al gestor sin duplicar su formulario. La emisión
+requiere `commercial_policy.finance.approve` con alcance sobre el proveedor y MFA
+reciente. Primero se revisa un resumen local; sólo «Autorizar y enviar propuesta»
+persiste los términos. Esa autorización interna nunca acepta por el proveedor.
+El gestor conserva el retorno a la ficha, la autoría y fecha de emisión/aceptación,
+y las versiones anteriores colapsadas. La referencia de representación es evidencia
+registrada por el revisor, no una comprobación automática de facultades.
+`/admin/commercial-policies` permite preparar requisitos generales y registrar las
+tres aprobaciones existentes. La primera firma impide editar los requisitos de esa
+versión; una corrección requiere un borrador nuevo.
+
+La vigencia contractual se deriva de aceptación, fechas, modalidad e identidad
+actual. Publicar y reservar también exige las políticas y evidencias aplicables.
+La aceptación particular no ratifica una política general. Los nuevos holds de tours
+conservan la referencia del acuerdo y sus términos económicos; al confirmar se
+comprueba la referencia y se conserva en el desglose de la reserva. Esto no acredita
+cobros ni genera por sí solo una comisión cobrable.
+
+## Transición del acuerdo versionado
+
+Responsable de decisión y rollout: `adm1n`. La asignación no habilita a firmar por un proveedor
+ni sustituye las tres identidades independientes requeridas para ratificar la política general.
+
+| Variable | Valor y alcance |
+| --- | --- |
+| `FASTT_TOUR_AGREEMENT_MODE` | `off` por defecto. `prepare` habilita preparación sin bloquear ventas; `enforce` exige acuerdo para nuevos holds/publicación en la cohorte. Un valor desconocido equivale a `off`. |
+| `FASTT_TOUR_AGREEMENT_PROVIDER_IDS` | IDs explícitos separados por comas. Sin cohorte o con `*`, el gate permanece apagado. |
+| `FASTT_TOUR_AGREEMENT_APPROVAL_REFERENCE` | Referencia no vacía a la aprobación real del rollout. No usar referencias de fixtures en un entorno operativo. |
+
+1. Verificar la aceptación del ADR y programar por separado la operación sobre la base objetivo.
+   La excepción pre-lanzamiento aceptada el 2026-10-25 no se presenta como métrica ni incidente
+   existente, y la aprobación del merge no equivale a autorización para ejecutar la migración ahora.
+2. Mantener `off` en todos los entornos operativos. Respaldar la base y usar el runner incremental
+   `pnpm db:migrate:apply-one` documentado en [operación PostgreSQL](../engineering/supabase-migration.md)
+   con `--dry-run --file <ruta>` para planificar, y sin `--dry-run` para aplicar primero
+   `2026-10-24_provider_commercial_agreements.sql` y después
+   `2026-10-25_provider_commercial_agreement_access.sql`. No ejecutar el baseline sobre una base existente.
+3. Verificar columnas, FKs, índices únicos de versión/propuesta pendiente, trigger de inmutabilidad
+   y RLS. Con el gate en `off`, certificar reservas y páginas sin depender de la tabla nueva.
+4. En un entorno aislado, configurar `prepare`, la referencia de aprobación y una cohorte explícita.
+   Certificar permisos, MFA, firma designada, hash/versiones e identidad. Un esquema ausente debe
+   corregirse antes de continuar; no ocultar ese error como aceptación o dato vacío.
+5. Preparar la cohorte operativa mediante solicitud, oferta revisada y aceptación real del firmante.
+   No hacer backfill de `accepted`, no presumir 0 % y no modificar reservas históricas.
+   Antes de `enforce`, el responsable verifica que el 100 % de la cohorte tenga acuerdo vigente,
+   identidad consistente y las aprobaciones generales independientes que correspondan.
+6. Certificar un hold anterior al corte y otro nuevo; el primero confirma con sus términos y
+   vencimiento originales. El nuevo conserva versión/hash y rechaza acuerdo ausente, vencido,
+   cambiado o identidad inconsistente. Proveedores fuera de cohorte mantienen el comportamiento anterior.
+7. Cambiar únicamente esa cohorte a `enforce`, desplegar y observar holds/confirmaciones, errores
+   `COMMERCIAL_AGREEMENT_REQUIRED`/`COMMERCIAL_AGREEMENT_CHANGED`, errores de esquema y latencia.
+   No ampliar mientras existan rechazos inesperados o divergencias en el recorrido.
+8. Ante una regresión, volver a `off` y desplegar. Conservar tablas, firmas y snapshots; nunca
+   borrar evidencia para revertir el requisito. Repetir las certificaciones antes de reactivar.
+
+Los tests usan referencias y aceptaciones ficticias sólo en bases aisladas. No prueban aceptación
+comercial en producción. Estos switches tampoco habilitan cobros, comisión exigible ni liquidaciones.
+
+## Aprobación requerida por política general
 
 Por cada una de las combinaciones BO v1, Políticas, Finanzas y Operaciones Tours deben registrar:
 
@@ -55,15 +143,15 @@ sin cambios.
 
 ## Configuración de cohorte
 
-| Variable | Uso |
-| --- | --- |
-| `FASTT_ENFORCE_COMMERCIAL_POLICY` | Kill switch. Debe ser `true` para considerar cualquier cohorte. |
-| `FASTT_COMMERCIAL_POLICY_ROLLOUT_STAGE` | `off`, `staging`, `allowlist`, `percentage` o `general`. El valor por defecto es `off`. |
-| `FASTT_COMMERCIAL_POLICY_STAGING_HOSTS` | Hosts separados por coma admitidos durante `staging`. |
-| `FASTT_COMMERCIAL_POLICY_DEPLOYMENT_ENV` | Si vale `staging`, la etapa `staging` también queda admitida aunque el host no esté en la lista. |
-| `FASTT_COMMERCIAL_POLICY_PROVIDER_ALLOWLIST` | IDs de proveedor separados por coma que forman el canary inicial. |
-| `FASTT_COMMERCIAL_POLICY_ROLLOUT_PERCENT` | Porcentaje estable posterior al allowlist. |
-| `FASTT_AUDIT_DATABASE_FINGERPRINT` | Sólo para auditorías de producción: fingerprint esperado de la base objetivo; evita certificar por error una base de pruebas. |
+| Variable                                     | Uso                                                                                                                           |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `FASTT_ENFORCE_COMMERCIAL_POLICY`            | Kill switch. Debe ser `true` para considerar cualquier cohorte.                                                               |
+| `FASTT_COMMERCIAL_POLICY_ROLLOUT_STAGE`      | `off`, `staging`, `allowlist`, `percentage` o `general`. El valor por defecto es `off`.                                       |
+| `FASTT_COMMERCIAL_POLICY_STAGING_HOSTS`      | Hosts separados por coma admitidos durante `staging`.                                                                         |
+| `FASTT_COMMERCIAL_POLICY_DEPLOYMENT_ENV`     | Si vale `staging`, la etapa `staging` también queda admitida aunque el host no esté en la lista.                              |
+| `FASTT_COMMERCIAL_POLICY_PROVIDER_ALLOWLIST` | IDs de proveedor separados por coma que forman el canary inicial.                                                             |
+| `FASTT_COMMERCIAL_POLICY_ROLLOUT_PERCENT`    | Porcentaje estable posterior al allowlist.                                                                                    |
+| `FASTT_AUDIT_DATABASE_FINGERPRINT`           | Sólo para auditorías de producción: fingerprint esperado de la base objetivo; evita certificar por error una base de pruebas. |
 
 La certificación de cada cohorte debe incluir un proveedor sólo hotel, uno sólo tour y uno mixto.
 La decisión se calcula en servidor con el ID del proveedor; ni cabeceras ni parámetros de URL pueden

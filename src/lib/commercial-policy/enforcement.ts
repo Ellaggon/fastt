@@ -13,6 +13,8 @@ import {
 } from "@/lib/tours/tour-compliance-context"
 import { commercialPolicyEnforcementDecision } from "@/lib/commercial-policy/gate"
 import { resolveCommercialPolicyRollout } from "@/lib/commercial-policy/rollout"
+import { commercialAgreementStatus } from "@/modules/financial/commercial-agreements"
+import { commercialAgreementRollout } from "@/modules/financial/commercial-agreement-rollout"
 import {
 	collectionModelForCommercialLine,
 	commercialLineForProductType,
@@ -112,6 +114,7 @@ export async function resolveProductCommercialDiagnosis(params: {
 	documents?: Awaited<ReturnType<typeof listProviderDocuments>>
 	/** As above, this is an optimization only; external callers still resolve the holder server-side. */
 	holder?: Awaited<ReturnType<typeof readProviderHolderProfile>>
+	agreementStatus?: Awaited<ReturnType<typeof commercialAgreementStatus>>
 }): Promise<ProductCommercialDiagnosis> {
 	const product = await db
 		.select({ productType: Product.productType })
@@ -223,32 +226,57 @@ export async function resolveProductCommercialDiagnosis(params: {
 		})),
 	}))
 	const activityClasses = storedTourActivityClasses(tourContext?.activityClassesJson)
+	const diagnosis = await diagnoseCommercialPolicy({
+		context: {
+			holderType: holder.holderType as "persona_natural" | "entidad",
+			holderCountry: holder.holderCountry,
+			taxCountry: holder.taxResidenceCountry,
+			payoutCountry: holder.payoutCountry,
+			productCountry: place.countryCode,
+			vertical: vertical as "hotel" | "tour" | "whole_home",
+			collectionModel,
+			productId: params.productId,
+			experienceFormat: format?.experienceFormat as ExperienceFormat | null,
+			formatContractVersion: format?.formatContractVersion,
+			jurisdictionCode: tourContext?.jurisdictionCode ?? null,
+			jurisdictionCodes: tourContext?.jurisdictionCodes ?? undefined,
+			operatingRole:
+				(tourContext?.operatingRole as "operator" | "guide" | "intermediary" | null) ?? null,
+			activityClasses,
+			resourceIds: params.resourceIds ?? [],
+			subjectReferences: params.subjectReferences ?? params.resourceIds ?? [],
+		},
+		evidence,
+	})
+	if (
+		vertical === "tour" &&
+		collectionModel === "property_collect" &&
+		commercialAgreementRollout(params.providerId).enforce
+	) {
+		const agreement = params.agreementStatus ?? (await commercialAgreementStatus(params.providerId))
+		if (agreement.state !== "active") {
+			diagnosis.blockers.push({
+				id: `agreement_${agreement.state === "acceptance_required" && !agreement.agreement ? "proposal_required" : agreement.state}`,
+				capabilities: ["publish", "booking", "integrations"],
+				action:
+					agreement.state === "proposal_requested"
+						? "Fastt está preparando la propuesta comercial de Tours."
+						: agreement.state === "not_started"
+							? "El acuerdo está aceptado y aún no inicia su vigencia."
+							: "Completa el acuerdo comercial de Tours.",
+				policyVersionId: null,
+			})
+			for (const capability of ["publish", "booking", "integrations"] as const) {
+				diagnosis.capabilities[capability] = false
+				diagnosis.capabilityStates[capability] = "blocked"
+			}
+		}
+	}
 	return {
 		productId: params.productId,
 		providerId: params.providerId,
 		vertical: vertical as ProductCommercialDiagnosis["vertical"],
-		diagnosis: await diagnoseCommercialPolicy({
-			context: {
-				holderType: holder.holderType as "persona_natural" | "entidad",
-				holderCountry: holder.holderCountry,
-				taxCountry: holder.taxResidenceCountry,
-				payoutCountry: holder.payoutCountry,
-				productCountry: place.countryCode,
-				vertical: vertical as "hotel" | "tour" | "whole_home",
-				collectionModel,
-				productId: params.productId,
-				experienceFormat: format?.experienceFormat as ExperienceFormat | null,
-				formatContractVersion: format?.formatContractVersion,
-				jurisdictionCode: tourContext?.jurisdictionCode ?? null,
-				jurisdictionCodes: tourContext?.jurisdictionCodes ?? undefined,
-				operatingRole:
-					(tourContext?.operatingRole as "operator" | "guide" | "intermediary" | null) ?? null,
-				activityClasses,
-				resourceIds: params.resourceIds ?? [],
-				subjectReferences: params.subjectReferences ?? params.resourceIds ?? [],
-			},
-			evidence,
-		}),
+		diagnosis,
 	}
 }
 

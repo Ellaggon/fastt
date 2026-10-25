@@ -2,6 +2,8 @@
 import AdminComplianceSlaAssign from "@/components/admin/AdminComplianceSlaAssign.astro"
 import ReviewedProviderDocuments from "@/components/admin/ReviewedProviderDocuments.astro"
 import ProviderBankAccountReview from "@/components/admin/ProviderBankAccountReview.astro"
+import ProviderCommercialAgreementSummary from "@/components/admin/ProviderCommercialAgreementSummary.astro"
+import { loadAdminAgreementSurface } from "@/lib/commercial-policy/admin-agreement-surface"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -62,11 +64,35 @@ function canPreviewDocument(providerId: string) {
 	)
 }
 
-const consolePayload = isAdmin
-	? await loadProviderComplianceConsole({ filter, auditLimit: filter === "audit" ? 80 : 25 })
-	: null
-const focusedDetail =
-	isAdmin && focusedProviderId ? await loadProviderComplianceDetail(focusedProviderId) : null
+const canReadAgreement = Boolean(
+	principal &&
+	focusedProviderId &&
+	principalHasPermission(principal, "provider.compliance.read", {
+		type: "provider",
+		id: focusedProviderId,
+	})
+)
+let agreementReadFailed = false
+const [consolePayload, focusedDetail, agreementSummary] = await Promise.all([
+	isAdmin
+		? loadProviderComplianceConsole({ filter, auditLimit: filter === "audit" ? 80 : 25 })
+		: null,
+	isAdmin && focusedProviderId ? loadProviderComplianceDetail(focusedProviderId) : null,
+	canReadAgreement && filter === "payments"
+		? loadAdminAgreementSurface(focusedProviderId).catch((error) => {
+				agreementReadFailed = true
+				console.error("admin.agreement_summary_failed", error)
+				return null
+			})
+		: null,
+])
+const canOfferAgreement = Boolean(
+	principal &&
+	principalHasPermission(principal, "commercial_policy.finance.approve", {
+		type: "provider",
+		id: focusedProviderId,
+	})
+)
 const focusedPendingCount = focusedDetail
 	? filter === "verification"
 		? Number(focusedDetail.pending.verification)
@@ -1354,6 +1380,31 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 													</section>
 												)}
 
+												{agreementSummary && (
+													<ProviderCommercialAgreementSummary
+														model={agreementSummary}
+														canOffer={canOfferAgreement}
+													/>
+												)}
+												{agreementReadFailed && (
+													<section
+														class="space-y-3 border-t border-slate-200 pt-4"
+														aria-label="Consulta de acuerdo comercial"
+													>
+														<p class="text-sm text-slate-700" role="status">
+															No se pudo consultar el acuerdo comercial. La revisión bancaria sigue
+															disponible.
+														</p>
+														<Button
+															href={Astro.url.pathname + Astro.url.search}
+															reload
+															size="sm"
+															variant="secondary"
+														>
+															Volver a consultar
+														</Button>
+													</section>
+												)}
 												{sections.payments && (
 													<ProviderBankAccountReview
 														accounts={focusedDetail.paymentAccounts}

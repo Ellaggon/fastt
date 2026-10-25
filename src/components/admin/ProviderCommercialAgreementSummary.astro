@@ -1,0 +1,43 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import type { loadAdminAgreementSurface } from "@/lib/commercial-policy/admin-agreement-surface"
+type Props = {
+	model: NonNullable<Awaited<ReturnType<typeof loadAdminAgreementSurface>>>
+	canOffer: boolean
+}
+const { model, canOffer } = Astro.props
+---
+
+<section
+	class="space-y-3 border-t border-slate-200 pt-4"
+	aria-label="Acuerdo comercial de Tours"
+	data-admin-agreement-summary
+>
+	<div class="flex flex-wrap items-center justify-between gap-2">
+		<h3 class="font-semibold text-slate-950">Acuerdo comercial de Tours</h3>
+		<Badge variant={model.label === "Acuerdo vigente" ? "success" : "neutral"}>{model.label}</Badge>
+	</div>
+	<p class="text-sm text-slate-700">
+		{
+			model.collectionModel === "property_collect"
+				? "Cobro directo confirmado por el proveedor"
+				: "Cobro al viajero sin confirmar"
+		}
+	</p>
+	<p class="text-sm text-slate-600">{model.next}</p>
+	{
+		model.actionable && !canOffer && (
+			<p class="text-sm text-slate-600">
+				Puedes consultar la solicitud. Emitirla requiere permiso de aprobación comercial financiera.
+			</p>
+		)
+	}
+	<Button
+		href={`/admin/commercial-agreements?providerId=${encodeURIComponent(model.providerId)}`}
+		size="sm"
+		variant={model.actionable && canOffer ? "selection" : "secondary"}
+	>
+		{model.actionable && !canOffer ? "Consultar solicitud" : model.action}
+	</Button>
+</section>

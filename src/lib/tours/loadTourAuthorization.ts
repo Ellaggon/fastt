@@ -2,6 +2,7 @@ import { productRepository } from "@/container"
 import { evaluateProviderGovernance } from "@/lib/provider-governance"
 import { loadProductLineGate } from "@/lib/verification/line-gate"
 import { resolveProductCommercialDiagnosis } from "@/lib/commercial-policy/enforcement"
+import { commercialBlockerIsWaiting, tourCommercialAction } from "./tourCommercialNavigation"
 
 /** Uses the same product-scoped evidence and signed policy used by publication. */
 export async function loadTourAuthorization(input: { providerId: string; productId: string }) {
@@ -21,12 +22,13 @@ export async function loadTourAuthorization(input: { providerId: string; product
 	)
 	const verificationHref = `/provider/settings/verification?${new URLSearchParams({ line: "tour", experience: input.productId })}`
 	const firstShared = provider.blockers.find((blocker) => blocker.capabilities.includes("publish"))
-	const firstPolicy = policy[0]
-	const fasttDecision =
-		firstPolicy &&
-		/^(policy_context_(unsupported|conflict)|policy_contract_empty|collection_model_undecided)/.test(
-			firstPolicy.id
-		)
+	const firstPolicy =
+		policy.find((blocker) => tourCommercialAction(blocker.id, input.productId) !== null) ??
+		policy[0]
+	const commercialAction = firstPolicy
+		? tourCommercialAction(firstPolicy.id, input.productId)
+		: null
+	const fasttDecision = Boolean(firstPolicy && commercialBlockerIsWaiting(firstPolicy.id))
 	return {
 		provider_authorization: {
 			ready: shared.length === 0 && provider.capabilities.publish,
@@ -49,8 +51,8 @@ export async function loadTourAuthorization(input: { providerId: string; product
 				publication.eligible,
 			responsible: fasttDecision ? ("fastt" as const) : ("provider" as const),
 			code: firstPolicy?.id ?? specific[0]?.id,
-			action: {
-				label: fasttDecision ? "Consultar pendiente de Fastt" : "Revisar experiencia",
+			action: commercialAction ?? {
+				label: fasttDecision ? "Consultar evaluación" : "Revisar experiencia",
 				href: verificationHref,
 			},
 			message:
@@ -70,7 +72,7 @@ export async function loadTourAuthorization(input: { providerId: string; product
 								: /^policy_contract_empty/.test(blocker.id)
 									? "Fastt debe completar los requisitos de la política comercial aprobada."
 									: /^collection_model_undecided/.test(blocker.id)
-										? "Fastt debe definir el modelo de cobro aplicable."
+										? "Declara cómo cobra tu negocio y revisa el acuerdo comercial."
 										: blocker.action
 						),
 					]),

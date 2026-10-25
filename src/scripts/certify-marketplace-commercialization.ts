@@ -49,6 +49,7 @@ import type { PriceQuote } from "@/modules/pricing/public"
 import { createPolicyCapa6, replacePolicyAssignmentCapa6 } from "@/modules/policies/public"
 import { prepareMarketplaceCertificationEnvironment } from "./marketplace-certification-environment"
 import { seedMarketplaceCertificationCommercialPolicy } from "./marketplace-certification-commercial-policy"
+import { ensureTourCommercialAgreementFixture } from "../../tests/test-support/commercial-agreement-fixture"
 
 const APPLY = process.argv.includes("--apply")
 const CONFIRMED = process.env.CONFIRM_MARKETPLACE_COMMERCIAL_CERTIFICATION === "apply"
@@ -968,6 +969,7 @@ async function run() {
 	const runId = crypto.randomUUID()
 	const startedAt = new Date()
 	await upsertFixture({ hotelCheckIn, hotelCheckOut, tourCheckIn })
+	await ensureTourCommercialAgreementFixture(PROVIDER_ID)
 	await db.insert(MarketplaceCommercialCertificationRun).values({
 		id: runId,
 		suiteVersion: SUITE_VERSION,

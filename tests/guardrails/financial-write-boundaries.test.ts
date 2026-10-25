@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest"
 import { collectDbTableImportMap, collectDbWriteTargets } from "./_guardrail-ast"
 import { financialSourceFiles } from "./financial-stage2-guardrail-utils"
 
+const commercialAgreementRepository =
+	"src/modules/financial/infrastructure/repositories/CommercialAgreementRepository.ts"
+
 describe("Guardrail: financial Stage 2 write boundaries", () => {
 	const allowedWorkflowTables = new Set([
 		"FinancialExceptionRecord",
@@ -24,6 +27,8 @@ describe("Guardrail: financial Stage 2 write boundaries", () => {
 	it("allows Stage 2 workflow writes only to financial workflow tables", () => {
 		const violations = financialSourceFiles.flatMap((file) => {
 			if (!file.startsWith("src/modules/financial/")) return []
+			// This transactional repository has a dedicated, exact allowlist in the Stage 3 guardrail.
+			if (file === commercialAgreementRepository) return []
 			if (file.endsWith("FinancialRepository.ts")) return []
 			const dbImportByLocal = collectDbTableImportMap(file)
 			return collectDbWriteTargets(file).flatMap((write) => {

@@ -39,6 +39,7 @@ import { POST as marketplacePost } from "@/pages/api/telemetry/marketplace"
 import { loadHotelTourCrossSell } from "@/lib/tours/hotelTourCrossSell"
 import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
 import { assignTourRatePlanPolicies } from "../test-support/tour-policy-fixture"
+import { ensureTourCommercialAgreementFixture } from "../test-support/commercial-agreement-fixture"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { markProductPublished } from "../test-support/catalog-db-test-data"
 
@@ -754,6 +755,7 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 		const occupancyKey = buildOccupancyKey({ adults: 1, children: 0, infants: 0 })
 
 		await db.insert(Provider).values({ id: "prov_test", legalName: "P" }).onConflictDoNothing()
+		await ensureTourCommercialAgreementFixture("prov_test")
 		await db.insert(Provider).values({ id: foreignProviderId, legalName: "F" } as any)
 		await db.insert(User).values({ id: guestId, email: `void-g-${suffix}@ex.com` } as any)
 		await db.insert(User).values({

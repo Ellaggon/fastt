@@ -1,0 +1,432 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Checkbox from "@/components/ui/Checkbox.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
+import {
+	principalHasPermission,
+	requireInternalPermission,
+} from "@/lib/auth/internal-authorization"
+import {
+	tourComplianceActivityClasses,
+	tourComplianceActivityLabels,
+	tourOperatingRoles,
+} from "@/lib/tours/tour-compliance-context"
+import { tourOperatingTerritories } from "@/lib/tours/tour-operating-territories"
+import { EXPERIENCE_FORMATS } from "@/shared/domain/experience-format"
+import {
+	and,
+	CommercialPolicyApproval,
+	CompliancePolicySet,
+	CompliancePolicyVersion,
+	ComplianceRequirementRule,
+	db,
+	desc,
+	eq,
+	inArray,
+} from "@/shared/infrastructure/db/compat"
+let principal
+try {
+	principal = await requireInternalPermission(Astro.request, "internal.admin.access")
+} catch (error) {
+	if (error instanceof Response) return error
+	throw error
+}
+const rows = await db
+	.select({ version: CompliancePolicyVersion, set: CompliancePolicySet })
+	.from(CompliancePolicyVersion)
+	.innerJoin(CompliancePolicySet, eq(CompliancePolicySet.id, CompliancePolicyVersion.policySetId))
+	.where(
+		and(eq(CompliancePolicySet.policyScope, "commercial"), eq(CompliancePolicySet.vertical, "tour"))
+	)
+	.orderBy(desc(CompliancePolicyVersion.createdAt))
+	.limit(50)
+const ids = rows.map((row) => row.version.id)
+const [rules, signatures] = ids.length
+	? await Promise.all([
+			db
+				.select()
+				.from(ComplianceRequirementRule)
+				.where(inArray(ComplianceRequirementRule.policyVersionId, ids)),
+			db
+				.select()
+				.from(CommercialPolicyApproval)
+				.where(inArray(CommercialPolicyApproval.policyVersionId, ids)),
+		])
+	: [[], []]
+const canEdit = principalHasPermission(principal, "policy.edit")
+const areas = [
+	{ id: "policy", label: "Políticas", permission: "commercial_policy.policy.approve" as const },
+	{ id: "finance", label: "Finanzas", permission: "commercial_policy.finance.approve" as const },
+	{
+		id: "tour_operations",
+		label: "Operaciones Tours",
+		permission: "commercial_policy.tour_operations.approve" as const,
+	},
+]
+---
+
+<InternalAdminLayout title="Políticas comerciales de Tours"
+	><div class="space-y-6">
+		<div>
+			<h1 class="text-2xl font-semibold">Políticas comerciales de Tours</h1><p
+				class="mt-1 text-sm text-slate-400"
+			>
+				Requisitos generales, fuentes y aprobaciones por contexto. Los acuerdos particulares se
+				gestionan por proveedor.
+			</p>
+		</div>
+		{
+			canEdit && (
+				<details class="border-b border-slate-200 pb-5">
+					<>
+						<summary class="cursor-pointer font-semibold">Crear versión de política</summary>
+						<form
+							action="/api/admin/commercial-policies"
+							method="post"
+							class="fastt-card mt-4 space-y-4 bg-white p-4 text-slate-900 sm:p-6"
+							data-agreement-form
+						>
+							<input type="hidden" name="action" value="create" />
+							<div class="grid gap-4 sm:grid-cols-3">
+								<>
+									<FormField label="País (código)" htmlFor="policy-country" required>
+										<Input
+											id="policy-country"
+											name="country"
+											pattern="[A-Z]{2}"
+											required
+											placeholder="BO"
+										/>
+									</FormField>
+									<FormField label="Titular" htmlFor="policy-holder" required>
+										<Select id="policy-holder" name="holderType">
+											<>
+												<option value="persona_natural">Persona natural</option>
+												<option value="entidad">Entidad</option>
+											</>
+										</Select>
+									</FormField>
+									<FormField label="Ámbito" htmlFor="policy-role" required>
+										<Select id="policy-role" name="jurisdictionRole">
+											<>
+												<option value="holder">Titular</option>
+												<option value="product">Experiencia</option>
+												<option value="tax">Fiscalidad</option>
+											</>
+										</Select>
+									</FormField>
+									<FormField label="Vigencia desde" htmlFor="policy-from" required>
+										<Input id="policy-from" type="date" name="effectiveFrom" required />
+									</FormField>
+									<FormField label="Vigencia hasta" htmlFor="policy-to" required>
+										<Input id="policy-to" type="date" name="effectiveTo" required />
+									</FormField>
+								</>
+							</div>
+							<fieldset class="space-y-2">
+								<legend class="mb-2 font-medium">Papeles operativos</legend>
+								{tourOperatingRoles.map((role) => (
+									<Checkbox
+										name="operatingRoles"
+										value={role}
+										label={
+											{
+												guide: "Guía independiente",
+												operator: "Empresa operadora",
+												intermediary: "Intermediario",
+											}[role]
+										}
+									/>
+								))}
+							</fieldset>
+							<fieldset class="grid gap-2 sm:grid-cols-3">
+								<legend class="mb-2 font-medium">Actividades</legend>
+								{tourComplianceActivityClasses.map((activity) => (
+									<Checkbox
+										name="activityClasses"
+										value={activity}
+										label={tourComplianceActivityLabels[activity]}
+									/>
+								))}
+							</fieldset>
+							<fieldset class="grid gap-2 sm:grid-cols-3">
+								<legend class="mb-2 font-medium">Departamentos cubiertos</legend>
+								{tourOperatingTerritories.map((territory) => (
+									<Checkbox
+										name="jurisdictionCodes"
+										value={territory.code}
+										label={territory.label}
+									/>
+								))}
+							</fieldset>
+							<fieldset class="grid gap-2 sm:grid-cols-2">
+								<legend class="mb-2 font-medium">Formatos</legend>
+								{EXPERIENCE_FORMATS.map((format) => (
+									<Checkbox
+										name="experienceFormats"
+										value={format}
+										label={
+											{
+												guided_tour: "Tour guiado",
+												workshop: "Taller",
+												class: "Clase",
+												tasting: "Degustación",
+											}[format]
+										}
+									/>
+								))}
+							</fieldset>
+							<>
+								<Button type="submit" variant="selection">
+									Guardar borrador
+								</Button>
+								<p role="status" data-agreement-feedback class="text-sm text-slate-600" />
+							</>
+						</form>
+					</>
+				</details>
+			)
+		}
+		{
+			rows.map(({ version, set }) => {
+				const approved = signatures.filter((s) => s.policyVersionId === version.id)
+				const included = rules.filter((r) => r.policyVersionId === version.id)
+				return (
+					<Card class="space-y-4">
+						<>
+							<div class="flex flex-wrap justify-between gap-3">
+								<>
+									<h2 class="font-semibold">
+										{set.label} · Versión {version.version}
+									</h2>
+									<Badge variant={version.status === "published" ? "success" : "neutral"}>
+										{version.status === "published"
+											? "Publicada"
+											: version.status === "retired"
+												? "Retirada"
+												: "Borrador"}
+									</Badge>
+								</>
+							</div>
+							<p class="text-sm text-slate-600">
+								{included.length} requisitos · {approved.length}/3 aprobaciones
+							</p>
+						</>
+						<ul class="divide-y divide-slate-100">
+							{included.map((rule) => (
+								<li class="py-3 text-sm text-slate-700">
+									<p class="font-medium">{rule.blockingAction}</p>
+									<p>
+										{rule.reviewOwner} · {rule.sourceReference}
+									</p>
+									{version.status === "draft" && !approved.length && canEdit && (
+										<form
+											action="/api/admin/commercial-policies"
+											method="post"
+											class="mt-2"
+											data-agreement-form
+										>
+											<input type="hidden" name="action" value="remove_rule" />
+											<input type="hidden" name="versionId" value={version.id} />
+											<input type="hidden" name="ruleId" value={rule.id} />
+											<Button type="submit" variant="secondary" size="sm">
+												Quitar requisito
+											</Button>
+											<p
+												role="status"
+												data-agreement-feedback
+												class="mt-2 text-sm text-slate-600"
+											/>
+										</form>
+									)}
+								</li>
+							))}
+						</ul>
+						{version.status === "published" &&
+							principalHasPermission(principal, "policy.publish") && (
+								<details>
+									<summary class="cursor-pointer text-sm font-semibold">Retirar versión</summary>
+									<form
+										action="/api/admin/commercial-policies"
+										method="post"
+										class="mt-3 space-y-3"
+										data-agreement-form
+									>
+										<input type="hidden" name="action" value="retire" />
+										<input type="hidden" name="versionId" value={version.id} />
+										<p class="text-sm text-slate-600">
+											Dejará de habilitar nuevas publicaciones y reservas. Los contratos ya
+											confirmados conservan sus condiciones.
+										</p>
+										<Button type="submit" variant="secondary">
+											Retirar esta versión
+										</Button>
+										<p role="status" data-agreement-feedback class="text-sm text-slate-600" />
+									</form>
+								</details>
+							)}
+						{version.status === "draft" && !approved.length && canEdit && (
+							<details>
+								<summary class="cursor-pointer text-sm font-semibold">Añadir requisito</summary>
+								<form
+									action="/api/admin/commercial-policies"
+									method="post"
+									class="mt-4 space-y-4"
+									data-agreement-form
+								>
+									<input type="hidden" name="action" value="rule" />
+									<input type="hidden" name="versionId" value={version.id} />
+									<div class="grid gap-4 sm:grid-cols-2">
+										<FormField
+											label="Clave estable del requisito"
+											htmlFor={`${version.id}-key`}
+											required
+										>
+											<Input
+												id={`${version.id}-key`}
+												name="requirementKey"
+												required
+												pattern="[a-z][a-z0-9_.]{2,100}"
+											/>
+										</FormField>
+										<FormField label="Área" htmlFor={`${version.id}-domain`} required>
+											<Select id={`${version.id}-domain`} name="domain">
+												<option value="verification">Identidad</option>
+												<option value="fiscal">Fiscalidad</option>
+												<option value="documents">Documentos</option>
+											</Select>
+										</FormField>
+										<FormField
+											label="Evidencia admitida"
+											htmlFor={`${version.id}-evidence`}
+											required
+										>
+											<Select id={`${version.id}-evidence`} name="evidence">
+												<option value="government_id">Identidad</option>
+												<option value="business_registration">Registro mercantil</option>
+												<option value="tax_document">Documento fiscal</option>
+												<option value="operating_license">Licencia</option>
+												<option value="insurance">Seguro</option>
+											</Select>
+										</FormField>
+										<FormField label="Alcance" htmlFor={`${version.id}-scope`} required>
+											<Select id={`${version.id}-scope`} name="evidenceScope">
+												<option value="product">Experiencia</option>
+												<option value="provider">Proveedor</option>
+												<option value="operation">Operación</option>
+											</Select>
+										</FormField>
+										<FormField
+											label="Responsable de revisión"
+											htmlFor={`${version.id}-owner`}
+											required
+										>
+											<Input id={`${version.id}-owner`} name="reviewOwner" required minlength="3" />
+										</FormField>
+										<FormField label="Fuente" htmlFor={`${version.id}-source`} required>
+											<Select id={`${version.id}-source`} name="sourceKind">
+												<option value="legal">Normativa</option>
+												<option value="contract">Contrato</option>
+												<option value="fastt_policy">Política Fastt</option>
+											</Select>
+										</FormField>
+										<FormField
+											label="Referencia verificable"
+											htmlFor={`${version.id}-reference`}
+											required
+										>
+											<Input
+												id={`${version.id}-reference`}
+												name="sourceReference"
+												required
+												minlength="8"
+											/>
+										</FormField>
+										<FormField label="Fecha de consulta" htmlFor={`${version.id}-checked`} required>
+											<Input
+												id={`${version.id}-checked`}
+												name="sourceCheckedAt"
+												type="date"
+												required
+											/>
+										</FormField>
+									</div>
+									<FormField label="Acción si falta" htmlFor={`${version.id}-action`} required>
+										<Textarea
+											id={`${version.id}-action`}
+											name="blockingAction"
+											required
+											minlength="10"
+										/>
+									</FormField>
+									<fieldset class="flex flex-wrap gap-4">
+										<legend class="mb-2 text-sm font-medium">Capacidades afectadas</legend>
+										<Checkbox name="capabilities" value="publish" label="Publicar" />
+										<Checkbox name="capabilities" value="booking" label="Reservar" />
+										<Checkbox name="capabilities" value="integrations" label="Integraciones" />
+									</fieldset>
+									<Button type="submit">Guardar requisito</Button>
+									<p role="status" data-agreement-feedback class="text-sm text-slate-600" />
+								</form>
+							</details>
+						)}
+						{version.status === "draft" && (
+							<div class="space-y-3 border-t border-slate-200 pt-4">
+								{areas.map((area) =>
+									approved.some((s) => s.approvalArea === area.id) ? (
+										<p class="text-sm text-slate-700">{area.label}: aprobada</p>
+									) : principalHasPermission(principal, area.permission) ? (
+										<form
+											action={`/api/admin/commercial-policies/${version.id}/approvals`}
+											data-agreement-form
+											data-agreement-json
+											class="flex flex-wrap items-end gap-3"
+										>
+											<input type="hidden" name="approvalArea" value={area.id} />
+											<FormField
+												label={`Referencia de aprobación · ${area.label}`}
+												htmlFor={`${version.id}-${area.id}-approval`}
+												required
+												class="min-w-60 flex-1"
+											>
+												<Input
+													id={`${version.id}-${area.id}-approval`}
+													name="approvalReference"
+													required
+													minlength="8"
+												/>
+											</FormField>
+											<Button type="submit" variant="secondary">
+												Aprobar {area.label}
+											</Button>
+											<p
+												role="status"
+												data-agreement-feedback
+												class="w-full text-sm text-slate-600"
+											/>
+										</form>
+									) : (
+										<p class="text-sm text-slate-500">
+											{area.label}: pendiente del revisor autorizado
+										</p>
+									)
+								)}
+							</div>
+						)}
+					</Card>
+				)
+			})
+		}
+	</div></InternalAdminLayout
+>
+<script>
+	import { bindAgreementForms } from "@/lib/commercial-policy/agreement-forms"
+	bindAgreementForms()
+	document.addEventListener("astro:page-load", bindAgreementForms)
+</script>

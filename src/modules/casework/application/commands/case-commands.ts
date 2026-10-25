@@ -85,6 +85,8 @@ export async function proposeCaseDecision(input: {
 		.limit(1)
 	const current = cases[0]
 	if (!current) throw commandError("case_not_found", 404)
+	if (current.sourceType === "ProviderCommercialAgreement")
+		throw commandError("use_commercial_agreement_workspace", 409)
 	if (!current.policyVersionId) throw commandError("case_policy_version_missing", 409)
 	if (!isDecisionAllowedForDomain(current.domain, input.decision))
 		throw commandError("decision_not_supported_for_domain", 422)
@@ -282,6 +284,8 @@ async function applyCanonicalDomainDecision(params: {
 	actorUserId: string
 }) {
 	const { caseRow, decision, comment, actorUserId } = params
+	if (caseRow.sourceType === "ProviderCommercialAgreement")
+		throw commandError("use_commercial_agreement_workspace", 409)
 	if (caseRow.domain === "verification") {
 		if (!["approved", "rejected"].includes(decision)) return { deferred: true }
 		const before = await getLatestProviderVerificationStatus(caseRow.providerId)

@@ -12,6 +12,8 @@ const reconciliationBuilder =
 	"src/modules/financial/application/use-cases/build-financial-reconciliation-match.ts"
 const reconciliationRoute = "src/pages/api/internal/financial/reconciliation.ts"
 const reconciliationQueueRoute = "src/pages/api/internal/financial/reconciliation-queue.ts"
+const commercialAgreementRepository =
+	"src/modules/financial/infrastructure/repositories/CommercialAgreementRepository.ts"
 
 describe("Guardrail: financial Stage 3 foundation stays evidence-based", () => {
 	it("defines real Stage 3 models without reusing legacy finance tables", () => {
@@ -109,6 +111,7 @@ describe("Guardrail: financial Stage 3 foundation stays evidence-based", () => {
 		])
 		const violations = financialSourceFiles.flatMap((file) => {
 			if (!file.startsWith("src/modules/financial/")) return []
+			if (file === commercialAgreementRepository) return []
 			const dbImports = collectDbTableImportMap(file)
 			return collectDbWriteTargets(file).flatMap((write) => {
 				const target = dbImports.get(write.target) ?? write.target
@@ -116,6 +119,22 @@ describe("Guardrail: financial Stage 3 foundation stays evidence-based", () => {
 			})
 		})
 		expect(violations).toEqual([])
+	})
+
+	it("keeps commercial agreement transactions scoped to agreement and casework records", () => {
+		const allowed = new Set([
+			"CaseActivityEvent",
+			"CaseTask",
+			"ComplianceCase",
+			"ProviderAuditLog",
+			"ProviderCommercialAgreement",
+		])
+		const dbImports = collectDbTableImportMap(commercialAgreementRepository)
+		const writes = collectDbWriteTargets(commercialAgreementRepository).map(
+			(write) => dbImports.get(write.target) ?? write.target
+		)
+		const targets = [...new Set(writes)].sort()
+		expect(targets).toEqual([...allowed].sort())
 	})
 
 	it("documents Stage 3 domain semantics explicitly", () => {

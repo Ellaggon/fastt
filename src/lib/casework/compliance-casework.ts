@@ -22,6 +22,8 @@ import { listPendingProviderPaymentAccountsForAdmin } from "@/lib/provider-payme
 import { listPendingProviderVerificationsForAdmin } from "@/lib/provider-admin-compliance"
 import { listProviderTaxConfigurationsForAdmin } from "@/lib/provider-tax-configuration"
 import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
+import { ProviderCommercialAgreement } from "@/shared/infrastructure/db/schema/tables"
+import { commercialAgreementRollout } from "@/modules/financial/commercial-agreement-rollout"
 
 export const CASE_DOMAINS = ["verification", "fiscal", "documents", "payments"] as const
 export type CaseDomain = (typeof CASE_DOMAINS)[number]
@@ -137,13 +139,36 @@ export async function resolveRequirements(domain: CaseDomain) {
 }
 
 export async function listCurrentComplianceCaseSources(): Promise<ComplianceCaseSource[]> {
-	const [verifications, taxConfigurations, documents, paymentAccounts] = await Promise.all([
-		listPendingProviderVerificationsForAdmin(),
-		listProviderTaxConfigurationsForAdmin(),
-		listPendingProviderDocumentsForAdmin(),
-		listPendingProviderPaymentAccountsForAdmin(),
-	])
+	const release = commercialAgreementRollout()
+	const [verifications, taxConfigurations, documents, paymentAccounts, agreements] =
+		await Promise.all([
+			listPendingProviderVerificationsForAdmin(),
+			listProviderTaxConfigurationsForAdmin(),
+			listPendingProviderDocumentsForAdmin(),
+			listPendingProviderPaymentAccountsForAdmin(),
+			release.enabled
+				? db
+						.select({
+							id: ProviderCommercialAgreement.id,
+							providerId: ProviderCommercialAgreement.providerId,
+						})
+						.from(ProviderCommercialAgreement)
+						.where(
+							and(
+								inArray(ProviderCommercialAgreement.status, ["requested", "offered"]),
+								inArray(ProviderCommercialAgreement.providerId, release.providerIds)
+							)
+						)
+				: Promise.resolve([]),
+		])
 	return [
+		...agreements.map((row) => ({
+			providerId: row.providerId,
+			domain: "verification" as const,
+			sourceType: "ProviderCommercialAgreement",
+			sourceRef: row.id,
+			summary: "Acuerdo comercial de Tours",
+		})),
 		...verifications.map((row) => ({
 			providerId: row.providerId,
 			domain: "verification" as const,

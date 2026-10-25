@@ -1,6 +1,7 @@
 ---
 import { getFeatureFlag } from "@/config/featureFlags"
 import Layout from "@/layouts/Layout.astro"
+import { commercialAgreementRollout } from "@/modules/financial/commercial-agreement-rollout"
 
 interface Props {
 	title?: string
@@ -30,6 +31,8 @@ const isActive = (link: (typeof links)[number]) =>
 	link.exact
 		? pathname === link.href
 		: pathname === link.href || pathname.startsWith(`${link.href}/`)
+if (commercialAgreementRollout().enabled)
+	links.push({ href: "/admin/commercial-agreements", label: "Acuerdos" })
 ---
 
 <Layout title={title}>

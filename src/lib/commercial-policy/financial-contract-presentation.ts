@@ -4,6 +4,10 @@ import type {
 	CommercialLineCollectionModel,
 } from "@/lib/verification/commercial-lines"
 import { verificationNavigationHref, verificationTabsFor } from "@/lib/verification/navigation"
+import {
+	commercialBlockerIsWaiting,
+	tourCommercialAction,
+} from "@/lib/tours/tourCommercialNavigation"
 
 export type FinancialContractStatus =
 	| "action_required"
@@ -96,13 +100,24 @@ export function presentFinancialContract(input: {
 		const unsupported =
 			blocker.id.startsWith("policy_context_unsupported") ||
 			blocker.id.startsWith("policy_context_conflict") ||
-			blocker.id.startsWith("policy_contract_") ||
-			(blocker.id === "collection_model_undecided" && line === "tour")
+			blocker.id.startsWith("policy_contract_")
 		const review =
-			blocker.id === "holder_declaration_in_review" || blocker.evidenceState === "pending_review"
+			blocker.id === "holder_declaration_in_review" ||
+			blocker.id === "agreement_proposal_requested" ||
+			blocker.id === "agreement_not_started" ||
+			blocker.evidenceState === "pending_review"
 		const type = requirement?.acceptedEvidence[0]
 		let action: FinancialContractAction | null = null
-		if (unsupported)
+		const tourAction = line === "tour" ? tourCommercialAction(blocker.id, productId) : null
+		if (line === "tour" && commercialBlockerIsWaiting(blocker.id)) action = null
+		else if (tourAction)
+			action = { label: tourAction.label, href: financialContractHref(returnTo, line, productId) }
+		else if (blocker.id.startsWith("agreement_") || blocker.id === "collection_model_undecided")
+			action = {
+				label: "Revisar acuerdo comercial",
+				href: financialContractHref(returnTo, line, productId),
+			}
+		else if (unsupported)
 			action = { label: "Consultar con Fastt", href: support.pathname + support.search }
 		else if (blocker.id.startsWith("holder_declaration"))
 			action = {
@@ -131,11 +146,16 @@ export function presentFinancialContract(input: {
 			code: blocker.id,
 			message: blocker.action,
 			owner:
-				unsupported || blocker.id === "holder_declaration_in_review"
+				unsupported ||
+				blocker.id === "holder_declaration_in_review" ||
+				(line === "tour" && commercialBlockerIsWaiting(blocker.id))
 					? "fastt"
 					: review
 						? "unknown"
-						: requirement || blocker.id === "holder_declaration_missing"
+						: requirement ||
+							  blocker.id === "holder_declaration_missing" ||
+							  blocker.id.startsWith("agreement_") ||
+							  blocker.id === "collection_model_undecided"
 							? "provider"
 							: "unknown",
 			action,
@@ -150,6 +170,8 @@ export function presentFinancialContract(input: {
 		reasons.every(
 			(r) =>
 				r.code === "holder_declaration_in_review" ||
+				r.code === "agreement_proposal_requested" ||
+				r.code === "agreement_not_started" ||
 				relevantBlockers.find((b) => b.id === r.code)?.evidenceState === "pending_review"
 		)
 	const satisfied =

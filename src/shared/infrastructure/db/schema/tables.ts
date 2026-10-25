@@ -152,6 +152,61 @@ export const ProviderCommercialLine = pgTable(
 	]
 )
 
+/** One row per provider/line proposal version; offered terms and acceptances are immutable. */
+export const ProviderCommercialAgreement = pgTable(
+	"ProviderCommercialAgreement",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id, { onDelete: "restrict" }),
+		line: text("line").default("tour").notNull(),
+		version: int("version"),
+		status: text("status").default("requested").notNull(),
+		termsJson: jsonb("termsJson"),
+		termsHash: txtOpt("termsHash"),
+		/** Reviewed mandate names the only account user allowed to accept this version. */
+		authorizedSignerUserId: txtOpt("authorizedSignerUserId").references((): AnyPgColumn => User.id),
+		representationReference: txtOpt("representationReference"),
+		requestedByUserId: txt("requestedByUserId").references((): AnyPgColumn => User.id),
+		offeredByUserId: txtOpt("offeredByUserId").references((): AnyPgColumn => User.id),
+		offeredAt: ts("offeredAt"),
+		acceptedByUserId: txtOpt("acceptedByUserId").references((): AnyPgColumn => User.id),
+		acceptedAt: ts("acceptedAt"),
+		acceptanceHash: txtOpt("acceptanceHash"),
+		caseId: txtOpt("caseId").references((): AnyPgColumn => ComplianceCase.id),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("ProviderCommercialAgreement_version_unique").on(
+			table.providerId,
+			table.line,
+			table.version
+		),
+		uniqueIndex("ProviderCommercialAgreement_pending_unique")
+			.on(table.providerId, table.line)
+			.where(sql`${table.status} IN ('requested','offered')`),
+		index("ProviderCommercialAgreement_provider_idx").on(
+			table.providerId,
+			table.line,
+			table.status
+		),
+		check("ProviderCommercialAgreement_line_check", sql`${table.line} = 'tour'`),
+		check(
+			"ProviderCommercialAgreement_status_check",
+			sql`${table.status} IN ('requested','offered','accepted','withdrawn')`
+		),
+		check("ProviderCommercialAgreement_version_check", sql`${table.version} > 0`),
+		check(
+			"ProviderCommercialAgreement_offer_check",
+			sql`${table.status} NOT IN ('offered','accepted') OR (${table.termsJson} IS NOT NULL AND ${table.termsHash} IS NOT NULL AND ${table.authorizedSignerUserId} IS NOT NULL AND ${table.representationReference} IS NOT NULL AND ${table.offeredAt} IS NOT NULL AND ${table.offeredByUserId} IS NOT NULL)`
+		),
+		check(
+			"ProviderCommercialAgreement_acceptance_check",
+			sql`${table.status} <> 'accepted' OR (${table.acceptedAt} IS NOT NULL AND ${table.acceptedByUserId} IS NOT NULL AND ${table.acceptedByUserId} = ${table.authorizedSignerUserId} AND ${table.acceptanceHash} IS NOT NULL AND ${table.acceptanceHash} = ${table.termsHash})`
+		),
+	]
+)
+
 /** Provider-initiated support stays separate from compliance decisions and their reconciler. */
 export const ProviderSupportRequest = pgTable(
 	"ProviderSupportRequest",

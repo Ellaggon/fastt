@@ -527,6 +527,7 @@ export const POST: APIRoute = async ({ request }) => {
 			code === "HOLD_ALREADY_CONFIRMED" ||
 			code === "HOLD_OWNED_BY_ANOTHER_USER" ||
 			code === "HOLD_COMMERCIAL_SNAPSHOT_MISSING" ||
+			code === "COMMERCIAL_AGREEMENT_CHANGED" ||
 			code === "PRICE_QUOTE_MISMATCH" ||
 			code === "INVENTORY_CONFLICT"
 		) {

@@ -1,4 +1,4 @@
-import { expect, it } from "vitest"
+import { afterEach, expect, it, vi } from "vitest"
 import { describePostgres as describe } from "../setup/postgres-suite"
 
 import {
@@ -11,6 +11,7 @@ import {
 	ProductGeoPlace,
 	EffectiveAvailability,
 	EffectivePricing,
+	Hold,
 	eq,
 	PaymentTransaction,
 	Product,
@@ -32,6 +33,7 @@ import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
 import { assignTourRatePlanPolicies } from "../test-support/tour-policy-fixture"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { markProductPublished } from "../test-support/catalog-db-test-data"
+import { ensureTourCommercialAgreementFixture } from "../test-support/commercial-agreement-fixture"
 import { upsertGeoPlace } from "@/shared/infrastructure/test-support/db-test-data"
 
 type SupabaseTestUser = { id: string; email: string }
@@ -107,6 +109,7 @@ async function seedTourCommercialReady(params: {
 	meetingPoint: Record<string, unknown>
 	occupancy: { adults: number; children: number; infants: number }
 	unitPrice?: number
+	agreementRelease?: boolean
 }) {
 	const unitPrice = params.unitPrice ?? 80
 	const occupancyKey = buildOccupancyKey(params.occupancy)
@@ -115,6 +118,7 @@ async function seedTourCommercialReady(params: {
 		.insert(Provider)
 		.values({ id: "prov_test", legalName: "Provider prov_test" })
 		.onConflictDoNothing()
+	if (params.agreementRelease !== false) await ensureTourCommercialAgreementFixture("prov_test")
 
 	await upsertGeoPlace({
 		id: params.geoPlaceId,
@@ -272,6 +276,99 @@ async function seedTourCommercialReady(params: {
 }
 
 describe("integration/tour booking E2E (P0 1.1)", () => {
+	afterEach(() => vi.unstubAllEnvs())
+	it.each([
+		{ name: "keeps booking available without agreement schema when off", activate: false },
+		{
+			name: "honors a pre-release hold across activation and snapshots the next hold",
+			activate: true,
+		},
+	])(
+		"$name",
+		async ({ activate }) => {
+			vi.stubEnv("LOCAL_QA_AUTH_ENABLED", "false")
+			vi.stubEnv("TOURS_CHECKOUT_ENABLED", "true")
+			vi.stubEnv("TOURS_ROLLOUT_STAGE", "general")
+			vi.stubEnv("INVENTORY_MUTATION_TIMEOUT_MS", "60000")
+			vi.stubEnv("INVENTORY_RECOMPUTE_CHAIN_TIMEOUT_MS", "60000")
+			vi.stubEnv("FASTT_TOUR_AGREEMENT_MODE", "off")
+			const suffix = crypto.randomUUID()
+			const userId = `transition-${suffix}`
+			const email = `${userId}@fastt.test`
+			const token = `transition-token-${suffix}`
+			const variantId = `transition-slot-${suffix}`
+			const ratePlanId = `transition-rate-${suffix}`
+			const checkIn = new Date(Date.now() + 48 * 3600000).toISOString().slice(0, 10)
+			const stay = tourDepartureToStay(checkIn)
+			const checkOut = stay.checkOut.toISOString().slice(0, 10)
+			const occupancy = { adults: 1, children: 0, infants: 0 }
+			await db.insert(User).values({ id: userId, email })
+			await seedTourCommercialReady({
+				productId: `transition-product-${suffix}`,
+				geoPlaceId: `transition-geo-${suffix}`,
+				variantId,
+				ratePlanId,
+				departureTime: "09:00",
+				maxPax: 10,
+				departureDate: checkIn,
+				meetingPoint: { address: "Fixture meeting point" },
+				occupancy,
+				agreementRelease: activate,
+			})
+			await withSupabaseAuthStub({ [token]: { id: userId, email } }, async () => {
+				const hold = () =>
+					holdPost({
+						request: makeAuthedJsonRequest({
+							path: "/api/inventory/hold",
+							token,
+							body: {
+								variantId,
+								ratePlanId,
+								dateRange: { from: checkIn, to: checkOut },
+								rooms: 1,
+								occupancyDetail: occupancy,
+								sessionId: crypto.randomUUID(),
+							},
+						}),
+					} as any)
+				vi.stubEnv("FASTT_TOUR_AGREEMENT_MODE", "off")
+				const legacyResponse = await hold()
+				expect(legacyResponse.status).toBe(200)
+				const legacy = await readJson(legacyResponse)
+				const [storedLegacy] = await db.select().from(Hold).where(eq(Hold.id, legacy.holdId))
+				expect((storedLegacy.commercialSnapshotJson as any).commercialAgreement).toBeUndefined()
+				if (activate) vi.stubEnv("FASTT_TOUR_AGREEMENT_MODE", "enforce")
+				const confirmed = await bookingConfirmPost({
+					request: makeAuthedJsonRequest({
+						path: "/api/booking/confirm",
+						token,
+						body: {
+							holdId: legacy.holdId,
+							priceQuoteId: legacy.priceQuote.quoteId,
+							leadName: "Fixture guest",
+						},
+					}),
+				} as any)
+				expect(confirmed.status).toBe(200)
+				const booking = await readJson(confirmed)
+				const [line] = await db
+					.select()
+					.from(BookingLineItem)
+					.where(eq(BookingLineItem.bookingId, booking.bookingId))
+				expect((line.pricingBreakdownJson as any).commercialAgreement).toBeNull()
+				if (!activate) return
+				const newResponse = await hold()
+				expect(newResponse.status).toBe(200)
+				const created = await readJson(newResponse)
+				const [storedNew] = await db.select().from(Hold).where(eq(Hold.id, created.holdId))
+				expect((storedNew.commercialSnapshotJson as any).commercialAgreement).toMatchObject({
+					termsHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+					version: expect.any(Number),
+				})
+			})
+		},
+		120_000
+	)
 	it("runs real search → hold → confirm with independent cupo per salida", async () => {
 		process.env.INVENTORY_MUTATION_TIMEOUT_MS = "60000"
 		process.env.INVENTORY_RECOMPUTE_CHAIN_TIMEOUT_MS = "60000"
@@ -456,6 +553,13 @@ describe("integration/tour booking E2E (P0 1.1)", () => {
 			expect(String(lineItems[0]?.variantId)).toBe(morningId)
 			expect(Number(lineItems[0]?.adults)).toBe(adults)
 			expect(Number(lineItems[0]?.children)).toBe(children)
+			expect((lineItems[0]?.pricingBreakdownJson as any)?.commercialAgreement).toMatchObject({
+				version: expect.any(Number),
+				termsHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+				collectionModel: "property_collect",
+				commissionPercent: 0,
+				currency: "USD",
+			})
 
 			const voucher = await db
 				.select()

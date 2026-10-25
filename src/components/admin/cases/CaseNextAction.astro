@@ -12,6 +12,7 @@ interface Props {
 	hasUnassignedTask: boolean
 	pendingDecisionReview: boolean
 	legacyReviewHref: string | null
+	commercialAgreement?: boolean
 }
 
 const {
@@ -24,6 +25,7 @@ const {
 	hasUnassignedTask,
 	pendingDecisionReview,
 	legacyReviewHref,
+	commercialAgreement = false,
 } = Astro.props
 const actionable = ["open", "in_review", "waiting_information", "blocked"].includes(status)
 const waiting = status === "waiting_information"
@@ -35,22 +37,27 @@ const canTakeCase =
 	caseInPilot &&
 	canAssignCase &&
 	hasUnassignedTask
-const canContinueReview = actionable && !pendingDecisionReview && !waiting && legacyReviewHref
+const canContinueReview =
+	legacyReviewHref && (commercialAgreement || (actionable && !pendingDecisionReview && !waiting))
 const message = !actionable
 	? "El caso está cerrado. Consulta el resultado y la cronología."
-	: pendingDecisionReview
-		? "Hay una decisión pendiente de control o reconciliación. Revisa su estado antes de continuar."
-		: waiting
-			? "El caso espera información del proveedor. Revisa la solicitud y su respuesta."
-			: !commandsEnabled
-				? "La asignación y las decisiones están en modo consulta en este entorno."
-				: !caseInPilot
-					? "La asignación y las decisiones de este proveedor aún no están habilitadas en este expediente."
-					: !hasUnassignedTask
-						? "Las tareas abiertas ya tienen responsable."
-						: !canAssignCase
-							? "Tu cuenta puede consultar el caso, pero no tiene permiso para asignarlo."
-							: "Toma el caso para figurar como responsable de la revisión."
+	: commercialAgreement
+		? waiting
+			? "La propuesta está enviada y espera la aceptación del representante autorizado."
+			: "Gestiona la propuesta y su representación en el área de acuerdos comerciales."
+		: pendingDecisionReview
+			? "Hay una decisión pendiente de control o reconciliación. Revisa su estado antes de continuar."
+			: waiting
+				? "El caso espera información del proveedor. Revisa la solicitud y su respuesta."
+				: !commandsEnabled
+					? "La asignación y las decisiones están en modo consulta en este entorno."
+					: !caseInPilot
+						? "La asignación y las decisiones de este proveedor aún no están habilitadas en este expediente."
+						: !hasUnassignedTask
+							? "Las tareas abiertas ya tienen responsable."
+							: !canAssignCase
+								? "Tu cuenta puede consultar el caso, pero no tiene permiso para asignarlo."
+								: "Toma el caso para figurar como responsable de la revisión."
 ---
 
 <Card>
@@ -73,11 +80,12 @@ const message = !actionable
 		) : canContinueReview ? (
 			<div class="mt-4 space-y-2">
 				<Button href={legacyReviewHref!} reload variant="secondary" class="w-full">
-					Continuar revisión del área
+					{commercialAgreement ? "Abrir acuerdo comercial" : "Continuar revisión del área"}
 				</Button>
 				<p class="text-xs leading-5 text-slate-500">
-					El panel de proveedores permite revisar la evidencia y registrar el resultado. Para
-					aprobar o rechazar se requiere confirmar MFA.
+					{commercialAgreement
+						? "Los términos y la aceptación se registran en una versión del acuerdo. Para emitir una propuesta se requiere confirmar MFA."
+						: "El panel de proveedores permite revisar la evidencia y registrar el resultado. Para aprobar o rechazar se requiere confirmar MFA."}
 				</p>
 			</div>
 		) : null

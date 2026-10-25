@@ -1,4 +1,9 @@
 import { experienceFormatSnapshot } from "@/shared/domain/experience-format"
+import { commercialAgreementRollout } from "@/modules/financial/commercial-agreement-rollout"
+import {
+	commercialAgreementStatus,
+	type OfferedTerms,
+} from "@/modules/financial/commercial-agreements"
 import type { APIRoute } from "astro"
 import { ZodError, z } from "zod"
 import {
@@ -702,8 +707,31 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 								;(error as any).details = { priceQuote }
 								throw error
 							}
+							const enforceAgreement = Boolean(
+								isTourSlot && providerId && commercialAgreementRollout(providerId).enforce
+							)
+							const commercialAgreement =
+								enforceAgreement && providerId ? await commercialAgreementStatus(providerId) : null
+							if (enforceAgreement && commercialAgreement?.state !== "active")
+								throw new Error("COMMERCIAL_AGREEMENT_REQUIRED")
+							const agreementRow = commercialAgreement?.agreement
+							const agreementTerms = agreementRow?.termsJson as OfferedTerms | undefined
 							return {
 								version: HOLD_COMMERCIAL_SNAPSHOT_VERSION,
+								...(agreementRow && agreementTerms
+									? {
+											commercialAgreement: {
+												id: agreementRow.id,
+												version: agreementRow.version,
+												termsHash: agreementRow.termsHash!,
+												sellerName: agreementTerms.sellerName,
+												collectionModel: "property_collect" as const,
+												commissionPercent: agreementTerms.commissionPercent,
+												commissionBase: agreementTerms.commissionBase,
+												currency: agreementTerms.currency,
+											},
+										}
+									: {}),
 								ratePlanId: holdability.ratePlanId,
 								currency: holdability.currency,
 								occupancy: Math.max(
@@ -880,6 +908,14 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 				}
 			)
 		}
+		if (e instanceof Error && e.message === "COMMERCIAL_AGREEMENT_REQUIRED")
+			return Response.json(
+				{
+					error: "experience_unavailable",
+					message: "Esta experiencia todavía no está disponible para reservar.",
+				},
+				{ status: 409 }
+			)
 		if (e instanceof Error && e.message === "price_changed") {
 			return new Response(JSON.stringify({ error: "price_changed", ...(e as any).details }), {
 				status: 409,

@@ -118,9 +118,25 @@ describe("experience operation and applicable licenses", () => {
 		})
 		expect(html).toContain("Evaluación pendiente de Fastt")
 		expect(html).not.toContain("Seguro de la actividad")
-		expect(html).toContain("Solicitar revisión de requisitos")
-		expect(html).toContain("context=tour_safety")
-		expect(html).toContain("experience=tour-a")
+		expect(html).not.toContain("Revisar acuerdo comercial")
+		expect(html).not.toContain("/provider/settings/payments")
+		expect(html).toContain("Te indicaremos aquí los respaldos de seguridad")
+	})
+	it("shows a policy wait in activity without claiming no licenses are needed or opening the contract", async () => {
+		const container = await AstroContainer.create()
+		const html = await container.renderToString(ProviderVerificationLineSections, {
+			request,
+			props: {
+				screen: screen([]),
+				line: "tour",
+				tourArea: "activity",
+				operationComplete: true,
+				evaluationPending: true,
+			},
+		})
+		expect(html).toContain("Fastt está determinando las licencias aplicables")
+		expect(html).not.toContain("No hay licencias adicionales")
+		expect(html).not.toContain("/provider/settings/payments")
 	})
 	it("offers multiple departments without requiring a support request", async () => {
 		const container = await AstroContainer.create()
