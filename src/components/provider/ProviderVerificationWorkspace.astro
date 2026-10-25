@@ -106,8 +106,6 @@ const historicalSupportHref = new URL(routes.providerSupport(), Astro.url)
 historicalSupportHref.searchParams.set("topic", "historical_tour_collection")
 historicalSupportHref.searchParams.set("line", "tour")
 historicalSupportHref.searchParams.set("from", `${Astro.url.pathname}${Astro.url.search}`)
-const policySupportHref = new URL(historicalSupportHref)
-policySupportHref.searchParams.set("topic", "verification")
 function tourEvidenceDocuments(area: "activity" | "safety") {
 	const types = new Set(tourEvidenceOptions[area].map((option) => option.value.split("::")[0]))
 	return documents.filter((document) => {
@@ -621,22 +619,11 @@ const paymentErrorMessages: Record<
 							screen={screen}
 							line="tour"
 							tourArea="activity"
+							evaluationPending={tourVerification[0]?.policyEvaluationPending}
 							operationComplete={tourOperationComplete}
 							experienceId={navigation.experienceId}
 						/>
 					)}
-					{tourOperationComplete && tourVerification[0]?.state === "waiting_on_fastt" ? (
-						<Notice variant="info" title="Pendiente de política Fastt">
-							Esta combinación todavía requiere una regla comercial aprobada. Puedes guardar la
-							operación; no subas documentos que no aparezcan como aplicables.
-							<a
-								class="font-semibold underline underline-offset-2"
-								href={`${policySupportHref.pathname}${policySupportHref.search}`}
-							>
-								Solicitar revisión
-							</a>
-						</Notice>
-					) : null}
 					{result === "submitted" ? (
 						<Notice variant="success" title="Licencia enviada">
 							El respaldo quedó en revisión para esta experiencia.
@@ -694,9 +681,6 @@ const paymentErrorMessages: Record<
 							experienceId={navigation?.experienceId}
 							safetyState={tourPlaybook.find((tab) => tab.id === "safety")?.uiState}
 							missingOperationFields={missingTourOperationFields}
-							collectionModelUndecided={
-								!commercialLine || commercialLine.collectionModel === "undecided"
-							}
 						/>
 					)}
 					{result === "submitted" ? (

@@ -1,7 +1,7 @@
 ---
 import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
 import { routes } from "@/lib/routes"
-import { LayoutDashboard, UserRound, Users } from "@lucide/astro"
+import { LayoutDashboard, UserRound, Users, FileCheck2 } from "@lucide/astro"
 
 interface Props {
 	pathname?: string
@@ -28,6 +28,12 @@ const items = [
 		icon: UserRound,
 	},
 	// Verificación y los impuestos al huésped tienen su propio espacio de trabajo.
+	{
+		label: "Acuerdo comercial",
+		href: routes.providerSettingsPayments(),
+		aliases: [],
+		icon: FileCheck2,
+	},
 	{
 		label: "Equipo",
 		href: routes.providerSettingsTeam(),
@@ -60,7 +66,10 @@ const isActive = (item: (typeof items)[number]) => {
 			return (
 				<a
 					href={item.href}
-					data-provider-settings-nav
+					data-provider-settings-nav={
+						item.href === routes.providerSettingsPayments() ? undefined : ""
+					}
+					data-astro-reload={item.href === routes.providerSettingsPayments() ? true : undefined}
 					data-active={active ? "true" : "false"}
 					aria-current={active ? "page" : undefined}
 					class="fastt-tabs-inside-panel__item"

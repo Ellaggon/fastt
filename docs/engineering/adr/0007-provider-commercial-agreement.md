@@ -11,7 +11,7 @@ Review trigger: Complete the evidence gate and obtain a recorded Finance, Tours 
 
 ## Status
 
-Proposed only. This ADR does not authorize a migration, rollout, policy activation or money movement. No 30-day volume metric, dated operations incident or named decision owner was supplied for this proposal.
+Proposed only. The implementation may be reviewed in an unmerged draft PR, but this ADR does not authorize merging or applying its migration, rollout, policy activation or money movement. No 30-day volume metric, dated operations incident or named decision owner was supplied for this proposal.
 
 ## Context
 
@@ -23,7 +23,7 @@ The decision is whether the agreement lifecycle needs durable, immutable persist
 
 Evaluate a provider-scoped, Tours-line agreement with immutable versions and explicit request, offer, acceptance and withdrawal states. If accepted, the exact accepted version should be referenced in the hold and booking snapshot while continuing to use the existing inventory and booking spine. The signer must be identified and reviewed before an offer is issued; acceptance must match the offered terms version.
 
-Do not implement or activate this schema until the evidence gate below is complete and the decision is formally accepted. Any eventual acceptance must keep agreement approval separate from general policy ratification and from live-money capability.
+This draft PR is for reviewing the proposed contract and candidate implementation only. Do not merge or apply the schema, roll it out, or activate policy enforcement until the evidence gate below is complete and the decision is formally accepted. Any eventual acceptance must keep agreement approval separate from general policy ratification and from live-money capability.
 
 ## Evidence gate
 

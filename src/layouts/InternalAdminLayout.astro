@@ -30,6 +30,7 @@ const isActive = (link: (typeof links)[number]) =>
 	link.exact
 		? pathname === link.href
 		: pathname === link.href || pathname.startsWith(`${link.href}/`)
+links.push({ href: "/admin/commercial-agreements", label: "Acuerdos" })
 ---
 
 <Layout title={title}>

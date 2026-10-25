@@ -1,11 +1,20 @@
 ---
 import ProviderCommercialContractCard from "@/components/provider/ProviderCommercialContractCard.astro"
+import ProviderTourCommercialAgreement from "@/components/provider/ProviderTourCommercialAgreement.astro"
 import Button from "@/components/ui/Button.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
 import { loadProviderContractSurface } from "@/lib/commercial-policy/provider-contract-surface"
 import { resolveFinancialApiProductScope } from "@/lib/financial/financialApiProductScope"
 import { safeFinancialReturn } from "@/lib/financial/financialReturn"
+import { listProviderCommercialLines } from "@/lib/verification/commercial-lines"
+import {
+	agreementReturnTo,
+	commercialAgreementStatus,
+	listCommercialAgreements,
+} from "@/modules/financial/commercial-agreements"
+import { db, eq, Provider } from "@/shared/infrastructure/db/compat"
+import { ArrowLeft } from "@lucide/astro"
 
 const auth = await requireProviderSessionSurface(Astro.request).catch((error: any) => {
 	if (error instanceof Response && error.status === 401) return "__LOGIN__"
@@ -18,25 +27,59 @@ const providerId = typeof auth === "string" ? null : auth.provider.providerId
 if (!providerId) return Astro.redirect("/provider/settings/profile")
 const scope = await resolveFinancialApiProductScope(providerId, Astro.url)
 if (!scope.ok) return scope.response
-const returnTo = safeFinancialReturn(Astro.url.searchParams.get("returnTo"))
-const model = await loadProviderContractSurface(providerId, {
-	productIds: scope.productFilter,
-	returnTo: returnTo ?? undefined,
-})
+const returnTo =
+	agreementReturnTo(Astro.url.searchParams.get("returnTo")) ??
+	safeFinancialReturn(Astro.url.searchParams.get("returnTo"))
+const returnLabel = returnTo?.startsWith("/provider/settings/verification")
+	? "Volver a verificación"
+	: returnTo?.startsWith("/product/") || returnTo?.startsWith("/catalog/tours")
+		? "Volver a la experiencia"
+		: "Volver"
+const lines = await listProviderCommercialLines(providerId)
+const tourLine = lines.find((line) => line.line === "tour")
+const showTourAgreement = Boolean(tourLine && Astro.url.searchParams.get("scope") !== "hotel")
+const [agreements, agreementStatus, provider] = await Promise.all([
+	showTourAgreement ? listCommercialAgreements(providerId) : Promise.resolve([]),
+	showTourAgreement ? commercialAgreementStatus(providerId) : Promise.resolve(null),
+	db
+		.select({ legalName: Provider.legalName })
+		.from(Provider)
+		.where(eq(Provider.id, providerId))
+		.then((rows) => rows[0]),
+])
+// Per-offer readiness belongs to verification, not the Tours agreement workspace.
+const model = showTourAgreement
+	? null
+	: await loadProviderContractSurface(providerId, {
+			productIds: scope.productFilter,
+			returnTo: returnTo ?? undefined,
+		})
 ---
 
 <ProviderSettingsLayout
-	title="Condiciones comerciales"
-	heading="Condiciones comerciales"
-	description="Consulta la modalidad de cobro de tus ofertas y los requisitos que necesitan atención."
-	showSettingsTabs={false}
+	title="Acuerdo comercial"
+	heading="Acuerdo comercial"
+	description="Configura el cobro y revisa las condiciones acordadas con Fastt."
 >
 	{
 		returnTo && (
-			<Button href={returnTo} variant="secondary">
-				Volver a Finanzas
+			<Button href={returnTo} variant="secondary" size="sm" class="w-fit justify-self-start">
+				<ArrowLeft size={16} aria-hidden="true" />
+				{returnLabel}
 			</Button>
 		)
 	}
-	<ProviderCommercialContractCard model={model} />
+	{
+		showTourAgreement && (
+			<ProviderTourCommercialAgreement
+				agreements={agreements}
+				collectionModel={tourLine!.collectionModel}
+				canEdit={Boolean(auth.provider.permissions?.canEditProfile)}
+				userId={auth.user.id}
+				agreementStatus={agreementStatus?.state ?? "acceptance_required"}
+				sellerName={provider?.legalName ?? ""}
+			/>
+		)
+	}
+	{model && <ProviderCommercialContractCard model={model} />}
 </ProviderSettingsLayout>

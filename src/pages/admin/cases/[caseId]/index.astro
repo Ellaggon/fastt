@@ -89,15 +89,20 @@ const domainLabels: Record<string, string> = {
 }
 const legacyFilter = workspace?.case.domain ?? "all"
 const legacyHref = workspace
-	? `/admin/providers?filter=${legacyFilter}&providerId=${encodeURIComponent(workspace.case.providerId)}`
+	? workspace.case.sourceType === "ProviderCommercialAgreement"
+		? `/admin/commercial-agreements?providerId=${encodeURIComponent(workspace.case.providerId)}#agreement-${workspace.case.sourceRef}`
+		: `/admin/providers?filter=${legacyFilter}&providerId=${encodeURIComponent(workspace.case.providerId)}`
 	: "/admin/providers"
 const notice = Astro.url.searchParams.get("notice")
 const requestedReturn = Astro.url.searchParams.get("returnTo") || ""
-const returnHref = /^\/admin\/(queues\/[a-z-]+|work|cases)\/?(?:\?[^#]*)?$/.test(requestedReturn)
-	? requestedReturn
-	: workspace
-		? `/admin/providers/${encodeURIComponent(workspace.case.providerId)}`
-		: "/admin/work"
+const returnHref =
+	/^\/admin\/(queues\/[a-z-]+|work|cases|commercial-agreements)\/?(?:\?[^#]*)?$/.test(
+		requestedReturn
+	)
+		? requestedReturn
+		: workspace
+			? `/admin/providers/${encodeURIComponent(workspace.case.providerId)}`
+			: "/admin/work"
 const caseActionable = Boolean(
 	workspace &&
 	["open", "in_review", "waiting_information", "blocked"].includes(workspace.case.status)
@@ -109,7 +114,10 @@ const decisionLabels: Record<string, string> = {
 	requires_attention: "Marcar para corrección",
 }
 const allowedDecisionValues = workspace
-	? [...new Set(workspace.reasons.map((reason) => reason.decision))].filter(
+	? (workspace.case.sourceType === "ProviderCommercialAgreement"
+			? []
+			: [...new Set(workspace.reasons.map((reason) => reason.decision))]
+		).filter(
 			(decision) =>
 				decision !== "requires_attention" || ["fiscal", "payments"].includes(workspace.case.domain)
 		)
@@ -139,17 +147,19 @@ const pendingDecisionReview =
 		["proposed", "pending_approval", "approved", "applying", "failed"].includes(decision.status)
 	) ?? false
 const legacyReviewHref =
-	workspace &&
-	caseActionable &&
-	workspace.case.status !== "waiting_information" &&
-	workspace.case.riskTier === "standard" &&
-	!pendingDecisionReview &&
-	(!commandsEnabled || !caseInPilot) &&
-	legacyWriteEnabled &&
-	canAccessLegacy &&
-	canReviewArea
-		? `${legacyHref}#provider-review-${workspace.case.domain}`
-		: null
+	workspace?.case.sourceType === "ProviderCommercialAgreement"
+		? legacyHref
+		: workspace &&
+			  caseActionable &&
+			  workspace.case.status !== "waiting_information" &&
+			  workspace.case.riskTier === "standard" &&
+			  !pendingDecisionReview &&
+			  (!commandsEnabled || !caseInPilot) &&
+			  legacyWriteEnabled &&
+			  canAccessLegacy &&
+			  canReviewArea
+			? `${legacyHref}#provider-review-${workspace.case.domain}`
+			: null
 const noticeMessage =
 	notice === "request_published"
 		? "La solicitud está disponible en el buzón seguro del proveedor. Su lectura todavía no está confirmada."
@@ -625,6 +635,7 @@ const noticeMessage =
 								)}
 								pendingDecisionReview={pendingDecisionReview}
 								legacyReviewHref={legacyReviewHref}
+								commercialAgreement={workspace.case.sourceType === "ProviderCommercialAgreement"}
 							/>
 							<CaseRelatedReviews
 								reviews={relatedReviews}

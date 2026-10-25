@@ -1,0 +1,417 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
+import {
+	principalHasPermission,
+	requireInternalPermission,
+} from "@/lib/auth/internal-authorization"
+import { loadAdminAgreementSurface } from "@/lib/commercial-policy/admin-agreement-surface"
+import { agreementStateLabels, type OfferedTerms } from "@/modules/financial/commercial-agreements"
+import {
+	CaseActivityEvent,
+	db,
+	desc,
+	eq,
+	inArray,
+	Provider,
+	ProviderUser,
+	User,
+} from "@/shared/infrastructure/db/compat"
+import { ProviderCommercialAgreement } from "@/shared/infrastructure/db/schema/tables"
+const providerId = Astro.url.searchParams.get("providerId") ?? ""
+let principal
+try {
+	principal = await requireInternalPermission(
+		Astro.request,
+		"provider.compliance.read",
+		providerId ? { type: "provider", id: providerId } : undefined
+	)
+} catch (error) {
+	if (error instanceof Response) return error
+	throw error
+}
+const rows = await db
+	.select({ agreement: ProviderCommercialAgreement, name: Provider.legalName })
+	.from(ProviderCommercialAgreement)
+	.innerJoin(Provider, eq(Provider.id, ProviderCommercialAgreement.providerId))
+	.where(providerId ? eq(ProviderCommercialAgreement.providerId, providerId) : undefined)
+	.orderBy(desc(ProviderCommercialAgreement.createdAt))
+	.limit(50)
+const focusedSummary = providerId ? await loadAdminAgreementSurface(providerId) : null
+const focusedName = rows[0]?.name
+const ids = [...new Set(rows.map((row) => row.agreement.providerId))]
+const members = ids.length
+	? await db
+			.select({
+				providerId: ProviderUser.providerId,
+				userId: ProviderUser.userId,
+				email: User.email,
+			})
+			.from(ProviderUser)
+			.innerJoin(User, eq(User.id, ProviderUser.userId))
+			.where(inArray(ProviderUser.providerId, ids))
+	: []
+const actorIds = [
+	...new Set(
+		rows
+			.flatMap(({ agreement }) => [
+				agreement.offeredByUserId,
+				agreement.acceptedByUserId,
+				agreement.authorizedSignerUserId,
+			])
+			.filter((id): id is string => Boolean(id))
+	),
+]
+const actors = actorIds.length
+	? await db.select({ id: User.id, email: User.email }).from(User).where(inArray(User.id, actorIds))
+	: []
+const actorLabel = (id: string | null) =>
+	actors.find((actor) => actor.id === id)?.email ?? "Persona no disponible"
+const formatMoment = (value: Date) =>
+	new Intl.DateTimeFormat("es-BO", {
+		dateStyle: "medium",
+		timeStyle: "short",
+		timeZone: "America/La_Paz",
+	}).format(value)
+const formatDay = (value: string) =>
+	new Intl.DateTimeFormat("es-BO", { dateStyle: "medium", timeZone: "UTC" }).format(
+		new Date(`${value}T00:00:00Z`)
+	)
+const textFields = [
+	["commissionBase", "Base de cálculo de comisión"],
+	["paymentTiming", "Cuándo cobra el proveedor al viajero"],
+	["settlementTerms", "Conciliación y pago de comisión"],
+	["cancellationTerms", "Cancelaciones y devoluciones"],
+	["fiscalResponsibilities", "Responsabilidades fiscales"],
+	["fullTerms", "Condiciones completas de la propuesta"],
+]
+const caseIds = rows.map((row) => row.agreement.caseId).filter((id): id is string => Boolean(id))
+const correctionNotes = caseIds.length
+	? await db
+			.select()
+			.from(CaseActivityEvent)
+			.where(inArray(CaseActivityEvent.caseId, caseIds))
+			.orderBy(desc(CaseActivityEvent.createdAt))
+			.limit(100)
+	: []
+---
+
+<InternalAdminLayout title="Acuerdos comerciales">
+	<div class="space-y-6">
+		<div class="flex flex-wrap items-center justify-between gap-3">
+			<div>
+				<h1 class="text-2xl font-semibold">
+					{providerId ? "Acuerdo comercial" : "Acuerdos comerciales"}
+				</h1><p class="mt-1 text-sm text-slate-400">
+					{
+						providerId
+							? focusedName || "Proveedor seleccionado"
+							: "Propuestas de Tours y aceptación de sus representantes."
+					}
+				</p>
+			</div><Button href="/admin/commercial-policies" variant="secondary"
+				>Políticas generales</Button
+			>
+		</div>
+		{
+			providerId && (
+				<Button
+					href={`/admin/providers?filter=payments&providerId=${encodeURIComponent(providerId)}`}
+					variant="secondary"
+					size="sm"
+					class="w-fit"
+				>
+					Volver al proveedor
+				</Button>
+			)
+		}
+		{
+			focusedSummary && (
+				<div class="flex flex-wrap gap-x-6 gap-y-2 border-y border-slate-700 py-4 text-sm">
+					<>
+						<span>
+							{focusedSummary.collectionModel === "property_collect"
+								? "Cobro directo confirmado por el proveedor"
+								: "Cobro al viajero sin confirmar"}
+						</span>
+						<span>{focusedSummary.label}</span>
+					</>
+				</div>
+			)
+		}
+		{
+			rows.length === 0 && (
+				<p class="text-sm text-slate-400">No hay solicitudes comerciales en esta vista.</p>
+			)
+		}
+		{
+			rows.map(({ agreement: row, name }, index) => {
+				const canOffer = principalHasPermission(principal, "commercial_policy.finance.approve", {
+					type: "provider",
+					id: row.providerId,
+				})
+				const terms = row.termsJson as OfferedTerms | null
+				return (
+					<Card class="space-y-4" id={`agreement-${row.id}`}>
+						<details open={!providerId || index === 0}>
+							<summary class="cursor-pointer text-sm font-semibold text-slate-800">
+								{!providerId
+									? name || "Titular por completar"
+									: index > 0
+										? "Versión anterior"
+										: "Propuesta"}{" "}
+								· {row.version} ·{" "}
+								{row.status === "offered"
+									? "Pendiente del representante"
+									: agreementStateLabels[row.status as keyof typeof agreementStateLabels]}
+							</summary>
+							<div class="mt-4 space-y-4">
+								{row.caseId && (
+									<Button
+										href={`/admin/cases/${row.caseId}?returnTo=${encodeURIComponent(`/admin/commercial-agreements?providerId=${encodeURIComponent(row.providerId)}`)}`}
+										variant="secondary"
+									>
+										Ver caso y responsable
+									</Button>
+								)}
+								{correctionNotes
+									.filter(
+										(note) =>
+											note.caseId === row.caseId && note.eventType === "information_received"
+									)
+									.map((note) => (
+										<p class="border-l-2 border-amber-400 pl-3 text-sm text-slate-700">
+											Corrección solicitada: {note.summary}
+										</p>
+									))}
+								{row.status === "requested" && canOffer ? (
+									<details>
+										<summary class="cursor-pointer text-sm font-semibold">
+											Preparar propuesta
+										</summary>
+										<form
+											class="mt-4 space-y-4"
+											action="/api/admin/commercial-agreements"
+											method="post"
+											data-agreement-form
+											data-proposal-form
+											data-seller-name={name}
+										>
+											<input type="hidden" name="action" value="offer" />
+											<input type="hidden" name="providerId" value={row.providerId} />
+											<input type="hidden" name="agreementId" value={row.id} />
+											<div data-proposal-fields class="space-y-4">
+												<h3 class="font-semibold text-slate-900">Condiciones económicas</h3>
+												<div class="grid gap-4 sm:grid-cols-2">
+													<FormField label="Comisión (%)" htmlFor={`${row.id}-commission`} required>
+														<Input
+															name="commissionPercent"
+															id={`${row.id}-commission`}
+															type="number"
+															min="0"
+															max="100"
+															step="0.01"
+															required
+														/>
+													</FormField>
+													<FormField
+														label="Moneda contractual"
+														htmlFor={`${row.id}-currency`}
+														required
+													>
+														<Input
+															name="currency"
+															id={`${row.id}-currency`}
+															pattern="[A-Z]{3}"
+															maxlength="3"
+															required
+															placeholder="USD"
+														/>
+													</FormField>
+													<FormField label="Vigencia desde" htmlFor={`${row.id}-from`} required>
+														<Input
+															id={`${row.id}-from`}
+															name="effectiveFrom"
+															type="date"
+															required
+														/>
+													</FormField>
+													<FormField label="Vigencia hasta" htmlFor={`${row.id}-to`} required>
+														<Input id={`${row.id}-to`} name="effectiveTo" type="date" required />
+													</FormField>
+												</div>
+												{textFields.map(([key, label]) => (
+													<>
+														{key === "cancellationTerms" && (
+															<h3 class="border-t border-slate-200 pt-4 font-semibold text-slate-900">
+																Condiciones contractuales
+															</h3>
+														)}
+														<FormField label={label} htmlFor={`${row.id}-${key}`} required>
+															<Textarea
+																name={key}
+																id={`${row.id}-${key}`}
+																required
+																minlength={
+																	key === "fullTerms" ? 100 : key === "paymentTiming" ? 10 : 20
+																}
+															/>
+														</FormField>
+													</>
+												))}
+												<FormField
+													label="Referencia del acuerdo"
+													htmlFor={`${row.id}-reference`}
+													required
+												>
+													<Input
+														id={`${row.id}-reference`}
+														name="documentReference"
+														required
+														minlength="8"
+													/>
+												</FormField>
+												<h3 class="border-t border-slate-200 pt-4 font-semibold text-slate-900">
+													Representación y autorización
+												</h3>
+												<FormField
+													label="Representante autorizado para aceptar"
+													htmlFor={`${row.id}-signer`}
+													required
+												>
+													<Select id={`${row.id}-signer`} name="signerUserId" required>
+														<option value="">Selecciona una persona de la cuenta</option>
+														{members
+															.filter((member) => member.providerId === row.providerId)
+															.map((member) => (
+																<option value={member.userId}>{member.email}</option>
+															))}
+													</Select>
+												</FormField>
+												<FormField
+													label="Referencia de representación comprobada"
+													htmlFor={`${row.id}-mandate`}
+													required
+												>
+													<Input
+														id={`${row.id}-mandate`}
+														name="representationReference"
+														required
+														minlength="8"
+													/>
+												</FormField>
+												<p class="text-sm text-slate-600">
+													Comprueba la facultad de representación antes de emitir. Registrar una
+													referencia no verifica el documento automáticamente.
+												</p>
+											</div>
+											<Button type="button" variant="selection" data-proposal-review-button>
+												Revisar propuesta
+											</Button>
+											<div hidden data-proposal-review tabindex="-1" class="space-y-4">
+												<h3 class="font-semibold text-slate-950">Revisa antes de autorizar</h3>
+												<dl data-proposal-summary class="grid gap-4 text-sm sm:grid-cols-2" />
+												<details class="border-t border-slate-200 pt-4">
+													<summary class="cursor-pointer text-sm font-semibold">
+														Condiciones completas
+													</summary>
+													<p
+														data-proposal-full-terms
+														class="mt-3 text-sm break-words whitespace-pre-wrap text-slate-700"
+													/>
+												</details>
+												<p class="text-sm text-slate-600">
+													Se registrará tu autorización interna. La propuesta quedará pendiente de
+													aceptación por el representante del proveedor.
+												</p>
+												<div class="flex flex-wrap gap-2">
+													<Button type="button" variant="secondary" data-proposal-edit>
+														Volver a editar
+													</Button>
+													<Button type="submit" variant="selection">
+														Autorizar y enviar propuesta
+													</Button>
+												</div>
+											</div>
+											<p role="status" class="text-sm text-slate-600" data-agreement-feedback />
+										</form>
+									</details>
+								) : terms ? (
+									<details>
+										<summary class="cursor-pointer text-sm font-semibold">
+											Consultar propuesta y aceptación
+										</summary>
+										<div class="mt-3 space-y-3 text-sm text-slate-700">
+											<p>
+												{terms.sellerName} · {terms.commissionPercent}% · {terms.currency} ·{" "}
+												{formatDay(terms.effectiveFrom)} → {formatDay(terms.effectiveTo)}
+											</p>
+											<p class="whitespace-pre-wrap">{terms.fullTerms}</p>
+											<p>
+												{row.acceptedAt
+													? `Aceptado por ${actorLabel(row.acceptedByUserId)} · ${formatMoment(row.acceptedAt)}`
+													: row.status === "withdrawn"
+														? "Propuesta retirada: ya no puede aceptarse."
+														: `Pendiente de ${actorLabel(row.authorizedSignerUserId)}.`}
+											</p>
+											{row.offeredAt && (
+												<p>
+													Autorizado por {actorLabel(row.offeredByUserId)} ·{" "}
+													{formatMoment(row.offeredAt)}
+												</p>
+											)}
+											<p>
+												Referencia: {terms.documentReference} · Representación:{" "}
+												{row.representationReference}
+											</p>
+										</div>
+									</details>
+								) : (
+									<p class="text-sm text-slate-600">
+										Se requiere permiso de aprobación financiera para emitir la propuesta.
+									</p>
+								)}
+								{["requested", "offered"].includes(row.status) && canOffer && (
+									<details class="border-t border-slate-200 pt-4">
+										<summary class="cursor-pointer text-sm text-red-700">Retirar propuesta</summary>
+										<form
+											method="post"
+											action="/api/admin/commercial-agreements"
+											data-agreement-form
+										>
+											<input type="hidden" name="action" value="withdraw" />
+											<input type="hidden" name="providerId" value={row.providerId} />
+											<input type="hidden" name="agreementId" value={row.id} />
+											<p class="my-3 text-sm text-slate-600">
+												Esta versión dejará de estar disponible para aceptar. No modifica acuerdos
+												ya aceptados.
+											</p>
+											<Button type="submit" variant="danger">
+												Confirmar retirada
+											</Button>
+											<p
+												class="mt-2 text-sm text-slate-600"
+												role="status"
+												data-agreement-feedback
+											/>
+										</form>
+									</details>
+								)}
+							</div>
+						</details>
+					</Card>
+				)
+			})
+		}
+	</div>
+</InternalAdminLayout>
+<script>
+	import { bindAgreementForms } from "@/lib/commercial-policy/agreement-forms"
+	bindAgreementForms()
+	document.addEventListener("astro:page-load", bindAgreementForms)
+</script>
