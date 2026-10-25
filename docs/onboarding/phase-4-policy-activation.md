@@ -22,7 +22,8 @@ La matriz BO v1 sigue siendo un borrador hasta que **Políticas**, **Finanzas** 
 ## Acuerdo particular del proveedor
 
 La implementación versionada está sujeta al [ADR 0007](../engineering/adr/0007-provider-commercial-agreement.md).
-Su estado y aprobación prevalecen: este runbook no autoriza integrar ni ejecutar una propuesta.
+La excepción pre-lanzamiento fue aprobada el 2026-10-25 para integrar código desactivado;
+no autoriza ejecutar ahora migraciones ni activar el requisito en producción.
 El despliegue permanece desactivado por defecto y no exige acuerdos nuevos para reservar.
 
 La declaración de cobro directo de Tours se guarda en `ProviderCommercialLine` sin
@@ -77,8 +78,9 @@ ni sustituye las tres identidades independientes requeridas para ratificar la po
 | `FASTT_TOUR_AGREEMENT_PROVIDER_IDS` | IDs explícitos separados por comas. Sin cohorte o con `*`, el gate permanece apagado. |
 | `FASTT_TOUR_AGREEMENT_APPROVAL_REFERENCE` | Referencia no vacía a la aprobación real del rollout. No usar referencias de fixtures en un entorno operativo. |
 
-1. Completar y aceptar formalmente el ADR antes del merge o de aplicar el esquema. La excepción
-   pre-lanzamiento en revisión no se presenta como métrica ni incidente existente.
+1. Verificar la aceptación del ADR y programar por separado la operación sobre la base objetivo.
+   La excepción pre-lanzamiento aceptada el 2026-10-25 no se presenta como métrica ni incidente
+   existente, y la aprobación del merge no equivale a autorización para ejecutar la migración ahora.
 2. Mantener `off` en todos los entornos operativos. Respaldar la base y usar el runner incremental
    `pnpm db:migrate:apply-one` documentado en [operación PostgreSQL](../engineering/supabase-migration.md)
    con `--dry-run --file <ruta>` para planificar, y sin `--dry-run` para aplicar primero

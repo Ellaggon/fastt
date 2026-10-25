@@ -50,7 +50,13 @@ Before moving an ADR from `deferred`/`proposed` → `accepted`, attach:
 | Cost of status quo | Why Variant / JSON / DailyInventory workarounds fail at that volume |
 | Owner | Named product + eng owner for the rollout |
 
-Without all four, status must stay `deferred` or `proposed`. CI guardrail
+Without all four, status must stay `deferred` or `proposed`, except for the specific
+pre-launch exception approved by the project owner on 2026-10-25 in
+[ADR 0007](./0007-provider-commercial-agreement.md). That exception permits merging
+contractual-correctness persistence definitions and code disabled by default, with
+`adm1n` as DRI; it does not claim volume/incident evidence, authorize immediate
+production migration/activation or apply to ADRs 0001–0004 or other new tables.
+CI guardrail
 `tests/guardrails/tour-p3-deferred-capabilities.test.ts` blocks premature tables.
 
 ## Process
