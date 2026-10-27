@@ -69,8 +69,8 @@ describe("experience operation and applicable licenses", () => {
 	})
 	it.each([
 		[false, "not_evaluable", "Completa la operación de la experiencia"],
-		[true, "not_evaluable", "Evaluación pendiente de Fastt"],
-		[true, "not_applicable", "Sin respaldos adicionales requeridos"],
+		[true, "not_evaluable", "Requisitos por definir"],
+		[true, "not_applicable", "Sin requisitos adicionales"],
 	] as const)(
 		"distinguishes safety context and policy: %s / %s",
 		async (operationComplete, safetyState, title) => {
@@ -116,11 +116,11 @@ describe("experience operation and applicable licenses", () => {
 				safetyState: "not_evaluable",
 			},
 		})
-		expect(html).toContain("Evaluación pendiente de Fastt")
+		expect(html).toContain("Requisitos por definir")
 		expect(html).not.toContain("Seguro de la actividad")
 		expect(html).not.toContain("Revisar acuerdo comercial")
 		expect(html).not.toContain("/provider/settings/payments")
-		expect(html).toContain("Te indicaremos aquí los respaldos de seguridad")
+		expect(html).toContain("Fastt debe definir los requisitos aplicables")
 	})
 	it("shows a policy wait in activity without claiming no licenses are needed or opening the contract", async () => {
 		const container = await AstroContainer.create()
@@ -134,7 +134,7 @@ describe("experience operation and applicable licenses", () => {
 				evaluationPending: true,
 			},
 		})
-		expect(html).toContain("Fastt está determinando las licencias aplicables")
+		expect(html).toContain("Fastt debe definir los requisitos aplicables")
 		expect(html).not.toContain("No hay licencias adicionales")
 		expect(html).not.toContain("/provider/settings/payments")
 	})
@@ -182,7 +182,8 @@ describe("experience operation and applicable licenses", () => {
 			},
 		})
 		expect(html).toContain("Licencias aplicables")
-		expect(html).toContain('href="#tour-evidence-tour-activity"')
+		expect(html).toContain("type=operating_license#tour-evidence-tour-activity")
+		expect(html).toContain("/product/tour-a?type=")
 	})
 	it("keeps the stored declaration visible without offering a save action to a read-only user", async () => {
 		const container = await AstroContainer.create()

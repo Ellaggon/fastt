@@ -5,6 +5,7 @@ import ProductLocationPreview from "@/components/product/ProductLocationPreview.
 import ProductMediaGallery from "@/components/product/ProductMediaGallery.astro"
 import ProductStayPreparationRow from "@/components/product/ProductStayPreparationRow.astro"
 import ProductTourWorkspaceSidebar from "@/components/product/ProductTourWorkspaceSidebar.astro"
+import TourExperienceRequirements from "@/components/tours/TourExperienceRequirements.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -23,6 +24,7 @@ import {
 } from "@/lib/playbook/product-preparation-coach"
 import { summarizeProductPreparation } from "@/lib/playbook/summarize-product-preparation"
 import { getProductOperationalSurface } from "@/lib/product/productOperationalSurface"
+import { loadProviderVerificationWorkspace } from "@/lib/provider-verification-workspace"
 import { routes } from "@/lib/routes"
 import { loadTourCommercialContext } from "@/lib/tours/loadTourCommercialContext"
 import { presentTourCatalogItem } from "@/lib/tours/tourCatalogPresentation"
@@ -63,6 +65,18 @@ if (!owned) return Astro.redirect("/product/create")
 const vertical = getProductVerticalEntry(owned.productType)
 const isHotel = vertical.vertical === "hotel"
 const isTour = vertical.vertical === "tour"
+const requirementsModelPromise = isTour
+	? loadProviderVerificationWorkspace({
+			providerId,
+			sessionPermissions: providerSession.permissions,
+			providerRoleLabel: "Operaciones",
+			url: new URL(
+				`/provider/settings/verification?line=tour&experience=${encodeURIComponent(productId)}&${Astro.url.searchParams}`,
+				Astro.url
+			),
+			experienceWorkspace: true,
+		})
+	: null
 const isPackage = vertical.vertical === "package"
 const publicDetailHref = vertical.routes.publicDetailHref(productId)
 const publicationSuccess = Astro.url.searchParams.get("published") === "1"
@@ -214,6 +228,7 @@ const tourContinueHref =
 const tourDeleteLabel = `Eliminar ${vertical.labels.workspaceSingular.toLowerCase()}`
 
 timing.addTotal("productPage")
+const requirementsModel = await requirementsModelPromise
 timing.setHeader(Astro.response.headers)
 logRoutePerformance({
 	name: "product-page",
@@ -520,6 +535,11 @@ logRoutePerformance({
 					) : null
 				}
 
+				{
+					requirementsModel && (
+						<TourExperienceRequirements model={requirementsModel} productId={productId} />
+					)
+				}
 				{
 					isHotel ? (
 						<Card variant="flush" className="overflow-hidden bg-white text-slate-900">

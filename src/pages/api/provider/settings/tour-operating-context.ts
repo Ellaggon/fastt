@@ -4,6 +4,7 @@ import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
 import { invalidateProduct, invalidateProvider } from "@/lib/cache/invalidation"
 import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
 import { routes } from "@/lib/routes"
+import { experienceRequirementsHref } from "@/lib/verification/experience-requirements-navigation"
 import {
 	parseTourComplianceContext,
 	saveTourComplianceContext,
@@ -21,7 +22,7 @@ export function tourOperatingContextRedirect(request: Request, productId: string
 	if (productId) target.searchParams.set("experience", productId)
 	target.searchParams.set(result === "context_saved" ? "result" : "error", result)
 	target.hash = "tour-operating-context"
-	return Response.redirect(target, 303)
+	return Response.redirect(new URL(experienceRequirementsHref(productId, target), request.url), 303)
 }
 
 export const POST: APIRoute = async ({ request }) => {

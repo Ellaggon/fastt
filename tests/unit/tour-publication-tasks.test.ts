@@ -102,10 +102,6 @@ it("keeps stage completion coherent with individual saved requirements and autho
 		"ready",
 		"ready",
 		"ready",
-		"ready",
-		"ready",
-		"ready",
-		"pending",
 	])
 	expect(stages[0].pendingReason).toBe(diagnosis.requirements.activities.result.reason.message)
 	expect(stages[1].pendingReason).toBe(diagnosis.requirements.logistics.result.reason.message)

@@ -1,0 +1,179 @@
+---
+import ProviderTourOperatingContext from "@/components/provider/ProviderTourOperatingContext.astro"
+import ProviderVerificationLineSections from "@/components/provider/ProviderVerificationLineSections.astro"
+import ProviderVerificationOptionals from "@/components/provider/ProviderVerificationOptionals.astro"
+import Button from "@/components/ui/Button.astro"
+import Notice from "@/components/ui/Notice.astro"
+import { safeVerificationReturn } from "@/lib/auth/returnTo"
+import type { ProviderVerificationWorkspaceModel } from "@/lib/provider-verification-workspace"
+import { storedTourActivityClasses } from "@/lib/tours/tour-compliance-context"
+import { tourTerritoryCodes } from "@/lib/tours/tour-operating-territories"
+import { documentUploadErrorMessages } from "@/lib/verification/document-upload-presentation"
+
+interface Props {
+	model: ProviderVerificationWorkspaceModel
+	productId: string
+}
+const { model, productId } = Astro.props
+const operationComplete = Boolean(
+	model.tourContext?.operatingRole &&
+	tourTerritoryCodes(model.tourContext).length &&
+	storedTourActivityClasses(model.tourContext?.activityClassesJson).length
+)
+const areas = ["activity", "safety"] as const
+const pending = areas.some(
+	(area) => model.tourPlaybook.find((tab) => tab.id === area)?.uiState === "not_evaluable"
+)
+const noAdditionalRequirements = areas.every(
+	(area) => model.tourPlaybook.find((tab) => tab.id === area)?.uiState === "not_applicable"
+)
+const states = Object.fromEntries(
+	(model.screen?.sections.find((section) => section.id === "tour")?.items ?? []).map((item) => [
+		item.id,
+		item.state,
+	])
+)
+const returnTo = safeVerificationReturn(Astro.url.searchParams.get("returnTo"))
+---
+
+<section
+	id="experience-requirements"
+	class="min-w-0 space-y-5 scroll-mt-24"
+	aria-labelledby="experience-requirements-title"
+	data-experience-requirements
+>
+	<header class="border-b border-slate-700 pb-3">
+		<h2 id="experience-requirements-title" class="text-lg font-semibold text-slate-100">
+			Operación y requisitos
+		</h2>
+	</header>
+	<ProviderTourOperatingContext
+		productId={productId}
+		context={model.tourContext ?? null}
+		canEdit={model.canEditTourContext}
+		result={model.result}
+		error={["invalid_context", "invalid_territory", "forbidden"].includes(model.error)
+			? model.error
+			: ""}
+	/>
+	{
+		model.result === "submitted" && (
+			<Notice variant="success" title="Documento enviado">
+				El respaldo quedó en revisión para esta experiencia.
+			</Notice>
+		)
+	}
+	{
+		model.result === "error" && (
+			<Notice variant="warning" title="No se pudo enviar el documento">
+				{documentUploadErrorMessages[model.error] ??
+					"Revisa el archivo y los datos del respaldo. El envío no fue confirmado."}
+			</Notice>
+		)
+	}
+	{
+		operationComplete && model.screen && pending && (
+			<Notice
+				id={
+					model.tourPlaybook.find((tab) => tab.id === "safety")?.uiState === "not_evaluable"
+						? "experience-safety"
+						: undefined
+				}
+				variant="info"
+				title="Requisitos por definir"
+			>
+				Fastt debe definir los requisitos aplicables a esta experiencia. No necesitas volver a
+				declarar la operación ni enviar documentos adicionales hasta que se indiquen.
+			</Notice>
+		)
+	}
+	{
+		operationComplete && model.screen && noAdditionalRequirements && (
+			<Notice id="experience-safety" variant="info" title="Sin requisitos adicionales">
+				La evaluación vigente no exige licencias ni respaldos de seguridad adicionales para esta
+				operación.
+			</Notice>
+		)
+	}
+	{!operationComplete && <span id="experience-safety" class="scroll-mt-24" />}
+	{
+		operationComplete && !model.screen && (
+			<Notice
+				id="experience-safety"
+				variant="warning"
+				title="No se pudieron determinar los requisitos"
+			>
+				Vuelve a cargar la página para consultar su estado. Esto no confirma la habilitación de la
+				experiencia.
+			</Notice>
+		)
+	}
+	{
+		operationComplete &&
+			!noAdditionalRequirements &&
+			model.screen &&
+			areas.map((area) => {
+				const presentation = model.tourPlaybook.find((tab) => tab.id === area)
+				if (!presentation || presentation.uiState === "not_evaluable") return null
+				const types = new Set(
+					model.tourEvidenceOptions[area].map((option) => option.value.split("::")[0])
+				)
+				const documents = model.documents.filter(
+					(document) =>
+						types.has(document.type) &&
+						(!document.scopes.some((scope) => scope.scopeType === "product") ||
+							document.scopes.some(
+								(scope) => scope.scopeType === "product" && scope.productId === productId
+							))
+				)
+				return (
+					<section
+						id={`experience-${area}`}
+						class="scroll-mt-24 space-y-4"
+						aria-label={area === "activity" ? "Licencias" : "Seguridad y permisos"}
+					>
+						<ProviderVerificationLineSections
+							screen={model.screen!}
+							line="tour"
+							tourArea={area}
+							experienceId={productId}
+							presentation={presentation}
+							safetyState={presentation.uiState}
+							operationComplete={operationComplete}
+						/>
+						{model.tourEvidenceOptions[area].length > 0 && (
+							<ProviderVerificationOptionals
+								surface={area === "activity" ? "tour-activity" : "tour-safety"}
+								renewalDocumentId={Astro.url.searchParams.get("renewDocumentId")}
+								documentPresentation={model.tourDocumentPresentation}
+								resourceChoices={model.tourResources}
+								guideResources={model.tourResources.filter((resource) => resource.type === "guide")}
+								documents={documents}
+								documentTypes={model.tourEvidenceOptions[area]}
+								requirementStates={states}
+								canManageDocuments={model.canManageDocuments}
+								scopeProductId={productId}
+								availableProducts={model.tourProducts.map((product) => ({
+									...product,
+									kind: "tour" as const,
+								}))}
+								documentAssignments={model.documentAssignments}
+								defaultUploadType={model.requestedType}
+							/>
+						)}
+					</section>
+				)
+			})
+	}
+	{
+		returnTo && (
+			<Button href={returnTo} variant="secondary">
+				Volver al recorrido anterior
+			</Button>
+		)
+	}
+</section>
+
+<script>
+	import "@/lib/ui/experience-requirements-drafts"
+</script>

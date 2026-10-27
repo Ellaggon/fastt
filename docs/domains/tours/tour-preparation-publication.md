@@ -3,7 +3,7 @@
 Status: active  
 Document type: canonical  
 Owner: Tours / Provider Experience  
-Last verified: 2026-10-15
+Last verified: 2026-10-26
 Scope: contrato objetivo de experiencia, navegación y continuidad entre Preparar tour y Publicar tour  
 Source of truth: requerimiento de separación del proveedor; diagnóstico en `src/lib/tours/tourDiagnosticContract.ts` y contrato compartido de playbooks de tours  
 Related code/tests: `src/layouts/PlaybookLayout.astro`, `src/lib/playbook/launch-tour.ts`, `src/lib/playbook/complete-to-publish.ts`, `src/lib/tours/tourDiagnosticContract.ts`, `tests/playbook/`, `tests/render/tour-preparation-progress.test.ts`  
@@ -74,7 +74,6 @@ Editar preparación desde la segunda parte cuando el usuario quiera revisar vari
 | 4. Fotos                  | Carga, portada, orden y descripciones.                                      |
 | 5. Participantes          | Tipos de participante y edades admitidas.                                   |
 
-
 Presentación incluye nombre, destino, descripción, destacados y categorías tanto al crear como
 al corregir desde Publicación. El resumen agrupa contenido y categorías en una sola tarea;
 no muestra Presentación cumplida mientras alguna de sus comprobaciones esté pendiente.
@@ -138,7 +137,7 @@ Una sesión vencida ofrece iniciar sesión con retorno; un cambio de formato ofr
 descartar automáticamente el borrador. Después de guardar, preparación continúa a Ubicación,
 una corrección vuelve al mismo resumen de publicación y edición/salida vuelve a la ficha
 con su opción y tarifa. Los campos operativos antiguos se rechazan antes de escribir: su
-formulario vigente pertenece a Verificación. `tests/unit/tour-program-controller.test.ts` y
+formulario vigente pertenece a Operación y requisitos en la ficha del tour. `tests/unit/tour-program-controller.test.ts` y
 `tests/playbook/program-save-navigation.test.ts` cubren estos destinos y errores.
 
 **Persistencia:** Guardar y continuar valida el formulario y confirma el guardado antes de
@@ -164,7 +163,6 @@ La sesión sigue activa: transferir navegación no acredita activación. Al rean
 publicación; editar una etapa elimina esa marca y recupera el asistente. Añadir una opción o
 horario a un tour publicado conserva su salida a gestión y activación independiente.
 
-
 ### Respuesta durante guardado y navegación
 
 Los formularios usan `playbookFormBusy.ts`: «Guardando…» durante persistencia,
@@ -178,7 +176,6 @@ sin saltarse la protección de cambios pendientes. Sus errores son visibles, no 
 Una navegación que no termina devuelve el enlace a un estado reintentable sin reenviar formularios.
 Al regresar mediante historial se retira el estado transitorio; no se modifica el avance guardado.
 
-
 ## Playbook B — Publicar tour
 
 **Gatillos:** Continuar a publicación desde A; Publicar desde la ficha o catálogo;
@@ -190,8 +187,25 @@ B evalúa datos, no exige haber visitado A.
    Los requisitos cumplidos se reconocen automáticamente y quedan bajo «Requisitos cumplidos (N)».
 3. **Resolver una tarea.** Abrir el formulario compartido precargado, enfocado en el dato faltante.
    Guardar → reevaluar → volver al resumen de publicación. No enviar al siguiente paso de A.
-4. **Resolver habilitación aplicable.** Reutilizar verificación con retorno a B. Si corresponde
-   actuar a Fastt, mostrar «En revisión por Fastt»; no pedir al proveedor corregir algo ajeno.
+4. **Resolver habilitación aplicable.** Verificación del negocio separa Identidad (documento
+   personal), Negocio (titular, aprobación de la cuenta y registro de entidad cuando aplica)
+   y Datos fiscales, cada uno con su propio resultado. Una persona natural no presenta registro
+   de empresa. Operación, licencias y seguridad viven en Operación y requisitos de `/product/{id}`,
+   conservando retorno a B. Los enlaces antiguos de actividad y seguridad redirigen al tour
+   validado; sin selección válida, al catálogo. El acuerdo comercial permanece separado.
+
+   `/provider/settings/payments` gestiona el acuerdo compartido del negocio para la línea
+   Experiencias: declaración de cobro, propuesta, aceptación y vigencia. Su estructura no se
+   sustituye por diagnósticos por oferta cuando la contratación está deshabilitada; ese estado
+   se comunica explícitamente y no habilita comandos. La ficha enlaza al acuerdo con retorno
+   validado, sin duplicar la aceptación ni editar comisiones por experiencia. El alcance se
+   consulta bajo demanda. Una nueva propuesta no oculta el acuerdo aceptado ni altera su
+   vigencia; los fallos de lectura bloquean acciones hasta volver a comprobar el estado.
+   Los componentes y evaluadores son compartidos, sin nuevas tablas ni aprobación implícita.
+   Si corresponde
+   actuar a Fastt, mostrar el pendiente real: «Requisitos por definir» sin evaluación resuelta,
+   o «En revisión» sólo con un envío en revisión; no pedir al proveedor corregir algo ajeno.
+
 5. **Revisar y confirmar.** Mostrar la ficha del viajero y la oferta elegida cuando proceda.
    Activar la oferta mediante acción explícita si falta; después permitir Publicar tour.
    Cada comando vuelve a validar en servidor. Un éxito de activación se conserva si publicar falla.
