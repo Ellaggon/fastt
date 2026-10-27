@@ -66,10 +66,11 @@ const isActive = (item: (typeof items)[number]) => {
 			return (
 				<a
 					href={item.href}
+					data-provider-settings-tab
 					data-provider-settings-nav={
 						item.href === routes.providerSettingsPayments() ? undefined : ""
 					}
-					data-astro-reload={item.href === routes.providerSettingsPayments() ? true : undefined}
+					data-astro-prefetch="hover"
 					data-active={active ? "true" : "false"}
 					aria-current={active ? "page" : undefined}
 					class="fastt-tabs-inside-panel__item"

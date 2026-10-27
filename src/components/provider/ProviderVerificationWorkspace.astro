@@ -1,46 +1,33 @@
 ---
+import { documentUploadErrorMessages as uploadErrorMessages } from "@/lib/verification/document-upload-presentation"
 import FormSkeleton from "@/components/ui/FormSkeleton.astro"
 import ProviderDocumentsAccessDenied from "@/components/provider/ProviderDocumentsAccessDenied.astro"
 import ProviderIdentityVendorCard from "@/components/provider/ProviderIdentityVendorCard.astro"
 import ProviderKycSlotsCard from "@/components/provider/ProviderKycSlotsCard.astro"
+import ProviderTourBusinessVerification from "@/components/provider/ProviderTourBusinessVerification.astro"
 import ProviderPaymentAccountsCard from "@/components/provider/ProviderPaymentAccountsCard.astro"
 import ProviderTaxProfileCard from "@/components/provider/ProviderTaxProfileCard.astro"
-import ProviderTourOperatingContext from "@/components/provider/ProviderTourOperatingContext.astro"
 import ProviderLodgingCollectionModel from "@/components/provider/ProviderLodgingCollectionModel.astro"
 import ProviderTrustMapRail from "@/components/provider/ProviderTrustMapRail.astro"
 import ProviderVerificationLineSections from "@/components/provider/ProviderVerificationLineSections.astro"
 import ProviderVerificationBusinessNav from "@/components/provider/ProviderVerificationBusinessNav.astro"
 import ProviderVerificationNextStep from "@/components/provider/ProviderVerificationNextStep.astro"
-import ProviderVerificationOptionals from "@/components/provider/ProviderVerificationOptionals.astro"
 import ProviderVerificationView from "@/components/provider/ProviderVerificationView.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Notice from "@/components/ui/Notice.astro"
 import { resolveProviderRejectCategory } from "@/lib/provider-reject-categories"
 import type { ProviderVerificationWorkspaceModel } from "@/lib/provider-verification-workspace"
-import { isProviderTrustMapComplete } from "@/lib/provider-trust-map"
 import { routes } from "@/lib/routes"
-import { storedTourActivityClasses } from "@/lib/tours/tour-compliance-context"
-import { tourTerritoryCodes } from "@/lib/tours/tour-operating-territories"
-import {
-	verificationNavigationHref,
-	tourEvidenceReturnHref,
-	type VerificationTab,
-} from "@/lib/verification/navigation"
+import { verificationNavigationHref, type VerificationTab } from "@/lib/verification/navigation"
 
 type Props = {
 	model: ProviderVerificationWorkspaceModel
 }
 
 const { model } = Astro.props as Props
-const evidenceReturnHref = tourEvidenceReturnHref(
-	Astro.url,
-	model.navigation ? { ...model.navigation, tab: "activity" } : null
-)
 const {
 	activeSectionId,
 	navigation,
-	tourDocumentPresentation,
-	tourResources,
 	tourProducts,
 	tourPlaybook,
 	nextActionId,
@@ -50,6 +37,7 @@ const {
 	canEditTourContext,
 	canManageFiscality,
 	canManagePayments,
+	commercialLine,
 	providerRoleLabel,
 	requestedType,
 	documents,
@@ -68,30 +56,14 @@ const {
 	suppressStatusConsequence,
 	optionalDocumentsCount,
 	optionalPendingCount,
-	tourVerification,
-	tourContext,
-	commercialLine,
-	tourEvidenceOptions,
 	screen,
 	holderType,
 	holderDeclarationInReview,
-	historicalBusinessRegistrationDocuments,
 	result,
 	uploadErrorCode,
 	error,
 } = model
 
-const trustMapComplete = isProviderTrustMapComplete(trustLinks)
-const tourOperationComplete = Boolean(
-	tourContext?.operatingRole &&
-	tourTerritoryCodes(tourContext).length &&
-	storedTourActivityClasses(tourContext.activityClassesJson).length
-)
-const missingTourOperationFields = [
-	!tourContext?.operatingRole ? "papel operativo" : null,
-	!tourTerritoryCodes(tourContext).length ? "territorio" : null,
-	!storedTourActivityClasses(tourContext?.activityClassesJson).length ? "actividades" : null,
-].filter((field): field is string => field !== null)
 const trustLinkById = new Map(trustLinks.map((link) => [link.id, link]))
 const identitySlots = screen ? kycSlots.filter((slot) => slot.type === "government_id") : []
 const businessSlots = screen
@@ -102,21 +74,6 @@ const missingMercantileForEntity =
 	businessSlots.some((slot) => slot.state === "missing" || slot.state === "rejected")
 const payoutBlocks = screen ? screen.paymentsCountsForSelling : true
 const selectedLine = navigation?.line ?? null
-const historicalSupportHref = new URL(routes.providerSupport(), Astro.url)
-historicalSupportHref.searchParams.set("topic", "historical_tour_collection")
-historicalSupportHref.searchParams.set("line", "tour")
-historicalSupportHref.searchParams.set("from", `${Astro.url.pathname}${Astro.url.search}`)
-function tourEvidenceDocuments(area: "activity" | "safety") {
-	const types = new Set(tourEvidenceOptions[area].map((option) => option.value.split("::")[0]))
-	return documents.filter((document) => {
-		if (!types.has(document.type)) return false
-		const productScopes = document.scopes.filter((scope) => scope.scopeType === "product")
-		return (
-			productScopes.length === 0 ||
-			productScopes.some((scope) => scope.productId === navigation?.experienceId)
-		)
-	})
-}
 const lineHref = (tab: VerificationTab) =>
 	navigation && selectedLine
 		? verificationNavigationHref({ url: Astro.url, navigation, line: selectedLine, tab })
@@ -126,12 +83,9 @@ const lineHref = (tab: VerificationTab) =>
 				? routes.providerSettingsVerificationPayments()
 				: routes.providerSettingsVerification()
 function panelLabel(id: "identity" | "business" | "fiscal" | "payments") {
-	const tourTab =
-		selectedLine === "tour" && id === "identity"
-			? tourPlaybook.find((tab) => tab.id === "identity")
-			: null
+	const tourTab = selectedLine === "tour" ? tourPlaybook.find((tab) => tab.id === id) : null
 	if (tourTab) {
-		return `${tourTab.label}. Estado: ${tourTab.stateLabel}. Requisitos de identidad y titularidad del proveedor.`
+		return `${tourTab.label}. Estado: ${tourTab.stateLabel}. ${tourTab.reason ?? ""}`
 	}
 	const link = trustLinkById.get(id)
 	return link
@@ -152,27 +106,6 @@ const fiscalResult = activeSectionId === "fiscal" ? result : ""
 const fiscalError = activeSectionId === "fiscal" ? error : ""
 const paymentResult = activeSectionId === "payments" ? result : ""
 const paymentError = activeSectionId === "payments" ? error : ""
-
-const uploadErrorMessages: Record<string, string> = {
-	document_subject_not_found:
-		"El titular no es un guía o recurso vigente de este negocio. Selecciónalo nuevamente antes de enviar.",
-	document_subject_reference_required: "Selecciona el guía titular de la credencial.",
-	document_subject_type_invalid:
-		"El titular elegido no corresponde a este requisito. Revisa a quién se emitió el documento.",
-	document_product_scope_required: "Selecciona la experiencia cubierta por el documento.",
-	document_file_meta_required:
-		"Faltó el tipo o nombre del archivo. Vuelve a elegir el PDF o la foto.",
-	document_file_required: "No se recibió el archivo. Elige de nuevo el PDF o la imagen.",
-	unsupported_mime_type: "Formato no permitido. Usa PDF, JPG, PNG, WEBP o HEIC.",
-	file_too_large: "El archivo supera 12 MB. Sube una versión más liviana.",
-	empty_file: "El archivo está vacío. Elige otro PDF o foto.",
-	document_storage_upload_failed:
-		"No se pudo guardar en el almacenamiento de documentos. Inténtalo de nuevo en unos minutos.",
-	document_storage_not_configured: "El almacenamiento de documentos no está configurado.",
-	local_document_url_not_allowed: "Este entorno requiere almacenamiento en la nube (R2).",
-	validation_error: "Los datos del envío no son válidos. Revisa el tipo de documento y el archivo.",
-	forbidden: "Tu rol no puede enviar documentos. Pide acceso a Documentos en Equipo.",
-}
 
 const documentResultMessages: Record<
 	string,
@@ -318,10 +251,14 @@ const paymentErrorMessages: Record<
 					>
 						<a
 							class="font-semibold underline"
-							href={lineHref(selectedLine === "tour" ? "activity" : "fiscal")}
+							href={lineHref(
+								selectedLine === "tour" && activeSectionId === "identity" ? "business" : "fiscal"
+							)}
 							data-funnel-cta="post_save"
 						>
-							{selectedLine === "tour" ? "Continuar a actividad" : "Continuar a registro fiscal"}
+							{selectedLine === "tour" && activeSectionId === "identity"
+								? "Continuar a negocio"
+								: "Continuar a datos fiscales"}
 						</a>
 						{selectedLine !== "tour" || navigation?.fasttCollects ? (
 							<a
@@ -334,17 +271,6 @@ const paymentErrorMessages: Record<
 						) : null}
 					</div>
 				</Notice>
-			</div>
-		) : null
-	}
-
-	{
-		!listaReady &&
-		identityVendorStatus.selfieLive &&
-		identityVendorStatus.surfaceEnabled &&
-		canManageDocuments ? (
-			<div data-verification-hub-chrome hidden={hubActive ? undefined : true}>
-				<ProviderIdentityVendorCard status={identityVendorStatus} />
 			</div>
 		) : null
 	}
@@ -364,11 +290,7 @@ const paymentErrorMessages: Record<
 			<div data-verification-trust-nav>
 				<ProviderTrustMapRail
 					links={trustLinks}
-					activeId={
-						activeSectionId === "activity" || activeSectionId === "safety"
-							? "identity"
-							: activeSectionId
-					}
+					activeId={trustLinks.find((link) => link.id === activeSectionId)?.id ?? "identity"}
 					nextActionId={nextActionId}
 				/>
 			</div>
@@ -393,7 +315,15 @@ const paymentErrorMessages: Record<
 		>
 			<h2 id="verification-panel-identity-title" class="sr-only">{panelLabel("identity")}</h2>
 			{
-				holderDeclarationInReview ? (
+				!listaReady &&
+				identityVendorStatus.selfieLive &&
+				identityVendorStatus.surfaceEnabled &&
+				canManageDocuments ? (
+					<ProviderIdentityVendorCard status={identityVendorStatus} />
+				) : null
+			}
+			{
+				selectedLine !== "tour" && holderDeclarationInReview ? (
 					<Notice
 						variant="info"
 						title="Fastt está revisando el cambio de titular"
@@ -408,23 +338,7 @@ const paymentErrorMessages: Record<
 				) : null
 			}
 			{
-				selectedLine === "tour" &&
-				latestVerification?.status === "pending" &&
-				!holderDeclarationInReview ? (
-					<Notice
-						variant="info"
-						title="La revisión de la cuenta sigue en curso"
-						data-verification-account-review
-					>
-						<p class="text-sm leading-6">
-							El equipo Fastt revisa la cuenta por separado de estos documentos. Completa también
-							los requisitos que aparecen abajo; estar en revisión no los marca como listos.
-						</p>
-					</Notice>
-				) : null
-			}
-			{
-				accountRejected && hideIdentityAccountStatus ? (
+				selectedLine !== "tour" && accountRejected && hideIdentityAccountStatus ? (
 					<Notice
 						variant="error"
 						title="La cuenta requiere cambios"
@@ -476,38 +390,22 @@ const paymentErrorMessages: Record<
 				) : null
 			}
 			{
-				selectedLine === "tour" && businessSlots.length ? (
-					<ProviderKycSlotsCard
-						slots={businessSlots}
-						canManageDocuments={canManageDocuments}
-						documentAssignments={documentAssignments}
-						focusType="business_registration"
-						elevated
-						payoutBlocks={payoutBlocks}
-						holderDeclarationInReview={holderDeclarationInReview}
-						holderType={holderType}
-					/>
-				) : null
-			}
-			{
-				historicalBusinessRegistrationDocuments.length ? (
+				selectedLine !== "tour" && model.historicalBusinessRegistrationDocuments.length > 0 && (
 					<Notice variant="info" title="Registro mercantil en historial">
-						<p class="text-sm leading-6">
-							Como persona natural ya no pedimos registro mercantil. Los archivos anteriores se
-							conservan solo como referencia y no afectan el estado de Identidad.
+						<p>
+							Los archivos anteriores se conservan como referencia y no afectan la verificación
+							actual.
 						</p>
-						<ul class="mt-3 space-y-2 text-sm text-slate-700">
-							{historicalBusinessRegistrationDocuments.map((document) => (
+						<ul class="mt-3 space-y-2 text-sm">
+							{model.historicalBusinessRegistrationDocuments.map((document) => (
 								<li class="flex flex-wrap items-center gap-2">
-									<span class="font-medium text-slate-900">
-										{document.fileName || "Registro mercantil"}
-									</span>
+									<span>{document.fileName || "Registro mercantil"}</span>
 									<Badge variant={document.tone}>{document.statusLabel}</Badge>
 								</li>
 							))}
 						</ul>
 					</Notice>
-				) : null
+				)
 			}
 		</section>
 
@@ -525,7 +423,9 @@ const paymentErrorMessages: Record<
 				) : null
 			}
 			{
-				selectedLine === "tour" ? null : screen && businessSlots.length === 0 ? (
+				selectedLine === "tour" ? (
+					<ProviderTourBusinessVerification model={model} />
+				) : screen && businessSlots.length === 0 ? (
 					<Notice variant="info" title="No se requiere registro de entidad">
 						El titular de esta cuenta no tiene un documento societario pendiente en esta línea.
 					</Notice>
@@ -580,162 +480,6 @@ const paymentErrorMessages: Record<
 			}
 		</section>
 
-		{
-			selectedLine === "tour" && screen ? (
-				<section
-					class="space-y-6 md:space-y-8"
-					data-verification-trust-panel="activity"
-					data-active={activeSectionId === "activity" ? "true" : "false"}
-					hidden={activeSectionId !== "activity" ? true : undefined}
-					aria-labelledby="verification-panel-activity-title"
-				>
-					<h2 id="verification-panel-activity-title" class="sr-only">
-						Actividad y licencias
-					</h2>
-					{navigation?.experienceId && (
-						<ProviderTourOperatingContext
-							productId={navigation.experienceId}
-							context={tourContext ?? null}
-							canEdit={canEditTourContext}
-							result={result}
-							error={error}
-						/>
-					)}
-					{commercialLine?.collectionModel === "platform_collect" ? (
-						<Notice variant="warning" title="Revisar cobro histórico de tours">
-							Esta línea conserva una declaración de cobro por Fastt. Fastt no procesa pagos de
-							tours y esa declaración no activa cobros.{" "}
-							<a
-								class="font-semibold underline underline-offset-2"
-								href={`${historicalSupportHref.pathname}${historicalSupportHref.search}`}
-							>
-								Solicitar revisión al equipo Fastt
-							</a>
-							.
-						</Notice>
-					) : null}
-					{navigation?.experienceId && (
-						<ProviderVerificationLineSections
-							screen={screen}
-							line="tour"
-							tourArea="activity"
-							evaluationPending={tourVerification[0]?.policyEvaluationPending}
-							operationComplete={tourOperationComplete}
-							experienceId={navigation.experienceId}
-						/>
-					)}
-					{result === "submitted" ? (
-						<Notice variant="success" title="Licencia enviada">
-							El respaldo quedó en revisión para esta experiencia.
-						</Notice>
-					) : null}
-					{result === "error" ? (
-						<Notice variant="warning" title="No se pudo enviar la licencia">
-							{uploadErrorMessages[uploadErrorCode] ??
-								"Revisa el archivo y el alcance e inténtalo de nuevo."}
-						</Notice>
-					) : null}
-					{tourOperationComplete &&
-					tourEvidenceOptions.activity.length &&
-					navigation?.experienceId ? (
-						<ProviderVerificationOptionals
-							surface="tour-activity"
-							renewalDocumentId={Astro.url.searchParams.get("renewDocumentId")}
-							documentPresentation={tourDocumentPresentation}
-							resourceChoices={tourResources}
-							guideResources={tourResources.filter((resource) => resource.type === "guide")}
-							documents={tourEvidenceDocuments("activity")}
-							documentTypes={tourEvidenceOptions.activity}
-							canManageDocuments={canManageDocuments}
-							scopeProductId={navigation.experienceId}
-							availableProducts={tourProducts.map((product) => ({
-								...product,
-								kind: "tour" as const,
-							}))}
-							documentAssignments={documentAssignments}
-							defaultUploadType={requestedType}
-						/>
-					) : null}
-				</section>
-			) : null
-		}
-
-		{
-			selectedLine === "tour" && screen ? (
-				<section
-					class="space-y-6 md:space-y-8"
-					data-verification-trust-panel="safety"
-					data-active={activeSectionId === "safety" ? "true" : "false"}
-					hidden={activeSectionId !== "safety" ? true : undefined}
-					aria-labelledby="verification-panel-safety-title"
-				>
-					<h2 id="verification-panel-safety-title" class="sr-only">
-						Seguridad y permisos
-					</h2>
-					{navigation?.experienceId && (
-						<ProviderVerificationLineSections
-							screen={screen}
-							line="tour"
-							tourArea="safety"
-							operationComplete={tourOperationComplete}
-							experienceId={navigation?.experienceId}
-							safetyState={tourPlaybook.find((tab) => tab.id === "safety")?.uiState}
-							missingOperationFields={missingTourOperationFields}
-						/>
-					)}
-					{result === "submitted" ? (
-						<Notice variant="success" title="Respaldo enviado">
-							La evidencia de seguridad quedó en revisión para esta experiencia.
-						</Notice>
-					) : null}
-					{result === "error" ? (
-						<Notice variant="warning" title="No se pudo enviar el respaldo">
-							{uploadErrorMessages[uploadErrorCode] ??
-								"Revisa el archivo y el alcance e inténtalo de nuevo."}
-						</Notice>
-					) : null}
-					{tourOperationComplete &&
-					tourEvidenceOptions.safety.length &&
-					tourPlaybook.find((tab) => tab.id === "safety")?.uiState !== "not_evaluable" &&
-					navigation?.experienceId ? (
-						<ProviderVerificationOptionals
-							surface="tour-safety"
-							renewalDocumentId={Astro.url.searchParams.get("renewDocumentId")}
-							documentPresentation={tourDocumentPresentation}
-							resourceChoices={tourResources}
-							guideResources={tourResources.filter((resource) => resource.type === "guide")}
-							documents={tourEvidenceDocuments("safety")}
-							documentTypes={tourEvidenceOptions.safety}
-							canManageDocuments={canManageDocuments}
-							scopeProductId={navigation.experienceId}
-							availableProducts={tourProducts.map((product) => ({
-								...product,
-								kind: "tour" as const,
-							}))}
-							documentAssignments={documentAssignments}
-							defaultUploadType={requestedType}
-						/>
-					) : null}
-				</section>
-			) : null
-		}
-
-		{
-			evidenceReturnHref && (
-				<div
-					data-verification-evidence-return
-					hidden={!["activity", "safety"].includes(activeSectionId)}
-				>
-					<a
-						href={evidenceReturnHref}
-						class="inline-flex text-sm text-slate-300 underline underline-offset-4 hover:text-white"
-					>
-						Volver a la tarifa
-					</a>
-				</div>
-			)
-		}
-
 		<section
 			class="space-y-6 md:space-y-8"
 			data-verification-trust-panel="fiscal"
@@ -761,12 +505,12 @@ const paymentErrorMessages: Record<
 								class="font-semibold underline"
 								href={
 									selectedLine === "tour" && !navigation?.fasttCollects
-										? lineHref("activity")
+										? routes.catalogTours()
 										: lineHref("payments")
 								}
 							>
 								{selectedLine === "tour" && !navigation?.fasttCollects
-									? "Volver a actividad"
+									? "Volver a mis experiencias"
 									: "Continuar a pagos"}
 							</a>
 						</p>
@@ -894,15 +638,6 @@ const paymentErrorMessages: Record<
 			</a>
 		</div>
 	</details>
-
-	{
-		trustLinks.length > 0 && !trustMapComplete ? (
-			<p class="text-xs leading-5 text-slate-500/90" data-trust-map-parallel-work>
-				Puedes preparar estas áreas en paralelo. Cada formulario solo se limita por permisos o por
-				una verificación que sigue en curso.
-			</p>
-		) : null
-	}
 </div>
 <style is:global>
 	[data-verification-workspace][data-loading] .verification-trust-panels-stage,

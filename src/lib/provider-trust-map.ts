@@ -608,36 +608,6 @@ export function summarizeProviderTrustProgress(
 	}
 }
 
-export function formatVerificationProgressTotalLine(
-	readyCount: number,
-	totalCount: number
-): string {
-	return `${readyCount} de ${totalCount} requisitos listos`
-}
-
-export function formatVerificationProgressBreakdownLine(counts: {
-	readyCount: number
-	inReviewCount: number
-	actionRequiredCount: number
-	notStartedCount: number
-	notEvaluableCount?: number
-}): string {
-	const {
-		readyCount,
-		inReviewCount,
-		actionRequiredCount,
-		notStartedCount,
-		notEvaluableCount = 0,
-	} = counts
-	return [
-		`${readyCount} ${readyCount === 1 ? "listo" : "listos"}`,
-		`${inReviewCount} en revisión`,
-		`${actionRequiredCount} por completar`,
-		`${notStartedCount} sin iniciar`,
-		...(notEvaluableCount > 0 ? [`${notEvaluableCount} sin evaluar`] : []),
-	].join(" · ")
-}
-
 /** True when Identidad → Negocio → Fiscal → Pagos are all ready (V2 Lista). */
 export function isProviderTrustMapComplete(links: ProviderTrustLink[]): boolean {
 	return links.length >= 4 && links.every((link) => link.uiState === "ready")

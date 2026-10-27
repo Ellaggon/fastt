@@ -9,6 +9,7 @@ import { resolveKycUploadFocusType, type ProviderKycSlot } from "@/lib/provider-
 import { isDocumentUploadPausedForHolderReview } from "@/lib/provider-holder-profile"
 import { TRUST_GLOSSARY } from "@/lib/provider-trust-map"
 import { routes } from "@/lib/routes"
+import { FileText } from "@lucide/astro"
 
 type Props = {
 	slots?: ProviderKycSlot[]
@@ -106,7 +107,7 @@ function allowUploadForm(slot: ProviderKycSlot) {
 ---
 
 <Card
-	id="kyc-slots"
+	id={elevated && focusSlot ? `kyc-slots-${focusSlot.type}` : "kyc-slots"}
 	data-kyc-slots
 	data-kyc-elevated={elevated ? "true" : undefined}
 	data-kyc-hard-one-doc={focusTypeResolved ? "true" : undefined}
@@ -124,10 +125,11 @@ function allowUploadForm(slot: ProviderKycSlot) {
 
 		{
 			elevated && focusSlot ? (
-				<div>
+				<div class="flex flex-wrap items-center justify-between gap-3">
 					<h2 class="text-xl font-semibold text-slate-950" data-kyc-elevated-title>
 						{focusSlot.label}
 					</h2>
+					<Badge variant={badgeVariant(focusSlot.state)}>{focusSlot.stateLabel}</Badge>
 				</div>
 			) : (
 				<div class="flex flex-wrap items-start justify-between gap-3">
@@ -201,6 +203,46 @@ function allowUploadForm(slot: ProviderKycSlot) {
 							data-kyc-slot-focus={isFocused ? "true" : undefined}
 							data-kyc-fiscal-bridge={bridge ? bridge.mode : undefined}
 						>
+							{slot.state === "verified" && (
+								<div
+									class="flex flex-col gap-4 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between"
+									data-kyc-verified-detail
+								>
+									<div class="flex min-w-0 items-center gap-3">
+										<span
+											class="flex size-10 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500"
+											aria-hidden="true"
+										>
+											<FileText class="size-5" />
+										</span>
+										<div class="min-w-0 space-y-1">
+											<p class="text-sm font-medium break-words text-slate-900">
+												{slot.fileName || "Documento verificado"}
+											</p>
+											{slot.reviewedAt && (
+												<p class="text-xs text-slate-500">
+													Revisado el{" "}
+													{new Intl.DateTimeFormat("es", { dateStyle: "medium" }).format(
+														new Date(slot.reviewedAt)
+													)}
+												</p>
+											)}
+										</div>
+									</div>
+									{canManageDocuments && slot.documentId && (
+										<Button
+											variant="secondary"
+											size="sm"
+											href={`/api/provider/settings/documents/preview?documentId=${encodeURIComponent(slot.documentId)}`}
+											target="_blank"
+											rel="noopener noreferrer"
+											class="w-fit shrink-0"
+										>
+											Abrir archivo seguro
+										</Button>
+									)}
+								</div>
+							)}
 							{slot.state === "rejected" && (slot.reviewNotes || slot.documentId) ? (
 								<Notice variant="error" title="Motivo del rechazo">
 									{slot.rejectCategoryLabel ? (

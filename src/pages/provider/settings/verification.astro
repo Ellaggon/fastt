@@ -1,8 +1,11 @@
 ---
 import ProviderVerificationWorkspace from "@/components/provider/ProviderVerificationWorkspace.astro"
+import Button from "@/components/ui/Button.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
+import { safeVerificationReturn } from "@/lib/auth/returnTo"
 import { providerDocumentTypes, requiredKycDocumentTypes } from "@/lib/provider-documents"
+import { informationRequestPresentation } from "@/lib/provider-information-request-presentation"
 import { formatProviderRoleLabel } from "@/lib/provider-permissions"
 import {
 	buildVerificationPageGuidance,
@@ -11,12 +14,15 @@ import {
 } from "@/lib/provider-trust-map"
 import { loadProviderVerificationWorkspace } from "@/lib/provider-verification-workspace"
 import { routes } from "@/lib/routes"
+import { experienceRequirementsHref } from "@/lib/verification/experience-requirements-navigation"
 import {
 	copyVerificationNavigationQuery,
 	tourDocumentWorkspaceHref,
+	verificationOperationalSummary,
 } from "@/lib/verification/navigation"
 import { loadProviderVerificationResolution } from "@/lib/verification/requirement-context"
 import { requestedTypeRoutesToPack } from "@/lib/verification/requirement-resolver"
+import { listProviderInformationRequests } from "@/modules/casework/public"
 
 const auth = await requireProviderSessionSurface(Astro.request).catch((e: any) => {
 	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
@@ -45,13 +51,45 @@ const routesToPack =
 	loadedResolution?.enforced && loadedResolution.resolution
 		? requestedTypeRoutesToPack(loadedResolution.resolution, requestedType)
 		: optionalTypeValues.has(requestedType)
-const model = await loadProviderVerificationWorkspace({
-	providerId,
-	sessionPermissions,
-	providerRoleLabel,
-	url: Astro.url,
-	verificationResolution: loadedResolution ?? undefined,
-})
+const [model, reviewRequests] = await Promise.all([
+	loadProviderVerificationWorkspace({
+		providerId,
+		sessionPermissions,
+		providerRoleLabel,
+		url: Astro.url,
+		verificationResolution: loadedResolution ?? undefined,
+	}),
+	typeof auth !== "string"
+		? listProviderInformationRequests(providerId, auth.user.id).catch((error) => {
+				console.error(
+					"verification_requests_unavailable",
+					error instanceof Error ? error.name : "unknown"
+				)
+				return null
+			})
+		: Promise.resolve(null),
+])
+const pendingReviewRequests =
+	reviewRequests?.filter((item) => informationRequestPresentation(item).canRespond).length ?? null
+const legacyExperienceTab =
+	Astro.url.searchParams.get("tab") ?? Astro.url.searchParams.get("tourTab")
+const businessDocument = (requiredKycDocumentTypes as readonly string[]).includes(
+	requestedType.split("::")[0]
+)
+if (
+	model.navigation?.line === "tour" &&
+	!businessDocument &&
+	(["activity", "safety"].includes(legacyExperienceTab ?? "") ||
+		(requestedType &&
+			!(requiredKycDocumentTypes as readonly string[]).includes(requestedType.split("::")[0])) ||
+		Astro.url.searchParams.has("renewDocumentId"))
+) {
+	return Astro.redirect(
+		Astro.url.searchParams.get("experience") && model.navigation.experienceId
+			? experienceRequirementsHref(model.navigation.experienceId, Astro.url)
+			: "/catalog/tours?scope=tour"
+	)
+}
 if (requestedType && routesToPack) {
 	const tourHref = model.navigation
 		? tourDocumentWorkspaceHref({
@@ -72,21 +110,22 @@ if (requestedType && routesToPack) {
 	}
 }
 
-const {
-	trustLinks,
-	listaReady,
-	trustMapComplete,
-	readyCount,
-	totalCount,
-	inReviewCount,
-	actionRequiredCount,
-	notStartedCount,
-	notEvaluableCount,
-	readinessPercent,
-	nextActionId,
-	activeSectionId,
-} = model
+const { trustLinks, listaReady, trustMapComplete, nextActionId, activeSectionId } = model
+const returnHref = safeVerificationReturn(Astro.url.searchParams.get("returnTo"))
 const showWizardProgress = trustLinks.length > 0 || model.tourPlaybook.length > 0
+const operationalSummary = verificationOperationalSummary(
+	model.navigation?.line === "tour"
+		? model.tourPlaybook
+		: trustLinks.map((link) => ({
+				...link,
+				responsible:
+					link.uiState === "ready"
+						? ("none" as const)
+						: link.uiState === "in_review"
+							? ("fastt" as const)
+							: ("provider" as const),
+			}))
+)
 const pageGuidanceByTab = buildVerificationPageGuidanceByTab({
 	trustLinks,
 	nextActionId,
@@ -103,15 +142,17 @@ const pageGuidance =
 ---
 
 <ProviderSettingsLayout
-	title="Verificación y documentos"
+	title={model.navigation?.line === "tour"
+		? "Verificación del negocio"
+		: "Verificación y documentos"}
 	eyebrow={TRUST_GLOSSARY.page.eyebrow}
 	heading={model.navigation?.line === "tour"
-		? "Verificación de experiencias"
+		? "Verificación del negocio"
 		: model.navigation?.line === "lodging"
 			? "Verificación de alojamientos"
 			: TRUST_GLOSSARY.page.heading}
 	description={model.navigation?.line === "tour"
-		? "Revisa los requisitos del titular y los respaldos aplicables a tus experiencias."
+		? "Revisa tu identidad, los datos del negocio y su información fiscal."
 		: model.navigation?.line === "lodging"
 			? "Completa identidad, negocio, fiscalidad y pagos del alojamiento."
 			: pageGuidance}
@@ -121,16 +162,11 @@ const pageGuidance =
 			? pageGuidanceByTab
 			: null}
 	showSettingsTabs={false}
-	readyCount={showWizardProgress ? readyCount : null}
-	totalCount={showWizardProgress ? totalCount : null}
-	inReviewCount={showWizardProgress ? inReviewCount : null}
-	actionRequiredCount={showWizardProgress ? actionRequiredCount : null}
-	notStartedCount={showWizardProgress ? notStartedCount : null}
-	notEvaluableCount={showWizardProgress ? notEvaluableCount : null}
-	readinessPercent={showWizardProgress ? readinessPercent : null}
-	progressLabel={model.navigation?.line === "tour"
-		? "Preparación de documentos de la experiencia"
-		: "Progreso de verificación"}
+	verificationSummary={operationalSummary}
+	verificationProgress={model.navigation?.line === "tour"
+		? { completed: operationalSummary.completedCount, total: operationalSummary.totalCount }
+		: null}
+	pendingReviewRequests={pendingReviewRequests}
 >
 	<div
 		class="space-y-6 md:space-y-8"
@@ -138,6 +174,13 @@ const pageGuidance =
 		data-verification-lista={listaReady ? "true" : "false"}
 		data-trust-map-complete={trustMapComplete ? "true" : "false"}
 	>
+		{
+			returnHref && (
+				<Button href={returnHref} variant="secondary">
+					Volver al recorrido anterior
+				</Button>
+			)
+		}
 		<ProviderVerificationWorkspace model={model} />
 	</div>
 </ProviderSettingsLayout>

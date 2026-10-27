@@ -9,26 +9,59 @@ import {
 	verificationTabsFor,
 	tourDocumentWorkspaceHref,
 	tourEvidenceReturnHref,
+	verificationOperationalSummary,
+	tourBusinessVerificationState,
 } from "@/lib/verification/navigation"
 
 const base = "https://fastt.test/provider/settings/verification"
 
+describe("independent identity and business results", () => {
+	const profile = {
+		legalNameComplete: true,
+		holderType: "persona_natural" as const,
+		holderCountry: "BO",
+		holderInReview: false,
+		accountStatus: "approved",
+		registration: null,
+	}
+	it("does not request company registration from a natural person", () => {
+		expect(tourBusinessVerificationState(profile)).toBe("ready")
+	})
+	it("keeps an entity with undefined requirements unevaluated", () => {
+		expect(tourBusinessVerificationState({ ...profile, holderType: "entidad" })).toBe(
+			"not_evaluable"
+		)
+	})
+	it.each([
+		[{ holderInReview: true }, "in_review"],
+		[{ accountStatus: "pending" }, "in_review"],
+		[{ accountStatus: "rejected" }, "requires_changes"],
+		[{ holderType: null }, "action_needed"],
+		[{ holderCountry: null }, "action_needed"],
+	] as const)("uses the actual operator state: %j", (change, expected) => {
+		expect(tourBusinessVerificationState({ ...profile, ...change })).toBe(expected)
+	})
+	it("does not fold a rejected registration into verified identity", () => {
+		const tabs = buildTourVerificationPlaybook({
+			tabs: ["identity", "business", "fiscal"],
+			hrefFor: (tab) => `?tab=${tab}`,
+			identity: "ready",
+			registration: "requires_changes",
+			fiscal: "in_review",
+			payments: "not_started",
+			activity: [],
+			safety: [],
+			contextComplete: false,
+		})
+		expect(tabs.map((tab) => tab.uiState)).toEqual(["ready", "requires_changes", "in_review"])
+		expect(verificationOperationalSummary(tabs)).toMatchObject({ completedCount: 1, totalCount: 3 })
+	})
+})
+
 describe("verification navigation by business line", () => {
-	it("keeps four lodging tabs and gives tours their own conditional tabs", () => {
-		expect(verificationTabsFor("lodging", false)).toEqual([
-			"identity",
-			"business",
-			"fiscal",
-			"payments",
-		])
-		expect(verificationTabsFor("tour", false)).toEqual(["identity", "activity", "safety", "fiscal"])
-		expect(verificationTabsFor("tour", true)).toEqual([
-			"identity",
-			"activity",
-			"safety",
-			"fiscal",
-			"payments",
-		])
+	it("keeps four lodging tabs and separates the three tour business requirements", () => {
+		expect(verificationTabsFor("lodging")).toEqual(["identity", "business", "fiscal", "payments"])
+		expect(verificationTabsFor("tour")).toEqual(["identity", "business", "fiscal"])
 	})
 
 	it("preserves each line's last tab and the selected experience when switching", () => {
@@ -39,11 +72,11 @@ describe("verification navigation by business line", () => {
 			experienceIds: ["tour-1", "tour-2"],
 			fasttCollects: false,
 		})
-		expect(tour).toMatchObject({ line: "tour", tab: "safety", experienceId: "tour-2" })
+		expect(tour).toMatchObject({ line: "tour", tab: "identity", experienceId: "tour-2" })
 		const lodgingHref = verificationNavigationHref({ url, navigation: tour, line: "lodging" })
 		const lodgingUrl = new URL(lodgingHref, base)
 		expect(lodgingUrl.searchParams.get("tab")).toBe("business")
-		expect(lodgingUrl.searchParams.get("tourTab")).toBe("safety")
+		expect(lodgingUrl.searchParams.get("tourTab")).toBe("identity")
 		expect(lodgingUrl.searchParams.get("experience")).toBe("tour-2")
 		const lodging = resolveVerificationNavigation({
 			url: lodgingUrl,
@@ -55,7 +88,7 @@ describe("verification navigation by business line", () => {
 			verificationNavigationHref({ url: lodgingUrl, navigation: lodging, line: "tour" }),
 			base
 		)
-		expect(returnUrl.searchParams.get("tab")).toBe("safety")
+		expect(returnUrl.searchParams.get("tab")).toBe("identity")
 		expect(returnUrl.searchParams.get("experience")).toBe("tour-2")
 	})
 
@@ -100,7 +133,7 @@ describe("verification navigation by business line", () => {
 			experienceIds: [],
 			fasttCollects: false,
 		})
-		expect(business.tab).toBe("identity")
+		expect(business.tab).toBe("business")
 	})
 
 	it("retains line, tab and experience through a form redirect without copying unrelated input", () => {
@@ -155,9 +188,9 @@ describe("verification navigation by business line", () => {
 			contextComplete: false,
 		})
 		expect(tabs.map((tab) => [tab.id, tab.stateLabel])).toEqual([
-			["identity", "Listo"],
-			["activity", "Completar"],
-			["safety", "No evaluable"],
+			["identity", "Verificado"],
+			["activity", "Completar operación"],
+			["safety", "Completar operación"],
 			["fiscal", "En revisión"],
 		])
 		expect(summarizeVerificationPlaybook(tabs)).toMatchObject({
@@ -181,8 +214,9 @@ describe("verification navigation by business line", () => {
 			activity: ["ready"],
 			safety: [],
 			contextComplete: true,
+			policyResolved: true,
 		})
-		expect(tabs.find((tab) => tab.id === "safety")?.stateLabel).toBe("No aplica")
+		expect(tabs.find((tab) => tab.id === "safety")?.stateLabel).toBe("Sin requisitos adicionales")
 		expect(summarizeVerificationPlaybook(tabs)).toMatchObject({
 			readyCount: 3,
 			totalCount: 3,
@@ -203,13 +237,58 @@ describe("verification navigation by business line", () => {
 			contextComplete: true,
 			policyResolved: false,
 		})
-		expect(tabs.find((tab) => tab.id === "safety")?.stateLabel).toBe("No evaluable")
+		expect(tabs.find((tab) => tab.id === "safety")?.stateLabel).toBe("Requisitos por definir")
 		expect(summarizeVerificationPlaybook(tabs)).toMatchObject({
-			readyCount: 1,
+			readyCount: 0,
 			totalCount: 2,
-			notEvaluableCount: 1,
-			readinessPercent: 50,
+			notEvaluableCount: 2,
+			readinessPercent: 0,
 		})
+	})
+	it.each([true, false, undefined])(
+		"distinguishes resolved, unresolved and unknown policy: %s",
+		(policyResolved) => {
+			const tabs = buildTourVerificationPlaybook({
+				tabs: ["activity", "safety"],
+				hrefFor: (tab) => `?tab=${tab}`,
+				identity: "ready",
+				registration: null,
+				fiscal: "ready",
+				payments: "not_started",
+				activity: [],
+				safety: [],
+				contextComplete: true,
+				policyResolved,
+			})
+			for (const tab of tabs)
+				expect(tab).toMatchObject(
+					policyResolved === true
+						? { uiState: "not_applicable", responsible: "none", scope: "experience" }
+						: {
+								uiState: "not_evaluable",
+								responsible: "fastt",
+								stateLabel: "Requisitos por definir",
+							}
+				)
+			expect(verificationOperationalSummary(tabs).noProviderAction).toBe(true)
+			expect(verificationOperationalSummary(tabs).text).not.toMatch(/\d|en revisión/)
+		}
+	)
+	it("does not claim no provider action when context is missing", () => {
+		const tabs = buildTourVerificationPlaybook({
+			tabs: ["activity", "safety"],
+			hrefFor: (tab) => `?tab=${tab}`,
+			identity: "ready",
+			registration: null,
+			fiscal: "ready",
+			payments: "not_started",
+			activity: [],
+			safety: [],
+			contextComplete: false,
+			policyResolved: false,
+		})
+		expect(verificationOperationalSummary(tabs).noProviderAction).toBe(false)
+		expect(tabs.every((tab) => tab.responsible === "provider")).toBe(true)
 	})
 })
 
@@ -246,8 +325,8 @@ it("preserves an allowed return while switching business lines and rejects exter
 
 describe("legacy verification destinations", () => {
 	it.each([
-		["tour", "?tab=business", "activity"],
-		["tour", "?tab=business&type=business_registration", "identity"],
+		["tour", "?tab=business", "business"],
+		["tour", "?tab=business&type=business_registration", "business"],
 		["tour", "#kyc-slot-business_registration", "identity"],
 		["lodging", "?type=business_registration", "business"],
 		["tour", "?type=tax_document", "fiscal"],
@@ -294,13 +373,9 @@ describe("tour document detours", () => {
 			})!,
 			base
 		)
-		expect(result.pathname).toBe("/provider/settings/verification")
+		expect(result.pathname).toBe("/product/tour-a")
+		expect(result.hash).toBe("#experience-safety")
 		expect(Object.fromEntries(result.searchParams)).toMatchObject({
-			line: "tour",
-			tab: "safety",
-			tourTab: "safety",
-			lodgingTab: "fiscal",
-			experience: "tour-a",
 			returnTo,
 			type: "insurance",
 			renewDocumentId: "doc-a",
@@ -319,7 +394,7 @@ describe("tour document detours", () => {
 					},
 				],
 			})
-		).toBe(result.pathname + result.search)
+		).toBe(result.pathname + result.search + result.hash)
 	})
 	it("does not borrow another experience's safety requirement", () => {
 		const result = new URL(
@@ -338,7 +413,7 @@ describe("tour document detours", () => {
 			})!,
 			base
 		)
-		expect(result.searchParams.get("tab")).toBe("activity")
+		expect(result.hash).toBe("#experience-requirements")
 	})
 	it("retains the independent archive and lodging document route", () => {
 		const archive = new URL(source)

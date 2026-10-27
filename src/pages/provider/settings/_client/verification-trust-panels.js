@@ -1,4 +1,5 @@
 import { sameLocalTabContext, rememberTabInDestination } from "@/lib/ui/local-tab-navigation"
+import { formDraftFingerprint } from "@/lib/ui/form-draft-fingerprint"
 
 const VERIFICATION_WORKSPACE_PATHS = new Set([
 	"/provider/settings/verification",
@@ -9,8 +10,6 @@ const VERIFICATION_WORKSPACE_PATHS = new Set([
 const VERIFICATION_PANEL_TITLES = {
 	identity: "Verificación y documentos",
 	business: "Verificación y documentos",
-	activity: "Verificación y documentos",
-	safety: "Verificación y documentos",
 	fiscal: "Verificación fiscal",
 	payments: "Verificación de pagos",
 }
@@ -72,6 +71,10 @@ function scrollVerificationPanelIntoView(url) {
 	window.requestAnimationFrame(() => {
 		const target = document.querySelector(url.hash)
 		if (target && typeof target.scrollIntoView === "function") {
+			const editor = target
+				.closest("[data-tour-operating-context]")
+				?.querySelector("[data-operation-editor]")
+			if (editor) editor.open = true
 			target.scrollIntoView({
 				block: "start",
 				behavior: prefersReducedMotion() ? "auto" : "smooth",
@@ -140,50 +143,6 @@ function selectVerificationTab(tab) {
 	return true
 }
 
-function syncVerificationExperienceContext(activeId) {
-	const scoped = activeId === "activity" || activeId === "safety"
-	document
-		.querySelectorAll("[data-verification-experience-context], [data-verification-evidence-return]")
-		.forEach((el) => {
-			el.toggleAttribute("hidden", !scoped)
-		})
-	const experienceCopy =
-		activeId === "safety"
-			? {
-					prompt: "Elige el tour para revisar sus respaldos de seguridad.",
-					action: "Revisar seguridad y permisos",
-				}
-			: {
-					prompt: "Elige el tour para revisar sus datos de operación y licencias.",
-					action: "Revisar actividad y licencias",
-				}
-	if (scoped) {
-		document.querySelectorAll("[data-verification-experience-prompt]").forEach((el) => {
-			el.textContent = experienceCopy.prompt
-		})
-		document.querySelectorAll("[data-verification-experience-action]").forEach((el) => {
-			el.textContent = experienceCopy.action
-		})
-	}
-	const line = new URL(window.location.href).searchParams.get("line")
-	document.querySelectorAll("[data-verification-experience-context] a[href]").forEach((link) => {
-		const href = link.getAttribute("href")
-		if (!href || href.startsWith("#")) return
-		const next = new URL(href, window.location.href)
-		if (next.origin !== window.location.origin) return
-		next.searchParams.set("tab", activeId)
-		if (line === "tour" || line === "lodging") next.searchParams.set(`${line}Tab`, activeId)
-		link.setAttribute("href", next.pathname + next.search + next.hash)
-	})
-	document
-		.querySelectorAll(
-			"[data-verification-experience-selector] input[name='tab'], [data-verification-experience-selector] input[name='tourTab']"
-		)
-		.forEach((input) => {
-			input.value = activeId
-		})
-}
-
 function syncVerificationNavigationContext() {
 	const current = new URL(window.location.href)
 	const workspace = document.querySelector("[data-verification-workspace]")
@@ -194,6 +153,13 @@ function syncVerificationNavigationContext() {
 		const target = new URL(value, current)
 		if (target.origin !== current.origin || !target.searchParams.has("line")) return
 		rememberTabInDestination(target, current)
+		// A support return follows the visible panel, not the initial SSR tab.
+		if (target.pathname === "/provider/support" && target.searchParams.has("from")) {
+			const origin = new URL(current)
+			origin.searchParams.delete("result")
+			origin.searchParams.delete("error")
+			target.searchParams.set("from", origin.pathname + origin.search)
+		}
 		element.setAttribute(attribute, target.pathname + target.search + target.hash)
 	})
 }
@@ -207,7 +173,6 @@ function syncVerificationTrustPanels() {
 	const activeId = resolveVerificationTrustPanel()
 	syncVerificationPageDescription(activeId)
 	syncVerificationTabNav(activeId)
-	syncVerificationExperienceContext(activeId)
 	syncVerificationNavigationContext()
 	const hubActive = activeId === "identity" || activeId === "business"
 	document.querySelectorAll("[data-verification-trust-panel]").forEach((panel) => {
@@ -227,7 +192,10 @@ function syncVerificationTrustPanels() {
 	document.querySelectorAll("[data-verification-optionals-entry]").forEach((el) => {
 		el.toggleAttribute("hidden", activeId !== "business")
 	})
-	const title = VERIFICATION_PANEL_TITLES[activeId]
+	const title =
+		new URL(window.location.href).searchParams.get("line") === "tour"
+			? "Verificación del negocio"
+			: VERIFICATION_PANEL_TITLES[activeId]
 	if (title) document.title = title
 }
 
@@ -266,6 +234,13 @@ function handleVerificationTrustClick(event) {
 	const url = canonicalLegacyVerificationUrl(sourceUrl) ?? sourceUrl
 	if (url.origin !== window.location.origin) return
 	const currentUrl = new URL(window.location.href)
+	if (!sameVerificationWorkspace(currentUrl, url) && hasVerificationDrafts()) {
+		if (!window.confirm("Tienes cambios sin guardar. ¿Quieres salir sin guardarlos?")) {
+			event.preventDefault()
+			return
+		}
+		allowDraftLeave = true
+	}
 	if (currentUrl.searchParams.has("line")) {
 		const tabId = target.getAttribute("data-verification-tab-link")
 		if (
@@ -319,8 +294,34 @@ function handleVerificationTrustClick(event) {
 
 window.__fasttVerificationTrustSync = syncVerificationTrustPanels
 
+const formSnapshots = new WeakMap()
+let allowDraftLeave = false
+function formSnapshot(form) {
+	return formDraftFingerprint(new FormData(form))
+}
+function bindVerificationDrafts() {
+	document.querySelectorAll("[data-verification-workspace] form").forEach((form) => {
+		if (!formSnapshots.has(form)) formSnapshots.set(form, formSnapshot(form))
+	})
+}
+function hasVerificationDrafts() {
+	return [...document.querySelectorAll("[data-verification-workspace] form")].some(
+		(form) => formSnapshots.has(form) && formSnapshot(form) !== formSnapshots.get(form)
+	)
+}
+
 if (!window.__fasttVerificationTrustBound) {
 	window.__fasttVerificationTrustBound = true
+	window.addEventListener("beforeunload", (event) => {
+		if (
+			!allowDraftLeave &&
+			hasVerificationDrafts() &&
+			!document.querySelector('[data-verification-workspace] form[aria-busy="true"]')
+		) {
+			event.preventDefault()
+			event.returnValue = ""
+		}
+	})
 	document.addEventListener("astro:before-preparation", (event) => {
 		const workspace = document.querySelector("[data-verification-workspace]")
 		const loading = workspace?.querySelector("[data-verification-loading]")
@@ -352,7 +353,9 @@ if (!window.__fasttVerificationTrustBound) {
 	})
 	document.addEventListener("click", handleVerificationTrustClick, true)
 	document.addEventListener("astro:page-load", () => {
+		allowDraftLeave = false
 		if (window.__fasttVerificationTrustSync) window.__fasttVerificationTrustSync()
+		bindVerificationDrafts()
 	})
 	window.addEventListener("hashchange", () => {
 		if (window.__fasttVerificationTrustSync) {
@@ -388,4 +391,5 @@ if (!window.__fasttVerificationTrustBound) {
 }
 
 syncVerificationTrustPanels()
+bindVerificationDrafts()
 window.dispatchEvent(new Event("provider-verification-trust-sync"))

@@ -119,11 +119,7 @@ const actionLead =
 			canManageFiscality ? (
 				<div class="space-y-4">
 					{showSubmittedRecord && !formStartsOpen ? (
-						<Card
-							variant="plain"
-							class="fastt-soft-box border border-slate-200 bg-slate-50 p-4"
-							data-fiscal-submitted-summary
-						>
+						<div class="border-y border-slate-100 py-4" data-fiscal-submitted-summary>
 							<dl class="grid gap-3 sm:grid-cols-3">
 								<div>
 									<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
@@ -146,7 +142,7 @@ const actionLead =
 									<dd class="mt-1 text-sm font-medium text-slate-950">{regimeLabel}</dd>
 								</div>
 							</dl>
-						</Card>
+						</div>
 					) : null}
 					<details
 						class="space-y-4"
@@ -173,6 +169,11 @@ const actionLead =
 							data-tax-registration={registration}
 						>
 							<input type="hidden" name="returnTo" value={formReturnTo} />
+							{status === "verified" && (
+								<p class="text-sm leading-6 text-slate-600">
+									Al guardar cambios, los datos fiscales volverán a revisión.
+								</p>
+							)}
 							<div class="grid gap-4 md:grid-cols-2">
 								<FormField label="País de residencia fiscal" htmlFor="taxResidenceCountry">
 									<Select id="taxResidenceCountry" name="taxResidenceCountry">

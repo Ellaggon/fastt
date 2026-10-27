@@ -1,12 +1,9 @@
 ---
 import ProviderSettingsSubnav from "@/components/provider/ProviderSettingsSubnav.astro"
+import ProgressBar from "@/components/ui/ProgressBar.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { ArrowLeft } from "@lucide/astro"
 import type { TrustLinkId } from "@/lib/provider-trust-map"
-import {
-	formatVerificationProgressBreakdownLine,
-	formatVerificationProgressTotalLine,
-} from "@/lib/provider-trust-map"
 
 interface Props {
 	title?: string
@@ -18,15 +15,9 @@ interface Props {
 	 * Off for Verificación: wizard/trust map is its own chrome, not a settings tab.
 	 */
 	showSettingsTabs?: boolean
-	/** Verified readiness above the page title. Navigation position is deliberately separate. */
-	readyCount?: number | null
-	totalCount?: number | null
-	inReviewCount?: number | null
-	actionRequiredCount?: number | null
-	notStartedCount?: number | null
-	notEvaluableCount?: number | null
-	readinessPercent?: number | null
-	progressLabel?: string
+	verificationSummary?: { text: string }
+	verificationProgress?: { completed: number; total: number } | null
+	pendingReviewRequests?: number | null
 	/** Per-tab subtitles; hub updates header copy when the trust rail panel changes. */
 	verificationPageGuidanceByTab?: Partial<Record<TrustLinkId, string>> | null
 }
@@ -36,14 +27,9 @@ const {
 	heading = "Configuración",
 	description = "Administra la identidad, el equipo y la operación del proveedor.",
 	showSettingsTabs = true,
-	readyCount = null,
-	totalCount = null,
-	inReviewCount = null,
-	actionRequiredCount = null,
-	notStartedCount = null,
-	notEvaluableCount = null,
-	readinessPercent = null,
-	progressLabel = "Progreso de verificación",
+	verificationSummary = null,
+	verificationProgress = null,
+	pendingReviewRequests = null,
 	verificationPageGuidanceByTab = null,
 } = Astro.props
 
@@ -54,35 +40,6 @@ const verificationPageGuidanceJson =
 	verificationPageGuidanceByTab && Object.keys(verificationPageGuidanceByTab).length > 0
 		? JSON.stringify(verificationPageGuidanceByTab)
 		: null
-
-const hasProgress =
-	typeof readyCount === "number" &&
-	readyCount >= 0 &&
-	typeof totalCount === "number" &&
-	totalCount > 0
-const rawPercent =
-	typeof readinessPercent === "number" && Number.isFinite(readinessPercent)
-		? Math.min(100, Math.max(0, Math.round(readinessPercent)))
-		: 0
-const visualProgressPercent = hasProgress ? rawPercent : 0
-const hasProgressBreakdown =
-	hasProgress &&
-	typeof inReviewCount === "number" &&
-	typeof actionRequiredCount === "number" &&
-	typeof notStartedCount === "number"
-const progressTotalLine =
-	hasProgress && typeof totalCount === "number" && typeof readyCount === "number"
-		? formatVerificationProgressTotalLine(readyCount, totalCount)
-		: ""
-const progressBreakdownLine = hasProgressBreakdown
-	? formatVerificationProgressBreakdownLine({
-			readyCount: readyCount!,
-			inReviewCount: inReviewCount!,
-			actionRequiredCount: actionRequiredCount!,
-			notStartedCount: notStartedCount!,
-			notEvaluableCount: notEvaluableCount ?? 0,
-		})
-	: progressTotalLine
 ---
 
 <WorkspaceLayout title={title}>
@@ -105,54 +62,6 @@ const progressBreakdownLine = hasProgressBreakdown
 				</a>
 			) : null
 		}
-		{
-			hasProgress ? (
-				<div class="mb-5 space-y-2" data-verification-wizard-progress>
-					<div
-						class:list={[
-							"verification-wizard-progress-label",
-							hasProgressBreakdown && "verification-wizard-progress-label--alternate",
-						]}
-						data-verification-wizard-progress-label={hasProgressBreakdown ? "true" : undefined}
-					>
-						<p
-							class="verification-wizard-progress-label__stack text-xs font-semibold tracking-wide text-slate-400 uppercase"
-							data-next-step-progress
-						>
-							<span class="verification-wizard-progress-label__phase verification-wizard-progress-label__phase--total">
-								{progressTotalLine}
-							</span>
-							{hasProgressBreakdown ? (
-								<span
-									class="verification-wizard-progress-label__phase verification-wizard-progress-label__phase--breakdown tracking-wide text-slate-400 normal-case"
-									aria-hidden="true"
-								>
-									{progressBreakdownLine}
-								</span>
-							) : null}
-						</p>
-						{hasProgressBreakdown ? (
-							<span class="sr-only">{`${progressTotalLine}. ${progressBreakdownLine}`}</span>
-						) : null}
-					</div>
-					<div
-						class="fastt-progress-track h-1.5 overflow-hidden bg-slate-800"
-						role="progressbar"
-						aria-valuenow={rawPercent}
-						aria-valuemin={0}
-						aria-valuemax={100}
-						aria-label={progressLabel}
-					>
-						<div
-							class="fastt-progress-value h-full"
-							style={`width: ${visualProgressPercent}%; min-width: ${visualProgressPercent > 0 ? "0.75rem" : "0"}; background-color: var(--fastt-color-selection);`}
-							data-verification-wizard-bar
-						/>
-					</div>
-				</div>
-			) : null
-		}
-
 		<header class="flex flex-col gap-2">
 			<div class="flex flex-wrap items-start justify-between gap-3">
 				<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
@@ -162,22 +71,59 @@ const progressBreakdownLine = hasProgressBreakdown
 					<slot name="actions" />
 				</div>
 			</div>
-			<p
-				class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6"
-				data-verification-page-description={verificationPageGuidanceJson ? "true" : undefined}
-				data-verification-page-guidance={verificationPageGuidanceJson ?? undefined}
-			>
-				{description}
-			</p>
+			{
+				!(isVerificationPage && verificationSummary) && (
+					<p
+						class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6"
+						data-verification-page-description={verificationPageGuidanceJson ? "true" : undefined}
+						data-verification-page-guidance={verificationPageGuidanceJson ?? undefined}
+					>
+						{description}
+					</p>
+				)
+			}
 			{
 				isVerificationPage ? (
-					<a
-						href="/provider/compliance/requests"
-						class="inline-flex text-sm font-semibold underline underline-offset-4"
+					<div
+						class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+						data-verification-operational-summary
 					>
-						Solicitudes del equipo de revisión
-					</a>
+						{verificationSummary && (
+							<p class="max-w-3xl text-sm leading-6 text-slate-200" role="status">
+								{verificationSummary.text}
+							</p>
+						)}
+						<a
+							href="/provider/compliance/requests"
+							class="fastt-button inline-flex min-h-9 w-fit shrink-0 items-center rounded-md border border-slate-700 px-3 text-sm font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800/70 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-200"
+						>
+							Solicitudes del equipo de revisión
+							{pendingReviewRequests != null && pendingReviewRequests > 0 && (
+								<span class="ml-2 rounded-full bg-slate-700 px-2 py-0.5 text-xs tabular-nums">
+									{pendingReviewRequests}
+								</span>
+							)}
+						</a>
+					</div>
 				) : null
+			}
+			{
+				isVerificationPage && verificationProgress && verificationProgress.total > 0 && (
+					<div class="mt-2 w-full max-w-lg space-y-2" data-verification-completion-progress>
+						<p class="text-xs font-medium text-slate-400 tabular-nums">
+							{verificationProgress.completed} de {verificationProgress.total} requisitos
+							verificados
+						</p>
+						<ProgressBar
+							value={verificationProgress.completed}
+							max={verificationProgress.total}
+							variant="selection"
+							class="!h-1.5 !bg-slate-800"
+							aria-label="Progreso de verificación del negocio"
+							aria-valuetext={`${verificationProgress.completed} de ${verificationProgress.total} requisitos verificados`}
+						/>
+					</div>
+				)
 			}
 		</header>
 
@@ -203,40 +149,22 @@ const progressBreakdownLine = hasProgressBreakdown
 		isolation: isolate;
 	}
 
-	[data-provider-settings-shell] > header {
-		transition: opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-	}
-
-	[data-provider-settings-shell] > header[data-settings-header-leaving],
-	[data-provider-settings-shell] > header[data-settings-header-entering] {
-		opacity: 0;
-	}
-
-	[data-provider-settings-panel] {
-		transition:
-			opacity 0.42s cubic-bezier(0.4, 0, 0.2, 1),
-			transform 0.42s cubic-bezier(0.4, 0, 0.2, 1);
-	}
-
-	[data-provider-settings-panel][data-settings-panel-leaving],
 	[data-provider-settings-panel][data-settings-panel-entering] {
-		opacity: 0;
-		transform: translateY(0.45rem);
-		pointer-events: none;
+		animation: settings-panel-enter 160ms ease-out;
 	}
-
-	@media (prefers-reduced-motion: reduce) {
-		[data-provider-settings-shell] > header,
-		[data-provider-settings-panel] {
-			transition: none;
+	@keyframes settings-panel-enter {
+		from {
+			opacity: 0.75;
+			transform: translateY(2px);
 		}
-
-		[data-provider-settings-shell] > header[data-settings-header-leaving],
-		[data-provider-settings-shell] > header[data-settings-header-entering],
-		[data-provider-settings-panel][data-settings-panel-leaving],
-		[data-provider-settings-panel][data-settings-panel-entering] {
+		to {
 			opacity: 1;
 			transform: none;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		[data-provider-settings-panel][data-settings-panel-entering] {
+			animation: none;
 		}
 	}
 </style>

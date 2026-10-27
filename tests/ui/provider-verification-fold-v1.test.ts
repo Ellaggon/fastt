@@ -74,8 +74,8 @@ describe("V1 verification fold reorder (action-first)", () => {
 		expect(read("src/components/provider/ProviderVerificationWorkspace.astro")).toContain(
 			"data-verification-holder-declaration-review"
 		)
-		expect(read("src/components/provider/ProviderVerificationWorkspace.astro")).toContain(
-			"Registro mercantil en historial"
+		expect(read("src/components/provider/ProviderTourBusinessVerification.astro")).toContain(
+			"Registros anteriores"
 		)
 		expect(read("src/components/provider/ProviderKycSlotsCard.astro")).toContain(
 			"holderDeclarationInReview"

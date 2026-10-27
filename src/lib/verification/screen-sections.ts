@@ -197,7 +197,7 @@ function documentsHref(uploadValue: string) {
 function tourContextHref(productIds: readonly string[]) {
 	const productId = productIds.find((id) => id.trim().length > 0)
 	if (!productId) return routes.productCreate()
-	return `${routes.providerSettingsVerification()}?line=tour&tab=activity&experience=${encodeURIComponent(productId)}#tour-operating-context`
+	return `/product/${encodeURIComponent(productId)}#experience-requirements`
 }
 
 function sellingNote(line: "lodging" | "tour", paymentsCount: boolean) {

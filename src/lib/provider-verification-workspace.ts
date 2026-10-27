@@ -57,6 +57,7 @@ import {
 } from "@/lib/verification/screen-sections"
 import {
 	buildTourVerificationPlaybook,
+	tourBusinessVerificationState,
 	trustStateFromKycSlotState,
 	resolveVerificationNavigation,
 	resolveVerificationTab,
@@ -97,6 +98,11 @@ type SlaAssignment = {
 }
 
 export type ProviderVerificationWorkspaceModel = {
+	businessProfile?: {
+		displayName: string | null
+		legalName: string | null
+		holderCountry: string | null
+	} | null
 	activeSectionId: VerificationTrustPanelId
 	navigation: VerificationNavigation | null
 	tourPlaybook: VerificationPlaybookTab[]
@@ -191,7 +197,7 @@ export function visibleVerificationTrustLinks(
 }
 
 export function resolveVerificationTrustPanelFromUrl(url: URL): VerificationTrustPanelId {
-	return resolveVerificationTab(url, null, false) as VerificationTrustPanelId
+	return resolveVerificationTab(url, null) as VerificationTrustPanelId
 }
 
 export async function loadProviderVerificationWorkspace(params: {
@@ -200,6 +206,7 @@ export async function loadProviderVerificationWorkspace(params: {
 	providerRoleLabel: string
 	url: URL
 	verificationResolution?: LoadedVerificationResolution
+	experienceWorkspace?: boolean
 }): Promise<ProviderVerificationWorkspaceModel> {
 	const permissions = (params.sessionPermissions ?? {}) as Partial<ProviderPermissions>
 	const canManageDocuments = Boolean(permissions.canManageDocuments)
@@ -241,7 +248,7 @@ export async function loadProviderVerificationWorkspace(params: {
 			.catch(() => []),
 		readProviderCommercialLineState(params.providerId),
 		resolutionPromise.then((resolution) =>
-			resolution.lines.includes("tour")
+			params.experienceWorkspace && resolution.lines.includes("tour")
 				? db
 						.select({
 							id: TourOperationalResource.id,
@@ -281,29 +288,34 @@ export async function loadProviderVerificationWorkspace(params: {
 		buildProviderVerificationTrustSnapshot({
 			providerId: params.providerId,
 			kycDocumentTypes,
+			evidenceOnly: params.experienceWorkspace,
 		}).catch(() => null),
-		selectedExperienceId
+		params.experienceWorkspace && selectedExperienceId
 			? readTourComplianceContext(selectedExperienceId, params.providerId)
 			: null,
 	])
-	const displayedTours = tourProducts.filter((product) => product.id === selectedExperienceId)
-	const selectedDiagnosis = selectedExperienceId
-		? (
-				await resolveProductCommercialDiagnosis({
-					providerId: params.providerId,
-					productId: selectedExperienceId,
-					holder,
-					documents: trustSnapshot?.documents,
-				})
-			).diagnosis
-		: null
+	const displayedTours = params.experienceWorkspace
+		? tourProducts.filter((product) => product.id === selectedExperienceId)
+		: []
+	const selectedDiagnosis =
+		params.experienceWorkspace && selectedExperienceId
+			? (
+					await resolveProductCommercialDiagnosis({
+						providerId: params.providerId,
+						productId: selectedExperienceId,
+						holder,
+						documents: trustSnapshot?.documents,
+					})
+				).diagnosis
+			: null
 	const selectedRequirements = applicableExperienceVerificationRequirements(
 		(loadedResolution.resolution?.requirements ?? []).filter(
 			(requirement) =>
-				requirement.layer !== "tour" ||
-				!selectedExperienceId ||
-				requirement.scopes.productIds.length === 0 ||
-				requirement.scopes.productIds.includes(selectedExperienceId)
+				(params.experienceWorkspace || requirement.layer !== "tour") &&
+				(requirement.layer !== "tour" ||
+					!selectedExperienceId ||
+					requirement.scopes.productIds.length === 0 ||
+					requirement.scopes.productIds.includes(selectedExperienceId))
 		),
 		selectedDiagnosis,
 		displayedTours[0]?.experienceFormat
@@ -376,11 +388,6 @@ export async function loadProviderVerificationWorkspace(params: {
 	const trustLinks = trustSnapshot?.trustLinks ?? []
 	const legalNameComplete = Boolean(trustSnapshot?.legalNameComplete)
 	const holderDeclarationInReview = isHolderDeclarationInReview(holder)
-	const tourIdentityPlaybookState = (slotState: ReturnType<typeof trustStateFromKycSlotState>) => {
-		if (!legalNameComplete) return "action_needed" as const
-		if (holderDeclarationInReview) return "in_review" as const
-		return slotState
-	}
 	const trustMapComplete = isProviderTrustMapComplete(trustLinks)
 	const listaReady = isVerificationListaReady({
 		trustLinks,
@@ -571,7 +578,7 @@ export async function loadProviderVerificationWorkspace(params: {
 	const countingTourItems = (tourSection?.items ?? []).filter((item) => item.countsTowardProgress)
 	const contextComplete = Boolean(
 		tourContext?.operatingRole &&
-		tourContext.jurisdictionCode &&
+		(tourContext.jurisdictionCodes?.length || tourContext.jurisdictionCode) &&
 		storedTourActivityClasses(tourContext.activityClassesJson).length > 0
 	)
 	const linkState = (id: TrustLinkId) =>
@@ -583,9 +590,9 @@ export async function loadProviderVerificationWorkspace(params: {
 				section.items.some((item) => item.id === "shared.business_registration")
 			)
 		)
-	const tourIdentityFromSlots = !legalNameComplete
-		? ("action_needed" as const)
-		: trustStateFromKycSlotState(kycSlots.find((slot) => slot.type === "government_id")?.state)
+	const tourIdentityFromSlots = trustStateFromKycSlotState(
+		kycSlots.find((slot) => slot.type === "government_id")?.state
+	)
 	const tourRegistrationFromSlots = tourRequiresRegistration
 		? trustStateFromKycSlotState(
 				kycSlots.find((slot) => slot.type === "business_registration")?.state
@@ -594,7 +601,7 @@ export async function loadProviderVerificationWorkspace(params: {
 	const tourPlaybook =
 		navigation?.line === "tour"
 			? buildTourVerificationPlaybook({
-					tabs: navigation.tabs,
+					tabs: params.experienceWorkspace ? ["activity", "safety"] : navigation.tabs,
 					hrefFor: (tab) =>
 						verificationNavigationHref({
 							url: params.url,
@@ -602,7 +609,15 @@ export async function loadProviderVerificationWorkspace(params: {
 							line: "tour",
 							tab,
 						}),
-					identity: tourIdentityPlaybookState(tourIdentityFromSlots),
+					identity: tourIdentityFromSlots,
+					business: tourBusinessVerificationState({
+						legalNameComplete,
+						holderType,
+						holderCountry: holder?.holderCountry ?? null,
+						holderInReview: holderDeclarationInReview,
+						accountStatus: latestVerification?.status ?? null,
+						registration: tourRegistrationFromSlots,
+					}),
 					registration: tourRegistrationFromSlots,
 					fiscal: linkState("fiscal"),
 					payments: linkState("payments"),
@@ -625,6 +640,9 @@ export async function loadProviderVerificationWorkspace(params: {
 
 	return {
 		activeSectionId,
+		businessProfile: trustSnapshot?.businessProfile
+			? { ...trustSnapshot.businessProfile, holderCountry: holder?.holderCountry ?? null }
+			: null,
 		navigation,
 		tourPlaybook,
 		tourDocumentPresentation,

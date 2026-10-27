@@ -62,10 +62,12 @@ describe("S4-3 verification guided density", () => {
 		expect(page).not.toContain("Los mínimos se suben arriba")
 	})
 
-	it("scopes tour experience picker to activity and safety only", () => {
+	it("keeps experience editing in the experience workspace", () => {
 		const nav = read("src/components/provider/ProviderVerificationBusinessNav.astro")
-		expect(nav).toContain('navigation.tab === "activity"')
-		expect(nav).toContain('navigation.tab === "safety"')
+		expect(nav).not.toContain("data-verification-experience-selector")
+		const editor = read("src/components/tours/TourExperienceRequirements.astro")
+		expect(editor).toContain("ProviderTourOperatingContext")
+		expect(editor).toContain("ProviderVerificationOptionals")
 		expect(nav).not.toContain("data-verification-selected-experience")
 		expect(nav).not.toContain("Experiencia:")
 	})

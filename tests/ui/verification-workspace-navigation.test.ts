@@ -9,7 +9,7 @@ const script = readFileSync(
 		import.meta.url
 	),
 	"utf8"
-).replace(/^import[^\n]+\n/, "")
+).replace(/^import[^\n]+\n/gm, "")
 
 function client(
 	current: string,

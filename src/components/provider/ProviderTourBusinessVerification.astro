@@ -1,0 +1,127 @@
+---
+import ProviderKycSlotsCard from "@/components/provider/ProviderKycSlotsCard.astro"
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Notice from "@/components/ui/Notice.astro"
+import type { ProviderVerificationWorkspaceModel } from "@/lib/provider-verification-workspace"
+import { routes } from "@/lib/routes"
+
+const { model } = Astro.props as { model: ProviderVerificationWorkspaceModel }
+const { businessProfile, holderType, holderDeclarationInReview, latestVerification } = model
+const slots = model.kycSlots.filter((slot) => slot.type === "business_registration")
+const country = businessProfile?.holderCountry
+const countryLabel =
+	country && /^[A-Z]{2}$/.test(country)
+		? new Intl.DisplayNames("es", { type: "region" }).of(country)
+		: "Por completar"
+---
+
+<div class="space-y-6" data-tour-business-verification>
+	<Card>
+		<div class="flex flex-wrap items-start justify-between gap-3">
+			<div>
+				<h3 class="text-lg font-semibold text-slate-950">Quién opera el negocio</h3>
+				<p class="mt-1 text-sm text-slate-600">
+					{
+						holderType === "persona_natural"
+							? "Operas como persona natural. No necesitas presentar un registro de empresa."
+							: holderType === "entidad"
+								? "El negocio opera a nombre de una empresa o entidad."
+								: "Declara si operas como persona natural o como empresa."
+					}
+				</p>
+			</div>
+			{
+				model.canEditTourContext && (
+					<Button href={`${routes.providerSettingsProfile()}?edit=1`} variant="secondary">
+						Editar datos del negocio
+					</Button>
+				)
+			}
+		</div>
+		<dl class="mt-5 grid gap-4 border-t border-slate-200 pt-4 sm:grid-cols-2">
+			{
+				[
+					["Nombre comercial", businessProfile?.displayName],
+					["Nombre legal o razón social", businessProfile?.legalName],
+					[
+						"Tipo de titular",
+						holderType === "persona_natural"
+							? "Persona natural"
+							: holderType === "entidad"
+								? "Empresa o entidad"
+								: null,
+					],
+					["País de residencia o constitución", countryLabel],
+				].map(([label, value]) => (
+					<div>
+						<dt class="text-xs text-slate-500">{label}</dt>
+						<dd class="mt-1 text-sm font-medium break-words text-slate-900">
+							{value || "Por completar"}
+						</dd>
+					</div>
+				))
+			}
+		</dl>
+	</Card>
+	{
+		holderDeclarationInReview ? (
+			<Notice
+				variant="info"
+				title="Fastt está revisando el cambio de titular"
+				data-verification-holder-declaration-review
+			>
+				El documento de identidad conserva su resultado. La revisión del nuevo titular y su registro
+				se muestra aquí.
+			</Notice>
+		) : latestVerification?.status === "pending" ? (
+			<Notice variant="info" title="Negocio en revisión" data-verification-account-review>
+				Fastt está revisando los datos del negocio. Los documentos conservan su propio resultado;
+				completa únicamente los pendientes indicados abajo.
+			</Notice>
+		) : latestVerification?.status === "rejected" ? (
+			<Notice variant="error" title="El negocio requiere cambios" data-verification-account-reject>
+				{latestVerification.reason ||
+					"Revisa los datos del negocio y corrige los requisitos indicados."}
+			</Notice>
+		) : null
+	}
+	{
+		holderType === "entidad" && slots.length ? (
+			<ProviderKycSlotsCard
+				slots={slots}
+				canManageDocuments={model.canManageDocuments}
+				documentAssignments={model.documentAssignments}
+				focusType="business_registration"
+				elevated
+				payoutBlocks={model.screen?.paymentsCountsForSelling ?? false}
+				holderDeclarationInReview={holderDeclarationInReview}
+				holderType={holderType}
+			/>
+		) : holderType === "entidad" ? (
+			<Notice variant="info" title="Requisitos del registro por definir">
+				Fastt todavía debe determinar el respaldo aplicable a esta entidad. No envíes un documento
+				por aproximación.
+			</Notice>
+		) : null
+	}
+	{
+		model.historicalBusinessRegistrationDocuments.length > 0 && (
+			<details class="fastt-card border border-slate-200 bg-white p-4 text-slate-900">
+				<summary class="cursor-pointer text-sm font-semibold">Registros anteriores</summary>
+				<p class="mt-3 text-sm text-slate-600">
+					Se conservan como referencia; no afectan la verificación actual.
+				</p>
+				<ul class="mt-3 space-y-2 text-sm">
+					{model.historicalBusinessRegistrationDocuments.map((document) => (
+						<li class="flex flex-wrap items-center gap-2">
+							<span>{document.fileName || "Registro mercantil"}</span>
+							<Badge variant={document.tone}>{document.statusLabel}</Badge>
+						</li>
+					))}
+				</ul>
+			</details>
+		)
+	}
+</div>

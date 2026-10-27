@@ -249,6 +249,7 @@ export type ProviderKycSlot = {
 	stateLabel: string
 	documentId: string | null
 	fileName: string | null
+	reviewedAt?: Date | null
 	reviewNotes: string | null
 	rejectCategoryLabel: string | null
 	uploadHref: string
@@ -682,6 +683,7 @@ export function buildRequiredKycSlots(params: {
 			stateLabel: kycSlotStateLabels[state],
 			documentId: document?.id ?? null,
 			fileName: document?.fileName ?? null,
+			reviewedAt: document?.reviewedAt ?? null,
 			reviewNotes: state === "rejected" ? String(document?.reviewNotes ?? "").trim() || null : null,
 			rejectCategoryLabel,
 			uploadHref,
