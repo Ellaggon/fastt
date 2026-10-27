@@ -4,6 +4,7 @@ import type {
 	CommercialLineCollectionModel,
 } from "@/lib/verification/commercial-lines"
 import { verificationNavigationHref, verificationTabsFor } from "@/lib/verification/navigation"
+import { experienceRequirementsHref } from "@/lib/verification/experience-requirements-navigation"
 import {
 	commercialBlockerIsWaiting,
 	tourCommercialAction,
@@ -57,11 +58,13 @@ export function presentFinancialContract(input: {
 		const tab =
 			type === "tax_document"
 				? "fiscal"
-				: type === "government_id" || type === "business_registration"
+				: type === "government_id"
 					? "identity"
-					: line === "tour"
-						? "activity"
-						: "business"
+					: type === "business_registration"
+						? "business"
+						: line === "tour"
+							? "activity"
+							: "business"
 		const href = verificationNavigationHref({
 			url,
 			line: line ?? "lodging",
@@ -72,12 +75,13 @@ export function presentFinancialContract(input: {
 				tab,
 				experienceId: line === "tour" ? productId : null,
 				lines: line ? [line] : [],
-				tabs: verificationTabsFor(line ?? "lodging", collectionModel === "platform_collect"),
+				tabs: verificationTabsFor(line ?? "lodging"),
 				fasttCollects: collectionModel === "platform_collect",
 			},
 		})
 		const target = new URL(href, url)
 		if (type) target.searchParams.set("type", type)
+		if (line === "tour" && tab === "activity") return experienceRequirementsHref(productId, target)
 		return target.pathname + target.search
 	}
 	const support = new URL("/provider/support", "http://fastt.local")

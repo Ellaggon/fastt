@@ -7,14 +7,17 @@ import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
 import { loadProviderContractSurface } from "@/lib/commercial-policy/provider-contract-surface"
 import { resolveFinancialApiProductScope } from "@/lib/financial/financialApiProductScope"
 import { safeFinancialReturn } from "@/lib/financial/financialReturn"
-import { listProviderCommercialLines } from "@/lib/verification/commercial-lines"
+import {
+	commercialLineForProductType,
+	listProviderCommercialLines,
+} from "@/lib/verification/commercial-lines"
 import { commercialAgreementRollout } from "@/modules/financial/commercial-agreement-rollout"
 import {
 	agreementReturnTo,
 	commercialAgreementStatus,
 	listCommercialAgreements,
 } from "@/modules/financial/commercial-agreements"
-import { db, eq, Provider } from "@/shared/infrastructure/db/compat"
+import { db, eq, Product, Provider } from "@/shared/infrastructure/db/compat"
 import { ArrowLeft } from "@lucide/astro"
 
 const auth = await requireProviderSessionSurface(Astro.request).catch((error: any) => {
@@ -36,23 +39,54 @@ const returnLabel = returnTo?.startsWith("/provider/settings/verification")
 	: returnTo?.startsWith("/product/") || returnTo?.startsWith("/catalog/tours")
 		? "Volver a la experiencia"
 		: "Volver"
-const lines = await listProviderCommercialLines(providerId)
+const [lines, products] = await Promise.all([
+	listProviderCommercialLines(providerId),
+	db
+		.select({ id: Product.id, name: Product.name, productType: Product.productType })
+		.from(Product)
+		.where(eq(Product.providerId, providerId)),
+])
 const tourLine = lines.find((line) => line.line === "tour")
-const showTourAgreement = Boolean(
-	commercialAgreementRollout(providerId).enabled &&
-	tourLine &&
-	Astro.url.searchParams.get("scope") !== "hotel"
+const requestedScope = Astro.url.searchParams.get("scope") ?? Astro.url.searchParams.get("vertical")
+const selectedProduct = products.find(
+	(product) => product.id === Astro.url.searchParams.get("productId")
 )
+const showTourAgreement = Boolean(
+	tourLine &&
+	requestedScope !== "hotel" &&
+	(!selectedProduct || commercialLineForProductType(selectedProduct.productType) === "tour")
+)
+const agreementEnabled = commercialAgreementRollout(providerId).enabled
+let agreementReadFailed = false
 const [agreements, agreementStatus, provider] = await Promise.all([
-	showTourAgreement ? listCommercialAgreements(providerId) : Promise.resolve([]),
-	showTourAgreement ? commercialAgreementStatus(providerId) : Promise.resolve(null),
+	showTourAgreement && agreementEnabled
+		? listCommercialAgreements(providerId).catch((error) => {
+				console.error("Commercial agreement list could not be loaded", error)
+				agreementReadFailed = true
+				return []
+			})
+		: Promise.resolve([]),
+	showTourAgreement && agreementEnabled
+		? commercialAgreementStatus(providerId).catch((error) => {
+				console.error("Commercial agreement status could not be loaded", error)
+				agreementReadFailed = true
+				return null
+			})
+		: Promise.resolve(null),
 	db
 		.select({ legalName: Provider.legalName })
 		.from(Provider)
 		.where(eq(Provider.id, providerId))
 		.then((rows) => rows[0]),
 ])
-// Per-offer readiness belongs to verification, not the Tours agreement workspace.
+// The agreement is shared by the line, even when entered from one experience.
+const experiences = products.filter(
+	(product) => commercialLineForProductType(product.productType) === "tour"
+)
+const acceptedAgreement =
+	agreementStatus && "acceptedAgreement" in agreementStatus
+		? agreementStatus.acceptedAgreement
+		: null
 const model = showTourAgreement
 	? null
 	: await loadProviderContractSurface(providerId, {
@@ -64,8 +98,31 @@ const model = showTourAgreement
 <ProviderSettingsLayout
 	title="Acuerdo comercial"
 	heading="Acuerdo comercial"
-	description="Configura el cobro y revisa las condiciones acordadas con Fastt."
+	description={showTourAgreement
+		? "Condiciones de tu negocio con Fastt para vender experiencias."
+		: "Configura el cobro y revisa las condiciones acordadas con Fastt."}
 >
+	{
+		lines.length > 1 && (
+			<nav aria-label="Línea del acuerdo comercial" class="flex flex-wrap gap-2">
+				{lines.map((line) => {
+					const href = new URL(Astro.url)
+					href.searchParams.set("scope", line.line === "tour" ? "tour" : "hotel")
+					href.searchParams.delete("productId")
+					return (
+						<Button
+							href={href.pathname + href.search}
+							variant={(line.line === "tour") === showTourAgreement ? "selection" : "secondary"}
+							size="sm"
+							aria-current={(line.line === "tour") === showTourAgreement ? "page" : undefined}
+						>
+							{line.line === "tour" ? "Experiencias" : "Alojamientos"}
+						</Button>
+					)
+				})}
+			</nav>
+		)
+	}
 	{
 		returnTo && (
 			<Button href={returnTo} variant="secondary" size="sm" class="w-fit justify-self-start">
@@ -77,6 +134,13 @@ const model = showTourAgreement
 	{
 		showTourAgreement && (
 			<ProviderTourCommercialAgreement
+				readFailed={agreementReadFailed}
+				enabled={agreementEnabled}
+				experiences={experiences}
+				resolvedAgreementId={
+					acceptedAgreement?.agreement.id ?? agreementStatus?.agreement?.id ?? null
+				}
+				acceptedStatus={acceptedAgreement?.state}
 				agreements={agreements}
 				collectionModel={tourLine!.collectionModel}
 				canEdit={Boolean(auth.provider.permissions?.canEditProfile)}
