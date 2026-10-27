@@ -70,6 +70,7 @@ const isActive = (item: (typeof items)[number]) => {
 					data-provider-settings-nav={
 						item.href === routes.providerSettingsPayments() ? undefined : ""
 					}
+					data-astro-reload={item.href === routes.providerSettingsPayments() ? true : undefined}
 					data-astro-prefetch="hover"
 					data-active={active ? "true" : "false"}
 					aria-current={active ? "page" : undefined}
