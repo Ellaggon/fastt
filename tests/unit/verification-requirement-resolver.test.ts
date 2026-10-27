@@ -294,7 +294,7 @@ describe("verification requirement resolver", () => {
 		const registrationState = trustStateFromKycSlotState(registration?.state)
 		expect(registrationState).toBe("action_needed")
 		const tabs = buildTourVerificationPlaybook({
-			tabs: ["identity", "activity", "safety", "fiscal"],
+			tabs: ["identity", "business", "fiscal"],
 			hrefFor: (tab) => `/verification?tab=${tab}`,
 			identity: identityState,
 			registration: registrationState,
@@ -304,14 +304,16 @@ describe("verification requirement resolver", () => {
 			safety: [],
 			contextComplete: false,
 		})
-		expect(tabs.find((tab) => tab.id === "identity")?.stateLabel).toBe("Completar")
+		expect(tabs.find((tab) => tab.id === "identity")?.stateLabel).toBe("Verificado")
+		expect(tabs.find((tab) => tab.id === "business")?.stateLabel).toBe("Completar")
 	})
 
-	it("keeps identity en revisión with verified ID while mercantile stays completar during holder review", () => {
+	it("keeps verified identity independent of the holder review", () => {
 		const tabs = buildTourVerificationPlaybook({
-			tabs: ["identity", "activity", "safety", "fiscal"],
+			tabs: ["identity", "business", "fiscal"],
 			hrefFor: (tab) => `/verification?tab=${tab}`,
-			identity: "in_review",
+			identity: "ready",
+			business: "in_review",
 			registration: "action_needed",
 			fiscal: "not_started",
 			payments: "not_started",
@@ -319,7 +321,8 @@ describe("verification requirement resolver", () => {
 			safety: [],
 			contextComplete: false,
 		})
-		expect(tabs.find((tab) => tab.id === "identity")?.stateLabel).toBe("En revisión")
+		expect(tabs.find((tab) => tab.id === "identity")?.stateLabel).toBe("Verificado")
+		expect(tabs.find((tab) => tab.id === "business")?.stateLabel).toBe("En revisión")
 	})
 
 	it("drops mercantile slots for persona natural while legacy rows remain in storage", () => {

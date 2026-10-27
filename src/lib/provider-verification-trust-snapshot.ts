@@ -34,12 +34,16 @@ type Params = {
 	paymentAccounts?: ProviderPaymentAccountRecord[] | null
 	/** Account slots from the resolver. Omitted keeps the historical three. */
 	kycDocumentTypes?: readonly RequiredKycDocumentType[]
+	/** Experience evidence does not render fiscal or bank-account controls. */
+	evidenceOnly?: boolean
 }
 
 export async function buildProviderVerificationTrustSnapshot(params: Params) {
-	const accountsPromise = params.paymentAccounts
-		? Promise.resolve(params.paymentAccounts)
-		: listProviderPaymentAccounts(params.providerId).catch(() => [])
+	const accountsPromise = params.evidenceOnly
+		? Promise.resolve([])
+		: params.paymentAccounts
+			? Promise.resolve(params.paymentAccounts)
+			: listProviderPaymentAccounts(params.providerId).catch(() => [])
 
 	const [providerRow, latestVerification, documents, taxConfiguration, paymentAccounts] =
 		await Promise.all([
@@ -69,7 +73,7 @@ export async function buildProviderVerificationTrustSnapshot(params: Params) {
 				.then((rows) => rows[0] ?? null)
 				.catch(() => null),
 			listProviderDocuments(params.providerId).catch(() => []),
-			getProviderTaxConfiguration(params.providerId).catch(() => null),
+			params.evidenceOnly ? null : getProviderTaxConfiguration(params.providerId).catch(() => null),
 			accountsPromise,
 		])
 
@@ -124,6 +128,9 @@ export async function buildProviderVerificationTrustSnapshot(params: Params) {
 	const progress = summarizeProviderTrustProgress(trustLinks)
 
 	return {
+		businessProfile: providerRow
+			? { displayName: providerRow.displayName, legalName: providerRow.legalName }
+			: null,
 		defaultCurrency: providerRow?.defaultCurrency ?? "USD",
 		documents,
 		kycSlots,

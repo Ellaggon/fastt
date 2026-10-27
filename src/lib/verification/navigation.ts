@@ -1,4 +1,5 @@
 import { safeVerificationReturn } from "@/lib/auth/returnTo"
+import { experienceRequirementsHref } from "@/lib/verification/experience-requirements-navigation"
 import type { CommercialLine } from "@/lib/verification/commercial-lines"
 import { TRUST_GLOSSARY, type TrustLinkUiState } from "@/lib/provider-trust-map"
 
@@ -20,13 +21,13 @@ export type VerificationNavigation = {
 }
 
 const lodgingTabs: VerificationTab[] = ["identity", "business", "fiscal", "payments"]
-const tourTabs: VerificationTab[] = ["identity", "activity", "safety", "fiscal"]
+const tourTabs: VerificationTab[] = ["identity", "business", "fiscal"]
 const labels: Record<VerificationTab, string> = {
 	identity: "Identidad",
 	business: "Negocio",
 	activity: "Actividad y licencias",
 	safety: "Seguridad y permisos",
-	fiscal: "Fiscal",
+	fiscal: "Datos fiscales",
 	payments: "Cobros",
 }
 
@@ -40,6 +41,10 @@ export type VerificationPlaybookTab = {
 	href: string
 	uiState: TrustLinkUiState | "not_evaluable" | "not_applicable"
 	stateLabel: string
+	/** Presentation only: these fields never grant publishing authorization. */
+	reason?: string
+	responsible?: "provider" | "fastt" | "none"
+	scope?: "business" | "experience"
 }
 
 type PlaybookState = VerificationPlaybookTab["uiState"]
@@ -80,11 +85,11 @@ export function trustStateFromKycSlotState(
 function playbookStateLabel(state: PlaybookState) {
 	switch (state) {
 		case "not_evaluable":
-			return "No evaluable"
+			return "Requisitos por definir"
 		case "not_applicable":
-			return "No aplica"
+			return "Sin requisitos adicionales"
 		case "ready":
-			return TRUST_GLOSSARY.trustLink.ready
+			return "Verificado"
 		case "in_review":
 			return TRUST_GLOSSARY.trustLink.inReview
 		case "requires_changes":
@@ -96,15 +101,45 @@ function playbookStateLabel(state: PlaybookState) {
 	}
 }
 
-/**
- * Tour verification uses the lodging playbook rule: one step per visible tab.
- * Activity and safety fold the evidence of that panel into a single state.
- */
+export function verificationAreaReason(uiState: PlaybookState, missingOperation = false) {
+	if (missingOperation)
+		return "Completa el papel operativo, los departamentos y las actividades para determinar los respaldos."
+	if (uiState === "not_evaluable")
+		return "Fastt debe definir los requisitos aplicables a esta experiencia. No necesitas enviar documentos hasta que se indiquen."
+	if (uiState === "not_applicable")
+		return "No se requieren respaldos adicionales para la operación declarada. Si cambia, se volverá a evaluar."
+	if (uiState === "in_review") return "La información enviada está en revisión por Fastt."
+	if (uiState === "ready") return "La información requerida está verificada."
+	if (uiState === "requires_changes") return "Revisa el motivo indicado y corrige la información."
+	return "Completa los requisitos indicados en esta sección."
+}
+
+/** Operator review is independent of the personal identity document. */
+export function tourBusinessVerificationState(input: {
+	legalNameComplete: boolean
+	holderType: "persona_natural" | "entidad" | null
+	holderCountry: string | null
+	holderInReview: boolean
+	accountStatus: string | null
+	registration: TrustLinkUiState | null
+}): PlaybookState {
+	if (!input.legalNameComplete || !input.holderType || !input.holderCountry) return "action_needed"
+	if (input.holderInReview) return "in_review"
+	if (input.registration === "requires_changes" || input.accountStatus === "rejected")
+		return "requires_changes"
+	if (input.holderType === "entidad" && input.registration === null) return "not_evaluable"
+	if (input.registration === "action_needed") return "action_needed"
+	if (input.registration === "in_review" || input.accountStatus === "pending") return "in_review"
+	if (input.accountStatus === "approved") return input.registration ?? "ready"
+	return "not_started"
+}
+
 export function buildTourVerificationPlaybook(input: {
 	tabs: readonly VerificationTab[]
 	hrefFor: (tab: VerificationTab) => string
 	identity: TrustLinkUiState
 	registration: TrustLinkUiState | null
+	business?: PlaybookState
 	fiscal: TrustLinkUiState
 	payments: TrustLinkUiState
 	activity: readonly TrustLinkUiState[]
@@ -113,37 +148,74 @@ export function buildTourVerificationPlaybook(input: {
 	policyResolved?: boolean
 }): VerificationPlaybookTab[] {
 	const stateFor = (tab: VerificationTab): PlaybookState => {
-		if (tab === "identity") {
-			const states = input.registration ? [input.identity, input.registration] : [input.identity]
-			if (states.includes("requires_changes")) return "requires_changes"
-			if (input.identity === "in_review") return "in_review"
-			return dominantState(states)
+		if (tab === "identity") return input.identity
+		if (tab === "business") return input.business ?? input.registration ?? "not_started"
+		if (tab === "activity" || tab === "safety") {
+			if (!input.contextComplete) return tab === "activity" ? "action_needed" : "not_evaluable"
+			if (input.policyResolved !== true) return "not_evaluable"
+			const evidence = tab === "activity" ? input.activity : input.safety
+			return evidence.length ? dominantState(evidence) : "not_applicable"
 		}
-		if (tab === "activity") {
-			return dominantState(
-				!input.contextComplete ? [...input.activity, "action_needed"] : input.activity
-			)
-		}
-		if (tab === "safety")
-			return !input.contextComplete || input.policyResolved === false
-				? "not_evaluable"
-				: input.safety.length
-					? dominantState(input.safety)
-					: "not_applicable"
 		if (tab === "fiscal") return input.fiscal
 		if (tab === "payments") return input.payments
 		return "not_started"
 	}
 	return input.tabs.map((tab) => {
 		const uiState = stateFor(tab)
+		const experienceScoped = tab === "activity" || tab === "safety"
+		const missingOperation = experienceScoped && !input.contextComplete
 		return {
 			id: tab,
 			label: verificationTabLabel(tab),
 			href: input.hrefFor(tab),
 			uiState,
-			stateLabel: playbookStateLabel(uiState),
+			stateLabel: missingOperation ? "Completar operación" : playbookStateLabel(uiState),
+			reason: verificationAreaReason(uiState, missingOperation),
+			responsible: missingOperation
+				? ("provider" as const)
+				: uiState === "not_evaluable" || uiState === "in_review"
+					? ("fastt" as const)
+					: uiState === "ready" || uiState === "not_applicable"
+						? ("none" as const)
+						: ("provider" as const),
+			scope: experienceScoped ? ("experience" as const) : ("business" as const),
 		}
 	})
+}
+
+/** Stable operational summary, not a percentage of heterogeneous tabs. */
+export function verificationOperationalSummary(tabs: readonly VerificationPlaybookTab[]) {
+	const summaryNames: Partial<Record<VerificationTab, string>> = {
+		identity: "Identidad",
+		business: "negocio",
+		fiscal: "datos fiscales",
+		activity: "Licencias",
+		safety: "seguridad",
+	}
+	const names = (items: readonly VerificationPlaybookTab[]) =>
+		new Intl.ListFormat("es", { style: "long", type: "conjunction" }).format(
+			items.map((tab) => summaryNames[tab.id] ?? tab.label)
+		)
+	const ready = tabs.filter((tab) => tab.uiState === "ready")
+	const pending = tabs.filter(
+		(tab) => tab.uiState === "not_evaluable" && tab.responsible === "fastt"
+	)
+	const reviewing = tabs.filter((tab) => tab.uiState === "in_review")
+	const actionable = tabs.filter((tab) => tab.responsible === "provider")
+	const parts = [
+		ready.length ? `${names(ready)}: verificación completa.` : "",
+		pending.length ? `${names(pending)}: Fastt debe definir los requisitos.` : "",
+		reviewing.length ? `${names(reviewing)}: en revisión por Fastt.` : "",
+		actionable.length ? `${names(actionable)}: requiere tu atención.` : "",
+	].filter(Boolean)
+	return {
+		text: parts.join(" ") || "Sin requisitos adicionales para la operación declarada.",
+		completedCount: ready.length,
+		totalCount: tabs.length,
+		noProviderAction:
+			tabs.length > 0 &&
+			tabs.every((tab) => tab.responsible === "fastt" || tab.responsible === "none"),
+	}
 }
 
 export function summarizeVerificationPlaybook(tabs: readonly VerificationPlaybookTab[]) {
@@ -169,27 +241,18 @@ export function summarizeVerificationPlaybook(tabs: readonly VerificationPlayboo
 	}
 }
 
-export function verificationTabsFor(
-	line: CommercialLine,
-	fasttCollects: boolean
-): VerificationTab[] {
-	return line === "lodging" ? lodgingTabs : fasttCollects ? [...tourTabs, "payments"] : tourTabs
+export function verificationTabsFor(line: CommercialLine): VerificationTab[] {
+	return line === "lodging" ? lodgingTabs : tourTabs
 }
 
 /** Document deep links take precedence over obsolete tab aliases. */
-export function resolveVerificationTab(
-	url: URL,
-	line: CommercialLine | null,
-	fasttCollects: boolean
-): VerificationTab {
+export function resolveVerificationTab(url: URL, line: CommercialLine | null): VerificationTab {
 	const type = url.searchParams.get("type")
 	const documentTab =
 		type === "government_id"
 			? "identity"
 			: type === "business_registration"
-				? line === "tour"
-					? "identity"
-					: "business"
+				? "business"
 				: type === "tax_document"
 					? "fiscal"
 					: null
@@ -203,9 +266,8 @@ export function resolveVerificationTab(
 				: type
 					? "business"
 					: "identity")
-	const normalized = candidate === "business" && line === "tour" ? "activity" : candidate
-	const tabs = line ? verificationTabsFor(line, fasttCollects) : lodgingTabs
-	return tabs.includes(normalized as VerificationTab) ? (normalized as VerificationTab) : "identity"
+	const tabs = line ? verificationTabsFor(line) : lodgingTabs
+	return tabs.includes(candidate as VerificationTab) ? (candidate as VerificationTab) : "identity"
 }
 
 /** Explicit stale selections never fall back to another experience. */
@@ -229,8 +291,8 @@ export function resolveVerificationNavigation(input: {
 	const line = lines.includes(requestedLine as CommercialLine)
 		? (requestedLine as CommercialLine)
 		: (lines[0] ?? null)
-	const tabs = line ? verificationTabsFor(line, input.fasttCollects) : lodgingTabs
-	const tab = resolveVerificationTab(input.url, line, input.fasttCollects)
+	const tabs = line ? verificationTabsFor(line) : lodgingTabs
+	const tab = resolveVerificationTab(input.url, line)
 	const requestedExperience = input.url.searchParams.get("experience")
 	const experienceId =
 		line === "tour" ? resolveVerificationExperience(requestedExperience, input.experienceIds) : null
@@ -248,7 +310,7 @@ export function verificationNavigationHref(input: {
 	const url = new URL("/provider/settings/verification", input.url)
 	const params = new URLSearchParams()
 	const line = input.line
-	const tabs = verificationTabsFor(line, input.navigation.fasttCollects)
+	const tabs = verificationTabsFor(line)
 	const remembered = input.url.searchParams.get(`${line}Tab`)
 	const requestedTab =
 		input.tab ?? (input.navigation.line === line ? input.navigation.tab : remembered)
@@ -286,14 +348,19 @@ export function copyVerificationNavigationQuery(
 	const line = source.searchParams.get("line")
 	if (line !== "lodging" && line !== "tour") return target
 	target.searchParams.set("line", line)
-	const allowed = line === "lodging" ? lodgingTabs : [...tourTabs, "payments"]
+	// Legacy entry adapters and experience evidence forms still carry their area.
+	const allowed = line === "lodging" ? lodgingTabs : [...tourTabs, "activity", "safety", "payments"]
 	const tab = source.searchParams.get("tab")
 	if (tab && allowed.includes(tab as VerificationTab)) target.searchParams.set("tab", tab)
 	for (const key of ["experience", "lodgingTab", "tourTab"]) {
 		const value = source.searchParams.get(key)
 		if (!value || value.length >= 180) continue
 		if (key === "lodgingTab" && !lodgingTabs.includes(value as VerificationTab)) continue
-		if (key === "tourTab" && ![...tourTabs, "payments"].includes(value as VerificationTab)) continue
+		if (
+			key === "tourTab" &&
+			![...tourTabs, "activity", "safety", "payments"].includes(value as VerificationTab)
+		)
+			continue
 		target.searchParams.set(key, value)
 	}
 	if (destinationTab && allowed.includes(destinationTab)) {
@@ -329,7 +396,7 @@ export function tourDocumentWorkspaceHref(input: {
 	// Without an unambiguous requirement, open Activity to select/review context,
 	// never infer a document's coverage or manufacture a safety requirement.
 	const tab = ["government_id", "business_registration", "tax_document"].includes(type)
-		? resolveVerificationTab(input.url, "tour", input.navigation.fasttCollects)
+		? resolveVerificationTab(input.url, "tour")
 		: areas.size === 1 && areas.has("safety")
 			? "safety"
 			: "activity"
@@ -340,6 +407,14 @@ export function tourDocumentWorkspaceHref(input: {
 	for (const key of ["type", "renewDocumentId", "result", "error"]) {
 		const value = input.url.searchParams.get(key)
 		if (value) target.searchParams.set(key, value)
+	}
+	if (tab === "activity" || tab === "safety") {
+		target.searchParams.set("tab", tab)
+		return input.navigation.experienceId &&
+			(input.url.searchParams.has("experience") ||
+				input.url.pathname === `/product/${encodeURIComponent(input.navigation.experienceId)}`)
+			? experienceRequirementsHref(input.navigation.experienceId, target)
+			: "/catalog/tours?scope=tour"
 	}
 	return target.pathname + target.search
 }

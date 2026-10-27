@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro"
+import { experienceRequirementsHref } from "@/lib/verification/experience-requirements-navigation"
 import { ZodError, z } from "zod"
 
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
@@ -101,7 +102,7 @@ function applyVerificationNavigationContext(target: URL, request: Request) {
 	copyVerificationNavigationQuery(target, new URL(request.url))
 }
 
-function redirectAfterSubmit(
+export function redirectAfterSubmit(
 	request: Request,
 	result: string,
 	type: string,
@@ -125,12 +126,20 @@ function redirectAfterSubmit(
 	if (isOptional && !inlineTour)
 		applyOptionalDocumentContext(target, returnToRaw, verticalRaw, scopeProductIdRaw)
 	applyVerificationNavigationContext(target, request)
+	if (inlineTour && target.searchParams.get("experience"))
+		return Response.redirect(
+			new URL(
+				experienceRequirementsHref(target.searchParams.get("experience")!, target),
+				request.url
+			),
+			303
+		)
 	// Hash is fine in Location for browsers; keep slot focus after reload.
 	if (!isOptional && type) target.hash = `kyc-slot-${type}`
 	return Response.redirect(target.toString(), 303)
 }
 
-function redirectAfterFormError(
+export function redirectAfterFormError(
 	request: Request,
 	errorCode: string,
 	type?: string,
@@ -157,6 +166,14 @@ function redirectAfterFormError(
 	if (isOptional && !inlineTour)
 		applyOptionalDocumentContext(target, returnToRaw, verticalRaw, scopeProductIdRaw)
 	applyVerificationNavigationContext(target, request)
+	if (inlineTour && target.searchParams.get("experience"))
+		return Response.redirect(
+			new URL(
+				experienceRequirementsHref(target.searchParams.get("experience")!, target),
+				request.url
+			),
+			303
+		)
 	return Response.redirect(target.toString(), 303)
 }
 

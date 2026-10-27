@@ -1,9 +1,13 @@
 ---
-import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
+import {
+	copyVerificationNavigationQuery,
+	verificationAreaReason,
+} from "@/lib/verification/navigation"
 import Card from "@/components/ui/Card.astro"
 import Button from "@/components/ui/Button.astro"
 import type { VerificationScreen } from "@/lib/verification/screen-sections"
 import type { VerificationPlaybookTab } from "@/lib/verification/navigation"
+import { experienceRequirementsHref } from "@/lib/verification/experience-requirements-navigation"
 
 type Props = {
 	screen: VerificationScreen
@@ -14,6 +18,7 @@ type Props = {
 	operationComplete?: boolean
 	missingOperationFields?: string[]
 	evaluationPending?: boolean
+	presentation?: VerificationPlaybookTab
 }
 
 const {
@@ -25,13 +30,13 @@ const {
 	operationComplete = true,
 	missingOperationFields = [],
 	evaluationPending = false,
+	presentation,
 } = Astro.props as Props
 const lineSections = screen.sections.filter(
 	(section) =>
 		section.id !== "shared" &&
 		(!line || section.id === line) &&
-		(section.items.length > 0 ||
-			(section.id === "tour" && (tourArea === "safety" || evaluationPending)))
+		(section.items.length > 0 || (section.id === "tour" && Boolean(tourArea)))
 )
 const completeOperationUrl = new URL("/provider/settings/verification", Astro.url)
 copyVerificationNavigationQuery(completeOperationUrl, Astro.url)
@@ -40,14 +45,27 @@ completeOperationUrl.searchParams.set("tab", "activity")
 completeOperationUrl.searchParams.set("tourTab", "activity")
 if (experienceId) completeOperationUrl.searchParams.set("experience", experienceId)
 completeOperationUrl.hash = "tour-operating-context"
-const safetyPending = tourArea === "safety" && operationComplete && safetyState === "not_evaluable"
+const requirementsPending =
+	operationComplete &&
+	(presentation?.uiState === "not_evaluable" ||
+		evaluationPending ||
+		(tourArea === "safety" && safetyState === "not_evaluable"))
 function contextualHref(href: string, area: "activity" | "safety" | null | undefined): string {
 	if (
 		line === "tour" &&
 		area &&
 		new URL(href, Astro.url).pathname === "/provider/settings/verification/documents"
-	)
-		return `#tour-evidence-tour-${area}`
+	) {
+		const target = new URL(completeOperationUrl)
+		target.searchParams.set("tab", area)
+		target.searchParams.set("tourTab", area)
+		const type = new URL(href, Astro.url).searchParams.get("type")
+		if (type) target.searchParams.set("type", type)
+		target.hash = `tour-evidence-tour-${area}`
+		return experienceId
+			? experienceRequirementsHref(experienceId, target).split("#")[0] + target.hash
+			: target.pathname + target.search + target.hash
+	}
 	const url = new URL(href, Astro.url)
 	if (url.pathname === "/provider/settings/verification") {
 		const destinationTab = url.searchParams.get("tab")
@@ -85,47 +103,44 @@ function contextualHref(href: string, area: "activity" | "safety" | null | undef
 									? tourArea === "safety"
 										? !operationComplete
 											? "Completa la operación de la experiencia"
-											: safetyPending
-												? "Evaluación pendiente de Fastt"
+											: requirementsPending
+												? "Requisitos por definir"
 												: safetyState === "not_applicable"
-													? "Sin respaldos adicionales requeridos"
+													? "Sin requisitos adicionales"
 													: "Respaldos de seguridad"
 										: operationComplete
 											? evaluationPending
-												? "Evaluación pendiente de Fastt"
+												? "Requisitos por definir"
 												: "Licencias aplicables"
 											: "Licencias por determinar"
 									: section.title}
 							</p>
-							<p class="mt-1 text-sm leading-6 text-slate-600">
-								{section.id === "tour"
-									? tourArea === "safety"
-										? "Según la operación declarada para esta experiencia."
-										: operationComplete
-											? "Respaldos según la operación declarada para esta experiencia."
-											: "Completa y guarda el formulario anterior para conocer los respaldos que corresponden."
-									: section.description}
-							</p>
+							{!presentation && (
+								<p class="mt-1 text-sm leading-6 text-slate-600">
+									{section.id === "tour"
+										? tourArea === "safety"
+											? "Según la operación declarada para esta experiencia."
+											: operationComplete
+												? "Respaldos según la operación declarada para esta experiencia."
+												: "Completa y guarda el formulario anterior para conocer los respaldos que corresponden."
+										: section.description}
+								</p>
+							)}
 						</div>
-						{tourArea === "activity" && operationComplete && evaluationPending ? (
+						{tourArea &&
+						(requirementsPending ||
+							!operationComplete ||
+							presentation?.uiState === "not_applicable" ||
+							(tourArea === "safety" && safetyState === "not_applicable")) ? (
 							<p class="text-sm leading-6 text-slate-600">
-								Tu operación está guardada. Fastt está determinando las licencias aplicables a esta
-								experiencia. No necesitas volver a completar estos datos ni enviar documentos
-								adicionales.
+								{presentation?.reason ??
+									verificationAreaReason(
+										requirementsPending ? "not_evaluable" : "not_applicable",
+										!operationComplete
+									)}
 							</p>
-						) : safetyPending ? (
-							<div class="space-y-3">
-								<p class="text-sm leading-6 text-slate-600">
-									Tu operación está guardada. Te indicaremos aquí los respaldos de seguridad que
-									correspondan cuando Fastt complete la evaluación.
-								</p>
-								<p class="text-sm leading-6 text-slate-600">
-									No necesitas volver a completar la operación. No envíes respaldos adicionales
-									hasta que se indiquen.
-								</p>
-							</div>
 						) : operationComplete && listed.length ? (
-							<ul class="grid gap-2 sm:grid-cols-2">
+							<ul class="divide-y divide-slate-100">
 								{listed.map((entry) => (
 									<li
 										data-verification-line-item={entry.id}
@@ -134,7 +149,7 @@ function contextualHref(href: string, area: "activity" | "safety" | null | undef
 										{entry.href ? (
 											<a
 												href={contextualHref(entry.href, entry.presentationArea)}
-												class="flex items-center justify-between gap-3 text-sm text-slate-800 underline-offset-2 hover:underline"
+												class="flex min-h-11 items-center justify-between gap-3 py-3 text-sm text-slate-800 underline-offset-2 hover:underline"
 											>
 												<span>
 													<span>{entry.label}</span>
@@ -144,7 +159,20 @@ function contextualHref(href: string, area: "activity" | "safety" | null | undef
 														</span>
 													) : null}
 												</span>
-												<span class="shrink-0 font-medium text-slate-500">{entry.stateLabel}</span>
+												<span class="shrink-0 text-right text-xs text-slate-500">
+													<span class="block">
+														{entry.state === "ready" ? "Verificado" : entry.stateLabel}
+													</span>
+													<span class="mt-1 block font-semibold text-slate-800">
+														{entry.state === "ready"
+															? "Ver detalle"
+															: entry.state === "in_review"
+																? "Ver seguimiento"
+																: entry.state === "not_started"
+																	? "Subir documento"
+																	: "Revisar respaldo"}
+													</span>
+												</span>
 											</a>
 										) : (
 											<span class="flex items-center justify-between gap-3 text-sm text-slate-800">

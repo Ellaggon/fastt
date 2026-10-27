@@ -7,73 +7,37 @@ import { buildRequiredKycSlots } from "@/lib/provider-documents"
 import Nav from "@/components/provider/ProviderVerificationBusinessNav.astro"
 import { resolveVerificationNavigation } from "@/lib/verification/navigation"
 
-it("keeps an invalid explicit experience empty and provides a recovery selection", async () => {
-	const url = new URL(
-		"https://fastt.test/provider/settings/verification?line=tour&tab=activity&experience=foreign&returnTo=%2Fproduct%2Fa%2Fpreview"
-	)
+it("keeps experience selection out of business verification", async () => {
+	const url = new URL("https://fastt.test/provider/settings/verification?line=tour&experience=a")
 	const navigation = resolveVerificationNavigation({
 		url,
 		lines: ["tour"],
-		experienceIds: ["mine"],
+		experienceIds: ["a", "b"],
 		fasttCollects: false,
 	})
 	const container = await AstroContainer.create()
 	const html = await container.renderToString(Nav, {
-		props: { url, navigation, products: [{ id: "mine", name: "Mi tour" }] },
-	})
-	expect(html).toContain("La experiencia del enlace no está disponible")
-	expect(html).toContain("Experiencias para revisar")
-	expect(html).not.toContain("data-verification-experience-selector")
-	expect(html).toMatch(/Revisar\s+actividad y licencias/)
-	expect(html).toContain("returnTo=%2Fproduct%2Fa%2Fpreview")
-})
-
-for (const tab of ["identity", "fiscal", "activity", "safety"] as const) {
-	it(`shows experience controls only in scoped areas: ${tab}`, async () => {
-		const url = new URL(
-			`https://fastt.test/provider/settings/verification?line=tour&tab=${tab}&experience=a&returnTo=%2Fproduct%2Fa%2Fpreview`
-		)
-		const navigation = resolveVerificationNavigation({
+		props: {
 			url,
-			lines: ["tour"],
-			experienceIds: ["a", "b"],
-			fasttCollects: false,
-		})
-		const container = await AstroContainer.create()
-		const html = await container.renderToString(Nav, {
-			props: {
-				url,
-				navigation,
-				playbook: [
-					{
-						id: tab,
-						label: tab,
-						href: url.pathname + url.search,
-						uiState: "action_needed",
-						stateLabel: "Completar",
-					},
-				],
-				products: [
-					{ id: "a", name: "Tour A" },
-					{ id: "b", name: "Tour B" },
-				],
-			},
-		})
-		if (tab === "identity" || tab === "fiscal") {
-			expect(html).toContain("data-verification-experience-selector")
-			expect(html).toMatch(/data-verification-experience-context[^>]*hidden/)
-			expect(html).not.toContain("data-verification-shared-scope")
-			expect(html).not.toContain("Volver a la experiencia")
-		} else {
-			expect(html.indexOf("data-verification-tab-nav")).toBeLessThan(
-				html.indexOf("data-verification-experience-context")
-			)
-			expect(html).toContain("Experiencia que estás revisando")
-			expect(html).toContain("Cambiar experiencia")
-			expect(html).toContain('name="returnTo" value="/product/a/preview"')
-		}
+			navigation,
+			products: [{ id: "a", name: "Tour A" }],
+			playbook: navigation.tabs.map((id) => ({
+				id,
+				label: id,
+				href: "?tab=" + id,
+				uiState: "ready",
+				stateLabel: "Verificado",
+			})),
+		},
 	})
-}
+	expect(html).not.toContain("data-verification-experience-selector")
+	expect(html).not.toContain("data-verification-experience-context")
+	expect(html).toContain('data-verification-tab-link="identity"')
+	expect(html).toContain('data-verification-tab-link="business"')
+	expect(html).toContain('data-verification-tab-link="fiscal"')
+	expect(html).not.toContain('data-verification-tab-link="activity"')
+	expect(html).not.toContain('data-verification-tab-link="safety"')
+})
 
 it("does not render an offer return in the general navigation", async () => {
 	const origin = "/rates/plans/a?productId=p&variantId=v&ratePlanId=a"

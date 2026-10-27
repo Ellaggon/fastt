@@ -41,6 +41,9 @@ it("places a synthetic safety licence and its correction link in Safety only", a
 		props: { screen, line: "tour", tourArea: "activity", experienceId: "a" },
 	})
 	expect(safety).toContain("Respaldo de seguridad de prueba")
-	expect(safety).toContain('href="#tour-evidence-tour-safety"')
+	expect(safety).toContain(
+		"type=operating_license%3A%3Atest.safety-permit#tour-evidence-tour-safety"
+	)
+	expect(safety).toContain("/product/a?type=")
 	expect(activity).not.toContain("Respaldo de seguridad de prueba")
 })

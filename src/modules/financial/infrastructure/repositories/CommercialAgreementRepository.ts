@@ -499,7 +499,11 @@ export async function commercialAgreementStatus(providerId: string) {
 				collectionModel: line?.collectionModel ?? "undecided",
 			}),
 		}))
-		return states.find((row) => row.state === "active") ?? pendingState ?? states[0]
+		const acceptedAgreement = states.find((row) => row.state === "active") ?? states[0]
+		return {
+			...(states.find((row) => row.state === "active") ?? pendingState ?? states[0]),
+			acceptedAgreement,
+		}
 	})
 }
 

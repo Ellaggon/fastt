@@ -6,6 +6,7 @@ const SETTINGS_TAB_PATHS = new Set([
 
 /** @type {Map<string, Promise<{ title: string; header: string; panel: string }>>} */
 const tabPayloadCache = new Map()
+let navigationRevision = 0
 
 function normalizePath(pathname) {
 	return String(pathname ?? "").replace(/\/$/, "") || "/"
@@ -87,10 +88,6 @@ function prefersReducedMotion() {
 	return window.matchMedia("(prefers-reduced-motion: reduce)").matches
 }
 
-function waitMs(ms) {
-	return new Promise((resolve) => window.setTimeout(resolve, ms))
-}
-
 function preserveSettingsScrollPosition(scrollX, scrollY) {
 	window.requestAnimationFrame(() => {
 		window.requestAnimationFrame(() => {
@@ -99,12 +96,12 @@ function preserveSettingsScrollPosition(scrollX, scrollY) {
 	})
 }
 
-const SETTINGS_HEADER_LEAVE_MS = 280
-const SETTINGS_PANEL_LEAVE_MS = 320
-const SETTINGS_ENTER_MS = 420
+export function settingsTabCacheKey(href) {
+	const url = settingsTabUrl(href)
+	return url ? `${normalizePath(url.pathname)}${url.search}` : null
+}
 
-async function fetchTabPayload(pathname) {
-	const path = normalizePath(pathname)
+async function fetchTabPayload(path) {
 	const response = await fetch(path, {
 		credentials: "same-origin",
 		headers: { Accept: "text/html" },
@@ -118,7 +115,8 @@ async function fetchTabPayload(pathname) {
 }
 
 function loadTabPayload(pathname, { force = false } = {}) {
-	const path = normalizePath(pathname)
+	const path = settingsTabCacheKey(pathname)
+	if (!path) return Promise.reject(new Error("settings_tab_invalid_path"))
 	if (!force) {
 		const existing = tabPayloadCache.get(path)
 		if (existing) return existing
@@ -136,18 +134,19 @@ function loadTabPayload(pathname, { force = false } = {}) {
 	return pending
 }
 
-function syncSettingsSubnavActive() {
+export function syncSettingsSubnavActive() {
 	const path = normalizePath(window.location.pathname)
-	document.querySelectorAll("a[data-provider-settings-nav]").forEach((node) => {
+	document.querySelectorAll("a[data-provider-settings-tab]").forEach((node) => {
 		if (!(node instanceof HTMLAnchorElement)) return
 		const hrefPath = normalizePath(new URL(node.href, window.location.href).pathname)
 		const active = hrefPath === path
-		node.toggleAttribute("aria-current", active)
+		if (active) node.setAttribute("aria-current", "page")
+		else node.removeAttribute("aria-current")
 		node.dataset.active = active ? "true" : "false"
 	})
 }
 
-async function applyTabPayload(payload, destination) {
+async function applyTabPayload(payload, destination, { pushHistory = true } = {}) {
 	const root = settingsShellRoot()
 	if (!root) return false
 	const header = shellHeader(root)
@@ -162,12 +161,6 @@ async function applyTabPayload(payload, destination) {
 	const scrollY = window.scrollY
 	const motion = !prefersReducedMotion()
 
-	if (motion) {
-		header.setAttribute("data-settings-header-leaving", "true")
-		panel.setAttribute("data-settings-panel-leaving", "true")
-		await waitMs(Math.max(SETTINGS_HEADER_LEAVE_MS, SETTINGS_PANEL_LEAVE_MS))
-	}
-
 	header.replaceWith(nextHeader)
 	panel.replaceWith(nextPanel)
 
@@ -176,16 +169,16 @@ async function applyTabPayload(payload, destination) {
 	const newPanel = rootAfter?.querySelector("[data-provider-settings-panel]") ?? null
 
 	if (motion && newHeader && newPanel) {
-		newHeader.setAttribute("data-settings-header-entering", "true")
 		newPanel.setAttribute("data-settings-panel-entering", "true")
-		await waitMs(16)
-		newHeader.removeAttribute("data-settings-header-entering")
-		newPanel.removeAttribute("data-settings-panel-entering")
-		await waitMs(SETTINGS_ENTER_MS)
+		newPanel.addEventListener(
+			"animationend",
+			() => newPanel.removeAttribute("data-settings-panel-entering"),
+			{ once: true }
+		)
 	}
 
 	document.title = payload.title
-	window.history.pushState({ providerSettingsTab: destination }, "", destination)
+	if (pushHistory) window.history.pushState({ providerSettingsTab: destination }, "", destination)
 	syncSettingsSubnavActive()
 	hideSettingsPending()
 	preserveSettingsScrollPosition(scrollX, scrollY)
@@ -197,18 +190,22 @@ async function navigateSettingsTab(href) {
 	const url = settingsTabUrl(href)
 	if (!url) return
 	const destination = `${url.pathname}${url.search}${url.hash}`
-	if (normalizePath(url.pathname) === normalizePath(window.location.pathname)) return
+	if (destination === `${window.location.pathname}${window.location.search}${window.location.hash}`)
+		return
+	const revision = ++navigationRevision
 
 	showSettingsPending()
 	try {
 		let payload
 		try {
-			payload = await loadTabPayload(url.pathname)
+			payload = await loadTabPayload(url.pathname + url.search)
 		} catch {
-			payload = await loadTabPayload(url.pathname, { force: true })
+			payload = await loadTabPayload(url.pathname + url.search, { force: true })
 		}
+		if (revision !== navigationRevision) return
 		if (!(await applyTabPayload(payload, destination))) throw new Error("settings_tab_apply_failed")
 	} catch {
+		if (revision !== navigationRevision) return
 		hideSettingsPending()
 		try {
 			const { navigate } = await import("astro:transitions/client")
@@ -223,7 +220,6 @@ function warmSettingsTabCache() {
 	for (const path of SETTINGS_TAB_PATHS) {
 		if (normalizePath(path) === normalizePath(window.location.pathname)) continue
 		loadTabPayload(path).catch(() => {})
-		import("astro:transitions/client").then(({ prefetch }) => prefetch(path)).catch(() => {})
 	}
 }
 
@@ -275,16 +271,28 @@ function bindSettingsNav() {
 	)
 
 	window.addEventListener("popstate", () => {
-		if (!isSettingsHubTabPath(window.location.pathname)) return
+		if (
+			!isSettingsHubTabPath(window.location.pathname) ||
+			!window.history.state?.providerSettingsTab
+		)
+			return
+		const revision = ++navigationRevision
 		const destination = `${window.location.pathname}${window.location.search}${window.location.hash}`
 		showSettingsPending()
-		loadTabPayload(window.location.pathname, { force: true })
+		loadTabPayload(window.location.pathname + window.location.search, { force: true })
 			.then(async (payload) => {
-				if (!(await applyTabPayload(payload, destination))) throw new Error("popstate_apply_failed")
+				if (revision !== navigationRevision) return
+				if (!(await applyTabPayload(payload, destination, { pushHistory: false })))
+					throw new Error("popstate_apply_failed")
 			})
 			.catch(() => {
+				if (revision !== navigationRevision) return
 				window.location.reload()
 			})
+	})
+	document.addEventListener("fastt:before-history-navigation", (event) => {
+		if (isSettingsHubTabPath(window.location.pathname) && window.history.state?.providerSettingsTab)
+			event.preventDefault()
 	})
 }
 
@@ -296,7 +304,11 @@ function drainSettingsNavQueue() {
 }
 
 export function bootProviderSettingsNav() {
-	if (!isSettingsHubTabPath(window.location.pathname)) return
+	if (
+		!isSettingsHubTabPath(window.location.pathname) &&
+		normalizePath(window.location.pathname) !== "/provider/settings/payments"
+	)
+		return
 	window.__fasttNavigateSettingsTab = (href) => {
 		void navigateSettingsTab(href)
 	}
@@ -311,6 +323,13 @@ window.__fasttNavigateSettingsTab = (href) => {
 	void navigateSettingsTab(href)
 }
 
-document.addEventListener("astro:page-load", bootProviderSettingsNav)
+document.addEventListener("astro:before-preparation", () => {
+	navigationRevision++
+})
+document.addEventListener("astro:page-load", () => {
+	navigationRevision++
+	tabPayloadCache.clear()
+	bootProviderSettingsNav()
+})
 bootProviderSettingsNav()
 drainSettingsNavQueue()

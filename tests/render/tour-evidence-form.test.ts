@@ -23,6 +23,36 @@ async function render(
 	})
 }
 describe("requirement-specific tour evidence", () => {
+	it.each(["ready", "in_review"])(
+		"does not invite resubmission of a requirement that is %s",
+		async (state) => {
+			const container = await AstroContainer.create()
+			const html = await container.renderToString(Evidence, {
+				props: {
+					surface: "tour-safety",
+					canManageDocuments: true,
+					scopeProductId: "tour-a",
+					documentTypes: [{ value: "insurance::tour.insurance", label: "Seguro" }],
+					requirementStates: { "tour.insurance": state },
+				},
+			})
+			expect(html).not.toContain("data-optional-upload-form")
+		}
+	)
+	it("keeps the correction editor available for an unmet requirement", async () => {
+		const container = await AstroContainer.create()
+		const html = await container.renderToString(Evidence, {
+			props: {
+				surface: "tour-safety",
+				canManageDocuments: true,
+				scopeProductId: "tour-a",
+				documentTypes: [{ value: "insurance::tour.insurance", label: "Seguro" }],
+				requirementStates: { "tour.insurance": "action_needed" },
+			},
+		})
+		expect(html).toContain("data-optional-upload-form")
+		expect(html).toContain("data-evidence-editor")
+	})
 	it("identifies a personal credential through a named registered guide", async () => {
 		const html = await render("operating_license::tour.guide_credential")
 		expect(html).toContain("Guía titular de la credencial")

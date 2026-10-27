@@ -4,7 +4,6 @@ import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 import Textarea from "@/components/ui/Textarea.astro"
-import { routes } from "@/lib/routes"
 import { experienceJourneyPresentation } from "@/lib/tours/experienceFormatPresentation"
 import { TOUR_DIFFICULTY_OPTIONS, normalizeTourDifficulty } from "@/lib/tours/tourDifficulty"
 import { experienceDurationLabel } from "@/shared/domain/experience-duration"
@@ -284,7 +283,7 @@ const selectedDifficulty = normalizeTourDifficulty(tourSubtype?.difficultyLevel)
 		El papel operativo, el territorio y las actividades se editan en
 		<a
 			class="font-medium text-slate-300 underline underline-offset-2"
-			href={`${routes.providerSettingsVerification()}?line=tour&tab=activity&experience=${encodeURIComponent(productId)}#tour-operating-context`}
+			href={`/product/${encodeURIComponent(productId)}#experience-requirements`}
 			target="_blank"
 			rel="noopener noreferrer"
 		>

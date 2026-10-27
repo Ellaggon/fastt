@@ -148,7 +148,7 @@ describe("S6-4 Hub density — one job above fold with blocker", () => {
 	it("keeps the checklist visible by default without operational diagnostics", () => {
 		const page = read("src/pages/provider/settings/index.astro")
 		const detailCount = page.match(/<details\b/g)?.length || 0
-		const checklistIndex = page.indexOf('data-settings-estado-min')
+		const checklistIndex = page.indexOf("data-settings-estado-min")
 
 		expect(detailCount).toBeLessThanOrEqual(1)
 		expect(page).toContain("Pendientes")
@@ -171,9 +171,12 @@ describe("S6-4 Hub density — one job above fold with blocker", () => {
 		expect(layout).not.toContain('transition:name="provider-settings-panel"')
 		expect(layout).toContain("data-provider-settings-panel")
 		expect(settingsNav).toContain("__fasttNavigateSettingsTab")
-		expect(settingsNav).toContain("data-settings-panel-leaving")
+		expect(settingsNav).not.toContain("await waitMs")
+		expect(settingsNav).toContain("data-settings-panel-entering")
 		expect(layout).toContain("provider-settings-panel-stage")
-		expect(layout).toContain("0.42s cubic-bezier(0.4, 0, 0.2, 1)")
+		expect(layout).toContain("settings-panel-enter 160ms ease-out")
+		expect(subnav).not.toContain("data-astro-reload")
+		expect(subnav).toContain('data-astro-prefetch="hover"')
 		expect(settingsNav).toContain("/provider/settings/profile")
 		expect(settingsNav).toContain("syncSettingsSubnavActive")
 		expect(settingsNav).toContain("data-provider-settings-shell")

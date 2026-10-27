@@ -1,17 +1,11 @@
 ---
 import Badge from "@/components/ui/Badge.astro"
-import Button from "@/components/ui/Button.astro"
-import Card from "@/components/ui/Card.astro"
-import Select from "@/components/ui/Select.astro"
 import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
-import { safeVerificationReturn } from "@/lib/auth/returnTo"
 import type { ProviderTrustLink } from "@/lib/provider-trust-map"
-import { TRUST_GLOSSARY } from "@/lib/provider-trust-map"
-import { experiencePublicPresentation } from "@/lib/tours/experienceFormatPresentation"
 import type { VerificationNavigation, VerificationPlaybookTab } from "@/lib/verification/navigation"
 import { verificationNavigationHref, verificationTabLabel } from "@/lib/verification/navigation"
 import {
-	ChevronRight,
+	BriefcaseBusiness,
 	CircleDollarSign,
 	Compass,
 	LifeBuoy,
@@ -27,11 +21,10 @@ type Props = {
 	trustLinks?: ProviderTrustLink[]
 }
 
-const { navigation, url, products, playbook = [], trustLinks = [] } = Astro.props as Props
-const returnTo = safeVerificationReturn(url.searchParams.get("returnTo"))
+const { navigation, url, playbook = [], trustLinks = [] } = Astro.props as Props
 const navigationPlaybook: VerificationPlaybookTab[] =
 	navigation.line === "tour"
-		? playbook
+		? playbook.filter((tab) => navigation.tabs.includes(tab.id))
 		: navigation.tabs.map((tab) => {
 				const link = trustLinks.find((entry) => entry.id === tab)
 				return {
@@ -48,7 +41,7 @@ const iconByTab = {
 	safety: LifeBuoy,
 	fiscal: ReceiptText,
 	payments: CircleDollarSign,
-	business: ShieldCheck,
+	business: BriefcaseBusiness,
 } as const
 const statusBadgeByState = {
 	ready: "darkSuccess",
@@ -60,18 +53,8 @@ const statusBadgeByState = {
 	not_evaluable: "darkNeutral",
 	not_applicable: "darkNeutral",
 } as const
-const playbookComplete =
-	navigationPlaybook.length > 0 &&
-	navigationPlaybook.every((tab) => tab.uiState === "ready" || tab.uiState === "not_applicable")
 const lineLabels = { lodging: "Alojamientos", tour: "Experiencias" } as const
 const currentLine = navigation.line
-const selectedFormatLabel = experiencePublicPresentation(
-	products.find((product) => product.id === navigation.experienceId)?.experienceFormat
-).formatLabel
-/** Licencias y seguro dependen de la experiencia; identidad y fiscal son de cuenta. */
-const experienceScopedTab = navigation.tab === "activity" || navigation.tab === "safety"
-const showExperienceSelector =
-	currentLine === "tour" && Boolean(navigation.experienceId) && products.length > 1
 ---
 
 <div class="space-y-4" data-verification-business-nav>
@@ -103,13 +86,10 @@ const showExperienceSelector =
 	{
 		currentLine && navigationPlaybook.length ? (
 			<div data-verification-tab-nav data-verification-tour-playbook>
-				{playbookComplete ? (
-					<div class="mb-1.5 flex flex-wrap items-center justify-end gap-2">
-						<Badge variant="success">{TRUST_GLOSSARY.page.railComplete}</Badge>
-					</div>
-				) : null}
 				<TabsInsidePanel
-					aria-label={`Verificación de ${lineLabels[currentLine].toLowerCase()}`}
+					aria-label={
+						currentLine === "tour" ? "Verificación del negocio" : "Verificación del alojamiento"
+					}
 					class="max-w-full flex-nowrap"
 				>
 					{navigationPlaybook.map((tab) => {
@@ -124,8 +104,10 @@ const showExperienceSelector =
 								data-active={active ? "true" : "false"}
 								class="fastt-tabs-inside-panel__item"
 							>
-								<Icon class="h-4 w-4 shrink-0" aria-hidden="true" />
-								<span class="fastt-tabs-inside-panel__label">{tab.label}</span>
+								<span class="flex items-center gap-2">
+									<Icon class="h-4 w-4 shrink-0" aria-hidden="true" />
+									<span class="fastt-tabs-inside-panel__label">{tab.label}</span>
+								</span>
 								<Badge
 									variant={statusBadgeByState[tab.uiState]}
 									class="fastt-tabs-inside-panel__status"
@@ -142,122 +124,15 @@ const showExperienceSelector =
 			</div>
 		) : null
 	}
-
-	{
-		currentLine === "tour" ? (
-			<div
-				class="fastt-card space-y-4 border border-slate-200 bg-white p-5 text-slate-900 sm:p-6"
-				data-verification-experience-context
-				hidden={!experienceScopedTab}
-			>
-				{currentLine === "tour" && !navigation.experienceId ? (
-					<p role="status" class="text-base font-semibold text-slate-900">
-						{url.searchParams.has("experience")
-							? "La experiencia del enlace no está disponible en este negocio. Selecciona una experiencia para continuar."
-							: products.length
-								? "Selecciona una experiencia."
-								: "Crea una experiencia para verificar su operación y seguridad."}
-					</p>
-				) : null}
-				{currentLine === "tour" && !navigation.experienceId && products.length > 0 ? (
-					<section
-						class="space-y-4"
-						aria-label="Experiencias para revisar"
-						data-verification-experience-overview
-					>
-						<p class="text-sm text-slate-600" data-verification-experience-prompt>
-							{navigation.tab === "safety"
-								? "Elige la experiencia para revisar sus respaldos de seguridad."
-								: "Elige la experiencia para revisar sus datos de operación y licencias."}
-						</p>
-						<ul class="grid gap-3 sm:grid-cols-2">
-							{products.map((product) => (
-								<li>
-									<Card
-										variant="plain"
-										className="bg-slate-50/60 p-0 transition-colors hover:border-slate-400 hover:bg-white hover:shadow-sm"
-									>
-										<a
-											class="block px-4 py-4 text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
-											href={verificationNavigationHref({
-												url,
-												navigation,
-												line: "tour",
-												tab: navigation.tab,
-												experienceId: product.id,
-											})}
-										>
-											<span class="block font-semibold">
-												{product.name || "Experiencia sin nombre"}
-											</span>
-											<span class="mt-2 flex items-center justify-between gap-3 text-sm text-slate-600">
-												<span data-verification-experience-action>
-													Revisar{" "}
-													{navigation.tab === "safety"
-														? "seguridad y permisos"
-														: "actividad y licencias"}
-												</span>
-												<ChevronRight class="h-4 w-4 shrink-0" aria-hidden="true" />
-											</span>
-										</a>
-									</Card>
-								</li>
-							))}
-						</ul>
-					</section>
-				) : null}
-				{currentLine === "tour" && navigation.experienceId && products.length === 1 ? (
-					<p class="text-sm text-slate-600">
-						Experiencia que estás revisando:{" "}
-						<strong class="text-slate-900">{products[0]?.name || "Experiencia sin nombre"}</strong>
-					</p>
-				) : null}
-				{showExperienceSelector && products.length > 0 ? (
-					<form
-						method="get"
-						action="/provider/settings/verification"
-						class="flex flex-col gap-3"
-						data-verification-experience-selector
-					>
-						<input type="hidden" name="line" value="tour" />
-						{returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
-						<input type="hidden" name="tab" value={navigation.tab} />
-						<input type="hidden" name="tourTab" value={navigation.tab} />
-						{url.searchParams.get("lodgingTab") ? (
-							<input type="hidden" name="lodgingTab" value={url.searchParams.get("lodgingTab")} />
-						) : null}
-						<div class="space-y-2">
-							<label
-								for="verification-experience-select"
-								class="block text-sm font-semibold text-slate-700"
-							>
-								Experiencia que estás revisando
-							</label>
-							<div class="flex items-center gap-3">
-								<Select
-									id="verification-experience-select"
-									name="experience"
-									required
-									class="min-w-0 flex-1"
-								>
-									<option value="" disabled selected={!navigation.experienceId}>
-										Selecciona una experiencia
-									</option>
-									{products.map((product) => (
-										<option value={product.id} selected={product.id === navigation.experienceId}>
-											{product.name || "Experiencia sin nombre"}
-										</option>
-									))}
-								</Select>
-								<Button type="submit" variant="secondary" size="lg" class="shrink-0">
-									Cambiar experiencia
-								</Button>
-							</div>
-						</div>
-					</form>
-				) : null}
-				{selectedFormatLabel ? <p class="text-sm text-slate-500">{selectedFormatLabel}</p> : null}
-			</div>
-		) : null
-	}
 </div>
+
+<style is:global>
+	[data-verification-tab-nav] .fastt-tabs-inside-panel__item {
+		flex-direction: row;
+		align-items: center;
+		gap: 0.625rem;
+	}
+	[data-verification-tab-nav] .fastt-tabs-inside-panel__status {
+		margin-left: 0.125rem;
+	}
+</style>

@@ -79,7 +79,9 @@ export function buildTourDiagnostic(input: {
 		const observation = observations[id]
 		const href =
 			definition.axis === "authorization"
-				? `/provider/settings/verification?line=tour&experience=${encodeURIComponent(productId)}`
+				? id === "experience_authorization"
+					? `/product/${encodeURIComponent(productId)}#experience-requirements`
+					: `/provider/settings/verification?line=tour`
 				: completeToPublishStepHref(
 						productId,
 						TOUR_REQUIREMENT_PRESENTATION[id].section,
@@ -113,7 +115,11 @@ export function buildTourDiagnostic(input: {
 				}
 		if (definition.axis === "authorization" && "action" in result) {
 			const target = new URL(result.action.href, "http://fastt.local")
-			if (target.pathname.startsWith("/provider/settings/verification")) {
+			if (
+				target.pathname.startsWith("/provider/settings/verification") ||
+				(target.pathname === `/product/${encodeURIComponent(productId)}` &&
+					target.hash === "#experience-requirements")
+			) {
 				target.searchParams.set("line", "tour")
 				target.searchParams.set("experience", productId)
 				target.searchParams.set(

@@ -7,8 +7,6 @@ import {
 	assertNoLegacyPendingLabel,
 	buildProviderTrustMap,
 	buildVerificationPageGuidance,
-	formatVerificationProgressBreakdownLine,
-	formatVerificationProgressTotalLine,
 	labelAccountVerificationStatus,
 	labelDocumentKycState,
 	labelMatrixCheckState,
@@ -84,16 +82,6 @@ describe("V0 trust map IA + glossary (cuenta vs docs)", () => {
 			fiscalStatus: "not_configured",
 			verifiedPaymentAccounts: 0,
 		})
-		expect(formatVerificationProgressTotalLine(0, 4)).toBe("0 de 4 requisitos listos")
-		expect(
-			formatVerificationProgressBreakdownLine({
-				readyCount: 0,
-				inReviewCount: 1,
-				actionRequiredCount: 1,
-				notStartedCount: 2,
-			})
-		).toBe("0 listos · 1 en revisión · 1 por completar · 2 sin iniciar")
-
 		const progress = summarizeProviderTrustProgress(links)
 
 		expect(progress).toEqual({
@@ -166,7 +154,7 @@ describe("V0 trust map IA + glossary (cuenta vs docs)", () => {
 		expect(page).toContain("buildProviderTrustMap")
 		expect(page).toContain("buildVerificationPageGuidance")
 		expect(page).toContain("buildVerificationPageGuidanceByTab")
-		expect(page).toContain("description={pageGuidance}")
+		expect(page).toContain("verificationSummary={operationalSummary}")
 
 		expect(rail).toContain("data-trust-map-rail")
 		expect(rail).toContain("data-trust-link")
@@ -192,10 +180,10 @@ describe("V0 trust map IA + glossary (cuenta vs docs)", () => {
 		expect(rail).not.toContain("data-trust-link-next-action")
 		expect(rail).not.toContain("Siguiente")
 		expect(rail).not.toContain("data-trust-map-parallel-work")
-		expect(read("src/components/provider/ProviderVerificationWorkspace.astro")).toContain(
+		expect(read("src/components/provider/ProviderVerificationWorkspace.astro")).not.toContain(
 			"data-trust-map-parallel-work"
 		)
-		expect(read("src/components/provider/ProviderVerificationWorkspace.astro")).toContain(
+		expect(read("src/components/provider/ProviderVerificationWorkspace.astro")).not.toContain(
 			"por permisos o"
 		)
 		expect(rail).toContain('data-active={active ? "true" : "false"}')
@@ -221,7 +209,9 @@ describe("V0 trust map IA + glossary (cuenta vs docs)", () => {
 		expect(view).toContain("enviados")
 
 		expect(card).toContain("TRUST_GLOSSARY.page.deferOtherSlot")
-		expect(card).toContain('id="kyc-slots"')
+		expect(card).toContain(
+			'id={elevated && focusSlot ? `kyc-slots-${focusSlot.type}` : "kyc-slots"}'
+		)
 		expect(card).not.toContain("Pendiente — termina primero")
 	})
 })

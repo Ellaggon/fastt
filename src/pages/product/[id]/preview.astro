@@ -77,10 +77,10 @@ const vertical = getProductVerticalEntry(aggregate.productType)
 const isHotel = vertical.vertical === "hotel"
 const isTour = vertical.vertical === "tour"
 const verificationHref = isTour
-	? `${routes.providerSettingsVerification()}?line=tour&tab=activity&experience=${encodeURIComponent(productId)}`
+	? `/product/${encodeURIComponent(productId)}#experience-requirements`
 	: `${routes.providerSettingsVerification()}?line=lodging&tab=identity`
 const verificationDocumentsHref = isTour
-	? `${routes.providerSettingsVerificationDocuments()}?line=tour&tab=activity&experience=${encodeURIComponent(productId)}`
+	? `/product/${encodeURIComponent(productId)}#experience-requirements`
 	: routes.providerSettingsVerificationDocuments()
 const publicDetailHref = vertical.routes.publicDetailHref(productId)
 const tourCommercialContext = isTour

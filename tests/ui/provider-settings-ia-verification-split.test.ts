@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
 import { readVerificationSurface } from "./read-verification-surface"
+import { resolveProviderNavigationSelection } from "@/lib/dashboard/providerNavigationSelection"
 
 const root = new URL("../../", import.meta.url)
 
@@ -36,19 +37,22 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 		expect(layout).toContain("showSettingsTabs")
 		expect(layout).toContain("showSettingsTabs ? <ProviderSettingsSubnav /> : null")
 		expect(layout).toContain("<ProviderSettingsSubnav")
-		expect(layout).toContain("data-verification-wizard-progress")
-		expect(layout).toContain("formatVerificationProgressTotalLine")
-		expect(layout).toContain("formatVerificationProgressBreakdownLine")
+		expect(layout).toContain("data-verification-operational-summary")
+		expect(layout).toContain("sm:flex-row sm:items-center sm:justify-between")
+		expect(layout).not.toContain("Sin acciones pendientes para ti en esta sección.")
+		expect(layout).toContain("!(isVerificationPage && verificationSummary)")
+		expect(layout).not.toContain("data-verification-wizard-progress")
 		expect(layout).not.toContain("ProviderVerificationProgressSummary")
-		expect(layout).toContain("aria-valuenow={rawPercent}")
+		expect(layout).not.toContain('role="progressbar"')
+		expect(layout).toContain('import ProgressBar from "@/components/ui/ProgressBar.astro"')
+		expect(layout).toContain("data-verification-completion-progress")
+		expect(layout).toContain("value={verificationProgress.completed}")
+		expect(layout).toContain("max={verificationProgress.total}")
 		expect(layout).not.toContain("stepPositionPercent")
 		expect(layout).not.toContain("Math.max(rawPercent")
 		expect(layout).toContain("verificationPageGuidanceByTab")
-		expect(layout).toContain("bg-slate-800")
-		expect(layout).toContain('class="mb-5 space-y-2"')
 		expect(verification).toContain("showSettingsTabs={false}")
-		expect(verification).toContain("readyCount=")
-		expect(verification).toContain("totalCount={showWizardProgress ? totalCount : null}")
+		expect(verification).toContain("verificationSummary={operationalSummary}")
 		expect(verification).not.toContain("nextActionId={showWizardProgress ? nextActionId : null}")
 		expect(optionals).toContain("showSettingsTabs={false}")
 		expect(fiscalVerification).toContain("showSettingsTabs={false}")
@@ -68,21 +72,24 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 		expect(workspace).not.toContain("wizardStepNumber")
 	})
 
-	it("shows animated progress label and tab guidance in the header", () => {
+	it("shows a stable operational summary and preserves local tab guidance", () => {
 		const layout = read("src/layouts/ProviderSettingsLayout.astro")
 		const lib = read("src/lib/provider-trust-map.ts")
 		const verification = readVerificationSurface("src/pages/provider/settings/verification.astro")
 
-		expect(layout).toContain("verification-wizard-progress-label--alternate")
-		expect(layout).toContain("data-verification-wizard-progress-label")
+		expect(layout).not.toContain("verification-wizard-progress-label--alternate")
+		expect(layout).toContain("data-verification-operational-summary")
 		expect(layout).not.toContain("Resumen de verificación")
 
 		expect(lib).toContain("buildVerificationPageGuidance")
-		expect(lib).toContain("formatVerificationProgressBreakdownLine")
+		expect(lib).not.toContain("formatVerificationProgressBreakdownLine")
 		expect(verification).toContain("buildVerificationPageGuidanceByTab")
 		expect(verification).toContain("verificationPageGuidanceByTab=")
 		expect(verification).toContain("pageGuidanceByTab[activeSectionId")
 		expect(verification).toContain('model.navigation?.line === "tour"')
+		expect(read("src/components/provider/ProviderVerificationBusinessNav.astro")).not.toContain(
+			"Se aplica al negocio y se comparte entre sus experiencias."
+		)
 
 		const panels = read("src/pages/provider/settings/_client/verification-trust-panels.js")
 		const workspace = read("src/components/provider/ProviderVerificationWorkspace.astro")
@@ -95,10 +102,13 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 
 	it("keeps the accessible tour identity panel aligned with its tab state", () => {
 		const workspace = read("src/components/provider/ProviderVerificationWorkspace.astro")
-		expect(workspace).toContain('selectedLine === "tour" && id === "identity"')
+		expect(workspace).toContain(
+			'selectedLine === "tour" ? tourPlaybook.find((tab) => tab.id === id)'
+		)
 		expect(workspace).toContain("tourTab.label}. Estado: ${tourTab.stateLabel}")
-		expect(workspace).toContain("data-verification-account-review")
-		expect(workspace).toContain("estar en revisión no los marca como listos")
+		const business = read("src/components/provider/ProviderTourBusinessVerification.astro")
+		expect(business).toContain("data-verification-account-review")
+		expect(business).toContain("Los documentos conservan su propio resultado")
 	})
 
 	it("stacks verification sections with explicit gap (not display:contents)", () => {
@@ -111,10 +121,16 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 	})
 
 	it("sidebar activates only the longest matching href (Verificación vs Configuración)", () => {
-		const sidebar = read("src/components/dashboard/DashboardSidebar.astro")
-		expect(sidebar).toContain("Longest matching href wins")
-		expect(sidebar).toContain("hrefPath(item.href) === hrefPath(activeHref)")
-		expect(sidebar).not.toContain("item.href === activeHref || isActive(item.href)")
+		expect(
+			resolveProviderNavigationSelection({
+				path: "/provider/settings/verification",
+				vertical: null,
+				items: [
+					{ id: "settings", href: "/provider/settings" },
+					{ id: "route:/provider/settings/verification", href: "/provider/settings/verification" },
+				],
+			})
+		).toBe("route:/provider/settings/verification")
 	})
 
 	it("aligns sidebar Configuración section labels with tabs vocabulary", () => {

@@ -82,4 +82,8 @@ test("workspace subnavigation uses the Calendar/iCal standard from one component
 	expect(verification).toContain("fastt-tabs-inside-panel__status")
 	expect(verification).toContain("statusBadgeByState")
 	expect(verification).toContain("link.stateLabel")
+
+	const businessVerification = read("src/components/provider/ProviderVerificationBusinessNav.astro")
+	expect(businessVerification).toContain("flex-direction: row")
+	expect(businessVerification).not.toContain("flex-direction: column")
 })

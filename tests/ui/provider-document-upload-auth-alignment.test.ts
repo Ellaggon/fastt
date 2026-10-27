@@ -31,6 +31,6 @@ describe("document upload auth alignment (hotel admin)", () => {
 	it("documents API gates on session canManageDocuments before submit", () => {
 		const api = read("src/pages/api/provider/settings/documents.ts")
 		expect(api).toContain("provider.permissions?.canManageDocuments")
-		expect(api).toContain('redirectAfterFormError(request, "forbidden"')
+		expect(api).toMatch(/redirectAfterFormError\(\s*request,\s*"forbidden"/)
 	})
 })

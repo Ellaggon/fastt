@@ -3,6 +3,7 @@ import { evaluateProviderGovernance } from "@/lib/provider-governance"
 import { loadProductLineGate } from "@/lib/verification/line-gate"
 import { resolveProductCommercialDiagnosis } from "@/lib/commercial-policy/enforcement"
 import { commercialBlockerIsWaiting, tourCommercialAction } from "./tourCommercialNavigation"
+import { experienceRequirementsHref } from "@/lib/verification/experience-requirements-navigation"
 
 /** Uses the same product-scoped evidence and signed policy used by publication. */
 export async function loadTourAuthorization(input: { providerId: string; productId: string }) {
@@ -53,7 +54,7 @@ export async function loadTourAuthorization(input: { providerId: string; product
 			code: firstPolicy?.id ?? specific[0]?.id,
 			action: commercialAction ?? {
 				label: fasttDecision ? "Consultar evaluación" : "Revisar experiencia",
-				href: verificationHref,
+				href: experienceRequirementsHref(input.productId),
 			},
 			message:
 				[

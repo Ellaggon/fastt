@@ -44,11 +44,18 @@ const selectedActivities = storedTourActivityClasses(context?.activityClassesJso
 const storedTerritory = context?.jurisdictionCode ?? ""
 const selectedTerritories = tourTerritoryCodes(context)
 const legacyTerritory = Boolean(storedTerritory && !tourOperatingTerritory(storedTerritory))
+const operationComplete = Boolean(
+	context?.operatingRole &&
+	selectedTerritories.length &&
+	selectedActivities.length &&
+	!legacyTerritory
+)
+const editorOpen = !operationComplete || Boolean(error)
 const supportParams = new URLSearchParams({
 	line: "tour",
 	context: "tour_territory",
 	experience: productId ?? "",
-	from: `${Astro.url.pathname}${Astro.url.search}`,
+	from: `${navigationSource.pathname}${navigationSource.search}`,
 })
 const roles: Array<{ value: TourOperatingRole; label: string }> = [
 	{ value: "guide", label: "Guía independiente" },
@@ -78,10 +85,47 @@ const activityHelp: Record<string, string> = {
 			Cómo operas esta experiencia
 		</h2>
 		<p class="mt-1 text-sm leading-6 text-slate-600">
-			Indica quién opera esta experiencia, dónde se realiza y qué actividades incluye para
-			identificar sus respaldos. Guardar no aprueba la experiencia.
+			{
+				operationComplete
+					? "Operación declarada para determinar sus respaldos."
+					: "Indica quién opera, dónde y qué actividades incluye. Guardar no aprueba la experiencia."
+			}
 		</p>
 	</div>
+	{
+		operationComplete && (
+			<dl class="grid gap-3 text-sm sm:grid-cols-3" data-operation-saved-summary>
+				<div>
+					<>
+						<dt class="text-xs text-slate-500">Operación</dt>
+						<dd class="mt-1 font-medium text-slate-900">
+							{roles.find((role) => role.value === context?.operatingRole)?.label}
+						</dd>
+					</>
+				</div>
+				<div>
+					<>
+						<dt class="text-xs text-slate-500">Departamentos</dt>
+						<dd class="mt-1 font-medium text-slate-900">
+							{selectedTerritories
+								.map((code) => tourOperatingTerritory(code)?.label.replace(", Bolivia", ""))
+								.join(", ")}
+						</dd>
+					</>
+				</div>
+				<div>
+					<>
+						<dt class="text-xs text-slate-500">Actividades</dt>
+						<dd class="mt-1 font-medium text-slate-900">
+							{selectedActivities
+								.map((activity) => tourComplianceActivityLabels[activity])
+								.join(", ")}
+						</dd>
+					</>
+				</div>
+			</dl>
+		)
+	}
 	{
 		legacyTerritory ? (
 			<Notice variant="warning" title="Territorio declarado por revisar">
@@ -100,8 +144,7 @@ const activityHelp: Record<string, string> = {
 	{
 		result === "context_saved" ? (
 			<Notice variant="success" title="Operación guardada">
-				Actualizamos los respaldos correspondientes. Revisa las licencias debajo y los requisitos de
-				Seguridad y permisos.
+				La declaración quedó guardada. Consulta debajo el estado de sus requisitos.
 			</Notice>
 		) : null
 	}
@@ -121,129 +164,151 @@ const activityHelp: Record<string, string> = {
 	}
 	{
 		productId ? (
-			<form
-				method="post"
-				action={`${submitUrl.pathname}${submitUrl.search}`}
-				class="space-y-5"
-				data-tour-operating-context-form
-			>
-				<input type="hidden" name="productId" value={productId} />
-				{!canEdit && (
-					<p class="text-sm text-slate-600">
-						Puedes consultar esta declaración. Pide acceso de edición al titular para cambiarla.
-					</p>
-				)}
-				<fieldset disabled={!canEdit} class="space-y-5">
-					<div class="grid gap-4 sm:grid-cols-2">
-						<FormField label="Tu papel en esta experiencia" htmlFor="tour-operating-role" required>
-							<Select id="tour-operating-role" name="operatingRole" required>
-								<option value="" selected={!context?.operatingRole}>
-									Selecciona quién opera
-								</option>
-								{roles.map((role) => (
-									<option value={role.value} selected={context?.operatingRole === role.value}>
-										{role.label}
-									</option>
-								))}
-							</Select>
-							{roles.map((role) => (
-								<p
-									class="text-xs leading-5 text-slate-500"
-									data-role-help={role.value}
-									hidden={context?.operatingRole !== role.value}
-								>
-									{roleHelp[role.value]}
-								</p>
-							))}
-						</FormField>
-						<FormField
-							label="Departamentos donde se realiza"
-							htmlFor="tour-jurisdiction-code"
-							required
-						>
-							<fieldset
-								id="tour-jurisdiction-code"
-								class="grid gap-2 sm:grid-cols-2"
-								aria-describedby="tour-territory-help"
+			<details open={editorOpen} data-operation-editor class="space-y-4">
+				<summary
+					class:list={[
+						"cursor-pointer text-sm font-semibold text-slate-800",
+						!operationComplete && "sr-only",
+					]}
+				>
+					{canEdit ? "Editar operación" : "Consultar operación declarada"}
+				</summary>
+				<form
+					method="post"
+					action={`${submitUrl.pathname}${submitUrl.search}`}
+					class="space-y-5"
+					data-tour-operating-context-form
+				>
+					<input type="hidden" name="productId" value={productId} />
+					{!canEdit && (
+						<p class="text-sm text-slate-600">
+							Puedes consultar esta declaración. Pide acceso de edición al titular para cambiarla.
+						</p>
+					)}
+					<fieldset disabled={!canEdit} class="space-y-5">
+						<div class="grid gap-4 sm:grid-cols-2">
+							<FormField
+								label="Tu papel en esta experiencia"
+								htmlFor="tour-operating-role"
+								required
 							>
-								<legend class="sr-only">Selecciona al menos un departamento</legend>
-								{tourOperatingTerritories.map((territory) => (
+								<Select id="tour-operating-role" name="operatingRole" required>
+									<option value="" selected={!context?.operatingRole}>
+										Selecciona quién opera
+									</option>
+									{roles.map((role) => (
+										<option value={role.value} selected={context?.operatingRole === role.value}>
+											{role.label}
+										</option>
+									))}
+								</Select>
+								{roles.map((role) => (
+									<p
+										class="text-xs leading-5 text-slate-500"
+										data-role-help={role.value}
+										hidden={context?.operatingRole !== role.value}
+									>
+										{roleHelp[role.value]}
+									</p>
+								))}
+							</FormField>
+							<FormField
+								label="Departamentos donde se realiza"
+								htmlFor="tour-jurisdiction-code"
+								required
+							>
+								<fieldset
+									id="tour-jurisdiction-code"
+									class="grid gap-2 sm:grid-cols-2"
+									aria-describedby="tour-territory-help"
+								>
+									<legend class="sr-only">Selecciona al menos un departamento</legend>
+									{tourOperatingTerritories.map((territory) => (
+										<Checkbox
+											name="jurisdictionCodes"
+											value={territory.code}
+											checked={selectedTerritories.includes(territory.code)}
+											label={territory.label.replace(", Bolivia", "")}
+										/>
+									))}
+								</fieldset>
+								<p id="tour-territory-help" class="text-xs leading-5 text-slate-500">
+									Selecciona solo los departamentos de esta experiencia. Varias ciudades del mismo
+									departamento requieren una sola selección. Si falta tu territorio,{" "}
+									<a
+										class="font-semibold underline"
+										href={`${routes.providerSupport()}?${supportParams}`}
+									>
+										solicita revisión
+									</a>
+									. No selecciones uno por aproximación.
+								</p>
+							</FormField>
+						</div>
+						<fieldset
+							class="space-y-3"
+							aria-describedby="tour-activities-help tour-activities-error"
+						>
+							<legend class="text-sm font-semibold text-slate-800">
+								Actividades de esta experiencia{" "}
+								<span class="text-red-600" aria-hidden="true">
+									*
+								</span>
+							</legend>
+							<p id="tour-activities-help" class="text-xs leading-5 text-slate-500">
+								Selecciona al menos una. Incluye solo las que forman parte de esta experiencia.
+							</p>
+							<div class="grid gap-2 sm:grid-cols-2">
+								{tourComplianceActivityClasses.map((activity) => (
 									<Checkbox
-										name="jurisdictionCodes"
-										value={territory.code}
-										checked={selectedTerritories.includes(territory.code)}
-										label={territory.label.replace(", Bolivia", "")}
+										class="fastt-check-option min-h-11 border border-slate-200 p-3 has-[:checked]:border-[var(--fastt-color-selection)] has-[:checked]:bg-[var(--fastt-color-selection-soft)]"
+										name="activityClass"
+										value={activity}
+										checked={selectedActivities.includes(activity)}
+										label={tourComplianceActivityLabels[activity]}
+										data-activity-option={activity}
 									/>
 								))}
-							</fieldset>
-							<p id="tour-territory-help" class="text-xs leading-5 text-slate-500">
-								Selecciona solo los departamentos de esta experiencia. Varias ciudades del mismo
-								departamento requieren una sola selección. Si falta tu territorio,{" "}
-								<a
-									class="font-semibold underline"
-									href={`${routes.providerSupport()}?${supportParams}`}
-								>
-									solicita revisión
-								</a>
-								. No selecciones uno por aproximación.
-							</p>
-						</FormField>
-					</div>
-					<fieldset class="space-y-3" aria-describedby="tour-activities-help tour-activities-error">
-						<legend class="text-sm font-semibold text-slate-800">
-							Actividades de esta experiencia{" "}
-							<span class="text-red-600" aria-hidden="true">
-								*
-							</span>
-						</legend>
-						<p id="tour-activities-help" class="text-xs leading-5 text-slate-500">
-							Selecciona al menos una. Incluye solo las que forman parte de esta experiencia.
-						</p>
-						<div class="grid gap-2 sm:grid-cols-2">
+							</div>
 							{tourComplianceActivityClasses.map((activity) => (
-								<Checkbox
-									class="fastt-check-option min-h-11 border border-slate-200 p-3 has-[:checked]:border-[var(--fastt-color-selection)] has-[:checked]:bg-[var(--fastt-color-selection-soft)]"
-									name="activityClass"
-									value={activity}
-									checked={selectedActivities.includes(activity)}
-									label={tourComplianceActivityLabels[activity]}
-									data-activity-option={activity}
-								/>
+								<p
+									class="text-xs leading-5 text-slate-500"
+									data-activity-help={activity}
+									hidden={!selectedActivities.includes(activity)}
+								>
+									{activityHelp[activity]}
+								</p>
 							))}
-						</div>
-						{tourComplianceActivityClasses.map((activity) => (
 							<p
-								class="text-xs leading-5 text-slate-500"
-								data-activity-help={activity}
-								hidden={!selectedActivities.includes(activity)}
+								id="tour-activities-error"
+								class="hidden text-sm text-red-600"
+								role="alert"
+								data-tour-activities-error
 							>
-								{activityHelp[activity]}
+								Selecciona al menos una actividad.
 							</p>
-						))}
+						</fieldset>
+						{canEdit && (
+							<div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
+								{operationComplete && (
+									<Button type="button" variant="secondary" data-operation-cancel>
+										Cancelar
+									</Button>
+								)}
+								<Button type="submit" variant="selection">
+									{operationComplete ? "Guardar cambios" : "Guardar operación"}
+								</Button>
+							</div>
+						)}
 						<p
-							id="tour-activities-error"
-							class="hidden text-sm text-red-600"
-							role="alert"
-							data-tour-activities-error
-						>
-							Selecciona al menos una actividad.
-						</p>
+							class="text-sm text-slate-600"
+							role="status"
+							aria-live="polite"
+							data-operation-status
+						/>
 					</fieldset>
-					{canEdit && (
-						<div class="flex justify-end border-t border-slate-100 pt-4">
-							<Button type="submit" variant="selection">
-								Guardar operación
-							</Button>
-						</div>
-					)}
-					<p
-						class="text-sm text-slate-600"
-						role="status"
-						aria-live="polite"
-						data-operation-status
-					/>
-				</fieldset>
-			</form>
+				</form>
+			</details>
 		) : (
 			<p class="text-sm text-slate-600">
 				{productId
@@ -280,8 +345,13 @@ const activityHelp: Record<string, string> = {
 						activities.filter((item) => item.checked).map((item) => item.value),
 					])
 				const initial = snapshot()
+				const editor = form.closest<HTMLDetailsElement>("[data-operation-editor]")
+				const updateDirty = () => {
+					form.dataset.dirty = snapshot() !== initial ? "true" : "false"
+				}
 				let pending = false
 				const validate = () => {
+					updateDirty()
 					const valid = activities.some((activity) => activity.checked)
 					first.setCustomValidity(valid ? "" : "Selecciona al menos una actividad.")
 					if (valid) error?.classList.add("hidden")
@@ -301,6 +371,15 @@ const activityHelp: Record<string, string> = {
 						pending || snapshot() === initial || !valid || !role.value || !hasTerritory
 				}
 				form.addEventListener("change", validate)
+				form.querySelector("[data-operation-cancel]")?.addEventListener("click", () => {
+					form.reset()
+					validate()
+					status.textContent = ""
+					if (editor) {
+						editor.open = false
+						editor.querySelector("summary")?.focus()
+					}
+				})
 				form.addEventListener("submit", async (event) => {
 					event.preventDefault()
 					if (pending || !form.reportValidity()) return
@@ -317,6 +396,7 @@ const activityHelp: Record<string, string> = {
 						const target = new URL(response.url)
 						if (!response.ok || target.searchParams.get("result") !== "context_saved")
 							throw new Error("save_failed")
+						form.dataset.dirty = "false"
 						window.location.assign(target.href)
 					} catch {
 						status.textContent =

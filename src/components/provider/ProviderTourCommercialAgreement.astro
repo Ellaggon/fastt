@@ -10,6 +10,8 @@ import {
 	type AgreementRow,
 	type OfferedTerms,
 } from "@/modules/financial/commercial-agreements"
+import CommercialAgreementTerms from "./CommercialAgreementTerms.astro"
+import { ArrowUpRight, Check, ChevronDown, FileClock, Wallet } from "@lucide/astro"
 type Props = {
 	agreements: AgreementRow[]
 	collectionModel: string
@@ -17,11 +19,31 @@ type Props = {
 	userId: string
 	agreementStatus: string
 	sellerName: string
+	enabled?: boolean
+	experiences?: { id: string; name: string | null }[]
+	resolvedAgreementId?: string | null
+	readFailed?: boolean
+	acceptedStatus?: string
 }
-const { agreements, collectionModel, canEdit, userId, agreementStatus, sellerName } =
-	Astro.props as Props
-const pending = agreements.find((row) => ["requested", "offered"].includes(row.status))
-const current = pending ?? agreements.find((row) => row.status === "accepted")
+const {
+	agreements,
+	collectionModel,
+	userId,
+	agreementStatus,
+	sellerName,
+	enabled = true,
+	experiences = [],
+	resolvedAgreementId,
+	readFailed = false,
+	acceptedStatus = agreementStatus,
+} = Astro.props as Props
+const canEdit = enabled && !readFailed && Astro.props.canEdit
+const ordered = [...agreements].sort((a, b) => b.version - a.version)
+const pending = ordered.find((row) => ["requested", "offered"].includes(row.status))
+const accepted =
+	ordered.find((row) => row.id === resolvedAgreementId && row.status === "accepted") ??
+	ordered.find((row) => row.status === "accepted")
+const current = pending ?? accepted
 const terms = current?.termsJson as OfferedTerms | null
 const statusLabel =
 	agreementStatus === "active"
@@ -35,285 +57,350 @@ const statusLabel =
 					: current
 						? agreementStateLabels[current.status as keyof typeof agreementStateLabels]
 						: "Por configurar"
+const acceptedLabel =
+	acceptedStatus === "active"
+		? "Acuerdo vigente"
+		: acceptedStatus === "not_started"
+			? "Vigencia pendiente"
+			: acceptedStatus === "expired"
+				? "Acuerdo vencido"
+				: acceptedStatus === "review_required"
+					? "Requiere revisión"
+					: "Acuerdo aceptado"
+const history = ordered.filter((row) => row.id !== current?.id && row.id !== accepted?.id)
 ---
 
-<section class="space-y-5" aria-label="Acuerdo comercial de Tours">
-	<div class="flex flex-wrap items-start justify-between gap-3">
-		<div>
-			<h2 class="text-base font-semibold">{sellerName || "Titular pendiente"}</h2><p
-				class="mt-1 text-sm text-slate-400"
-			>
-				Un acuerdo para todas tus experiencias.
-			</p>
-		</div><Badge variant={agreementStatus === "active" ? "success" : "neutral"}
-			>{
-				pending
-					? agreementStateLabels[pending.status as keyof typeof agreementStateLabels]
-					: statusLabel
-			}</Badge
-		>
-	</div>
-	<Card class="space-y-4">
-		<div class="flex flex-wrap items-center justify-between gap-2">
-			<h3 class="font-semibold text-slate-950">Quién cobra al viajero</h3>
-			{collectionModel === "property_collect" && <Badge variant="success">Confirmado</Badge>}
+<section class="commercial-agreement" aria-label="Acuerdo comercial de Tours">
+	<Card class="commercial-agreement__surface">
+		<div class="commercial-agreement__identity">
+			<div>
+				<p class="commercial-agreement__eyebrow">Experiencias</p>
+				<h2 class="commercial-agreement__business">{sellerName || "Titular pendiente"}</h2>
+			</div>
+			{
+				(enabled || readFailed) && (
+					<Badge variant={!readFailed && agreementStatus === "active" ? "success" : "neutral"}>
+						{readFailed
+							? "No se pudo comprobar"
+							: accepted
+								? acceptedLabel
+								: pending
+									? agreementStateLabels[pending.status as keyof typeof agreementStateLabels]
+									: statusLabel}
+					</Badge>
+				)
+			}
 		</div>
-		<p class="text-sm text-slate-600">
-			{
-				collectionModel === "property_collect"
-					? "Tu negocio cobra directamente al viajero. Fastt facilita la reserva, sin recibir ni transferir ese pago."
-					: "En la modalidad disponible, tu negocio cobra directamente al viajero y Fastt facilita la reserva. Confirmarla no implica aceptar un acuerdo."
-			}
-		</p>
-		{
-			collectionModel === "platform_collect" && (
-				<Notice variant="warning" title="Modalidad histórica por revisar">
-					El cobro por Fastt todavía no está disponible. Declara la modalidad de cobro directo para
-					continuar.
-				</Notice>
-			)
-		}
-		{
-			collectionModel !== "property_collect" &&
-				(canEdit ? (
-					<form
-						action="/api/provider/settings/commercial-line-collection-model"
-						method="post"
-						data-agreement-form
-					>
-						<>
-							<input type="hidden" name="line" value="tour" />
-							<input type="hidden" name="collectionModel" value="property_collect" />
-						</>
-						<>
-							<Button type="submit" variant="selection">
-								Confirmar cobro directo
-							</Button>
-							<p class="mt-2 text-sm text-slate-600" role="status" data-agreement-feedback />
-						</>
-					</form>
-				) : (
-					<p class="text-sm text-slate-600">Pide al titular acceso para declarar la modalidad.</p>
-				))
-		}
-	</Card>
-	<Card class="space-y-4">
-		<h3 class="font-semibold text-slate-950">
-			{
-				terms
-					? current?.status === "accepted"
-						? "Condiciones acordadas"
-						: "Propuesta comercial"
-					: "Propuesta comercial"
-			}
-		</h3>
-		{
-			terms ? (
-				<>
-					<dl class="grid gap-4 text-sm sm:grid-cols-2">
-						<div>
-							<>
-								<dt class="text-slate-500">Vendedor y beneficiario</dt>
-								<dd class="mt-1 font-medium text-slate-950">{terms.sellerName}</dd>
-							</>
-						</div>
-						<div>
-							<>
-								<dt class="text-slate-500">Comisión sobre la base acordada</dt>
-								<dd class="mt-1 font-medium text-slate-950">
-									{terms.commissionPercent}% · {terms.currency}
-								</dd>
-							</>
-						</div>
-						<div>
-							<>
-								<dt class="text-slate-500">Vigencia</dt>
-								<dd class="mt-1 text-slate-800">
-									{new Intl.DateTimeFormat("es-BO", {
-										dateStyle: "medium",
-										timeZone: "UTC",
-									}).format(new Date(terms.effectiveFrom))}{" "}
-									→{" "}
-									{new Intl.DateTimeFormat("es-BO", {
-										dateStyle: "medium",
-										timeZone: "UTC",
-									}).format(new Date(terms.effectiveTo))}
-								</dd>
-							</>
-						</div>
-						<div>
-							<>
-								<dt class="text-slate-500">Pago del viajero</dt>
-								<dd class="mt-1 text-slate-800">{terms.paymentTiming}</dd>
-							</>
-						</div>
-					</dl>
-					<div class="space-y-3 border-t border-slate-200 pt-4 text-sm text-slate-700">
-						<p>
-							<span class="font-semibold">Base de comisión: </span>
-							{terms.commissionBase}
-						</p>
-						<p>
-							<span class="font-semibold">Cancelaciones: </span>
-							{terms.cancellationTerms}
-						</p>
-						<p>
-							<span class="font-semibold">Conciliación: </span>
-							{terms.settlementTerms}
-						</p>
-						<p>
-							<span class="font-semibold">Responsabilidades fiscales: </span>
-							{terms.fiscalResponsibilities}
-						</p>
-					</div>
-					<details class="border-t border-slate-200 pt-4">
-						<>
-							<summary class="cursor-pointer text-sm font-semibold text-slate-800">
-								Ver condiciones completas · Versión {current?.version}
-							</summary>
-							<p class="mt-3 text-sm leading-6 whitespace-pre-wrap text-slate-700">
-								{terms.fullTerms}
-							</p>
-							<p class="mt-3 text-xs text-slate-500">Referencia: {terms.documentReference}</p>
-						</>
-					</details>
-				</>
-			) : (
-				<p class="text-sm text-slate-600">
-					{collectionModel !== "property_collect"
-						? "Primero confirma quién cobra al viajero. Después podrás solicitar y revisar la propuesta de Fastt."
-						: pending
-							? "Fastt está preparando la propuesta. Podrás revisar y aceptar aquí las condiciones cuando estén disponibles."
-							: "Solicita las condiciones de comisión, cobro y vigencia. Podrás revisarlas antes de aceptar."}
+		<section class="commercial-agreement__row" aria-labelledby="agreement-collection-heading">
+			<h3 id="agreement-collection-heading" class="commercial-agreement__label">
+				<Wallet size={18} aria-hidden="true" />Cobro
+			</h3>
+			<div class="commercial-agreement__body">
+				<div class="commercial-agreement__value-row">
+					<p class="commercial-agreement__value">
+						{
+							collectionModel === "property_collect"
+								? "Tu negocio cobra al viajero"
+								: "Quién cobra al viajero"
+						}
+					</p>
+					{
+						collectionModel === "property_collect" && (
+							<span class="commercial-agreement__confirmed">
+								<Check size={14} aria-hidden="true" />
+								Declarado
+							</span>
+						)
+					}
+				</div>
+				<p class="commercial-agreement__description">
+					{
+						collectionModel === "property_collect"
+							? "Fastt facilita la reserva, sin recibir ni transferir el pago del viajero."
+							: "En la modalidad disponible, tu negocio cobra directamente al viajero y Fastt facilita la reserva. Confirmarla no implica aceptar un acuerdo."
+					}
 				</p>
-			)
-		}
-		{
-			collectionModel === "property_collect" && (
-				<div class="space-y-4 border-t border-slate-200 pt-4">
-					{current?.status === "offered" && canEdit && (
-						<details>
-							<>
-								<summary class="cursor-pointer text-sm font-semibold text-slate-700">
-									Solicitar una corrección
-								</summary>
-								<form
-									method="post"
-									action="/api/provider/settings/commercial-agreement"
-									class="mt-3 space-y-3"
-									data-agreement-form
-								>
-									<>
-										<input type="hidden" name="action" value="correction" />
-										<input type="hidden" name="agreementId" value={current.id} />
-										<Textarea
-											name="reason"
-											required
-											minlength="12"
-											maxlength="2000"
-											aria-label="Qué debe corregirse"
-											placeholder="Indica qué condición o representante debe revisarse."
-										/>
-										<p class="text-xs text-slate-500">
-											La propuesta actual quedará retirada y Fastt recibirá una solicitud de nueva
-											versión.
-										</p>
-										<Button type="submit" variant="secondary">
-											Solicitar corrección
-										</Button>
-										<p role="status" class="text-sm text-slate-600" data-agreement-feedback />
-									</>
-								</form>
-							</>
-						</details>
-					)}
-					{current?.status === "offered" ? (
-						canEdit && current.authorizedSignerUserId === userId ? (
+				{
+					collectionModel === "platform_collect" && (
+						<Notice variant="warning" title="Modalidad histórica por revisar">
+							El cobro por Fastt todavía no está disponible. Declara la modalidad de cobro directo
+							para continuar.
+						</Notice>
+					)
+				}
+				{
+					enabled &&
+						!readFailed &&
+						collectionModel !== "property_collect" &&
+						(canEdit ? (
 							<form
+								action="/api/provider/settings/commercial-line-collection-model"
 								method="post"
-								action="/api/provider/settings/commercial-agreement"
-								class="space-y-4"
 								data-agreement-form
 							>
 								<>
-									<input type="hidden" name="action" value="accept" />
-									<input type="hidden" name="agreementId" value={current.id} />
-									<input type="hidden" name="termsHash" value={current.termsHash!} />
+									<input type="hidden" name="line" value="tour" />
+									<input type="hidden" name="collectionModel" value="property_collect" />
 								</>
-								<Checkbox
-									name="consent"
-									required
-									label={`He leído y acepto la versión ${current.version} en representación de ${terms?.sellerName}.`}
-								/>
 								<>
 									<Button type="submit" variant="selection">
-										Aceptar acuerdo
+										Confirmar cobro directo
 									</Button>
-									<p class="text-sm text-slate-600" role="status" data-agreement-feedback />
+									<p class="mt-2 text-sm text-slate-600" role="status" data-agreement-feedback />
 								</>
 							</form>
 						) : (
 							<p class="text-sm text-slate-600">
-								Esta propuesta debe aceptarla el representante cuya facultad fue revisada. Si esa
-								persona cambió, solicita una corrección desde el caso comercial.
+								Pide al titular acceso para declarar la modalidad.
 							</p>
-						)
-					) : !pending && collectionModel === "property_collect" && canEdit ? (
-						<form
-							method="post"
-							action="/api/provider/settings/commercial-agreement"
-							data-agreement-form
-						>
-							<>
-								<input type="hidden" name="action" value="request" />
-								{agreementStatus === "active" ? (
-									<details>
-										<summary class="cursor-pointer text-sm font-medium text-slate-600">
-											Solicitar nuevas condiciones
-										</summary>
-										<p class="my-3 text-sm text-slate-600">
-											El acuerdo vigente se mantiene mientras revisas una nueva propuesta.
-										</p>
-										<Button type="submit" variant="secondary">
-											Solicitar nueva propuesta
-										</Button>
-									</details>
-								) : (
-									<Button type="submit" variant="selection">
-										{current ? "Solicitar nueva propuesta" : "Solicitar propuesta"}
-									</Button>
-								)}
-								<p class="mt-2 text-sm text-slate-600" role="status" data-agreement-feedback />
-							</>
-						</form>
-					) : null}
-					{pending?.caseId && (
-						<p class="text-sm text-slate-600">
-							{pending.status === "requested"
-								? "Pendiente de Fastt · Tu solicitud está registrada."
-								: "Pendiente de aceptación del representante autorizado."}
+						))
+				}
+			</div>
+		</section>
+		{
+			!enabled && (
+				<section
+					class="commercial-agreement__row"
+					aria-labelledby="agreement-availability-heading"
+					data-agreement-unavailable
+				>
+					<h3 id="agreement-availability-heading" class="commercial-agreement__label">
+						<FileClock size={18} aria-hidden="true" />
+						Acuerdo
+					</h3>
+					<div class="commercial-agreement__body">
+						<p class="commercial-agreement__value">Contratación pendiente de habilitación</p>
+						<p class="commercial-agreement__description">
+							Fastt debe habilitar la contratación de tu negocio. Cuando esté disponible, podrás
+							solicitar y revisar la propuesta aquí.
 						</p>
-					)}
-					{agreementStatus === "active" && (
-						<p class="text-sm text-slate-600">
-							El acuerdo está vigente. La publicación también comprueba identidad, fiscalidad y
-							respaldos aplicables a cada experiencia.
-						</p>
-					)}
-				</div>
+					</div>
+				</section>
 			)
 		}
-	</Card>
-	{
-		agreements.length > 1 && (
-			<details class="border-t border-slate-200 pt-4">
-				<>
-					<summary class="cursor-pointer text-sm font-semibold">Versiones anteriores</summary>
-					<ul class="mt-3 divide-y divide-slate-100">
-						{agreements
-							.filter((row) => row.id !== current?.id)
-							.map((row) => (
-								<li class="py-3 text-sm text-slate-400">
+		{
+			pending && accepted && !readFailed && (
+				<section class="commercial-agreement__contract space-y-4" data-accepted-agreement>
+					<div class="flex flex-wrap items-center justify-between gap-2">
+						<>
+							<h3 class="font-semibold text-slate-950">{acceptedLabel}</h3>
+							<Badge variant={agreementStatus === "active" ? "success" : "neutral"}>
+								Versión {accepted.version}
+							</Badge>
+						</>
+					</div>
+					<CommercialAgreementTerms agreement={accepted} />
+					<p class="text-sm text-slate-600">
+						La nueva propuesta no sustituye este acuerdo antes de su aceptación y entrada en vigor.
+					</p>
+				</section>
+			)
+		}
+		{
+			readFailed && (
+				<Notice variant="warning" title="No pudimos cargar el acuerdo">
+					No podemos comprobar su estado. Tus condiciones no han cambiado.
+					<Button
+						href={Astro.url.pathname + Astro.url.search}
+						variant="secondary"
+						size="sm"
+						{...{ "data-astro-reload": true }}
+					>
+						Volver a comprobar
+					</Button>
+				</Notice>
+			)
+		}
+		{
+			enabled && !readFailed && (
+				<section class="commercial-agreement__contract space-y-4">
+					{pending && accepted && (
+						<Badge variant="neutral">
+							{agreementStateLabels[pending.status as keyof typeof agreementStateLabels]}
+						</Badge>
+					)}
+					<h3 class="font-semibold text-slate-950">
+						{terms
+							? current?.status === "accepted"
+								? acceptedLabel
+								: "Propuesta comercial"
+							: "Propuesta comercial"}
+					</h3>
+					{terms && current ? (
+						<CommercialAgreementTerms agreement={current} />
+					) : (
+						<p class="text-sm text-slate-600">
+							{collectionModel !== "property_collect"
+								? "Primero confirma quién cobra al viajero. Después podrás solicitar y revisar la propuesta de Fastt."
+								: pending
+									? "Fastt está preparando la propuesta. Podrás revisar y aceptar aquí las condiciones cuando estén disponibles."
+									: "Solicita las condiciones de comisión, cobro y vigencia. Podrás revisarlas antes de aceptar."}
+						</p>
+					)}
+					{enabled && collectionModel === "property_collect" && (
+						<div class="space-y-4 border-t border-slate-200 pt-4">
+							{current?.status === "offered" && canEdit && (
+								<details>
+									<>
+										<summary class="cursor-pointer text-sm font-semibold text-slate-700">
+											Solicitar una corrección
+										</summary>
+										<form
+											method="post"
+											action="/api/provider/settings/commercial-agreement"
+											class="mt-3 space-y-3"
+											data-agreement-form
+										>
+											<>
+												<input type="hidden" name="action" value="correction" />
+												<input type="hidden" name="agreementId" value={current.id} />
+												<Textarea
+													name="reason"
+													required
+													minlength="12"
+													maxlength="2000"
+													aria-label="Qué debe corregirse"
+													placeholder="Indica qué condición o representante debe revisarse."
+												/>
+												<p class="text-xs text-slate-500">
+													La propuesta actual quedará retirada y Fastt recibirá una solicitud de
+													nueva versión.
+												</p>
+												<Button type="submit" variant="secondary">
+													Solicitar corrección
+												</Button>
+												<p role="status" class="text-sm text-slate-600" data-agreement-feedback />
+											</>
+										</form>
+									</>
+								</details>
+							)}
+							{current?.status === "offered" ? (
+								canEdit && current.authorizedSignerUserId === userId ? (
+									<form
+										method="post"
+										action="/api/provider/settings/commercial-agreement"
+										class="space-y-4"
+										data-agreement-form
+									>
+										<>
+											<input type="hidden" name="action" value="accept" />
+											<input type="hidden" name="agreementId" value={current.id} />
+											<input type="hidden" name="termsHash" value={current.termsHash!} />
+										</>
+										<Checkbox
+											name="consent"
+											required
+											label={`He leído y acepto la versión ${current.version} en representación de ${terms?.sellerName}.`}
+										/>
+										<>
+											<Button type="submit" variant="selection">
+												Aceptar acuerdo
+											</Button>
+											<p class="text-sm text-slate-600" role="status" data-agreement-feedback />
+										</>
+									</form>
+								) : (
+									<p class="text-sm text-slate-600">
+										Esta propuesta debe aceptarla el representante cuya facultad fue revisada. Si
+										esa persona cambió, solicita una corrección desde el caso comercial.
+									</p>
+								)
+							) : !pending && collectionModel === "property_collect" && canEdit ? (
+								<form
+									method="post"
+									action="/api/provider/settings/commercial-agreement"
+									data-agreement-form
+								>
+									<>
+										<input type="hidden" name="action" value="request" />
+										{accepted ? (
+											<details>
+												<summary class="cursor-pointer text-sm font-medium text-slate-600">
+													Solicitar nuevas condiciones
+												</summary>
+												<p class="my-3 text-sm text-slate-600">
+													Solicitar una propuesta no modifica las condiciones ya aceptadas.
+												</p>
+												<Button type="submit" variant="secondary">
+													Solicitar nueva propuesta
+												</Button>
+											</details>
+										) : (
+											<Button type="submit" variant="selection">
+												{current ? "Solicitar nueva propuesta" : "Solicitar propuesta"}
+											</Button>
+										)}
+										<p class="mt-2 text-sm text-slate-600" role="status" data-agreement-feedback />
+									</>
+								</form>
+							) : null}
+							{pending?.caseId && (
+								<p class="text-sm text-slate-600">
+									{pending.status === "requested"
+										? "Pendiente de Fastt · Tu solicitud está registrada."
+										: "Pendiente de aceptación del representante autorizado."}
+								</p>
+							)}
+							{agreementStatus === "active" && (
+								<p class="text-sm text-slate-600">
+									El acuerdo está vigente. La publicación también comprueba identidad, fiscalidad y
+									respaldos aplicables a cada experiencia.
+								</p>
+							)}
+							{!canEdit && current?.status !== "offered" && (
+								<p class="text-sm text-slate-600">
+									Solo las personas autorizadas del negocio pueden solicitar o modificar la
+									propuesta.
+								</p>
+							)}
+						</div>
+					)}
+				</section>
+			)
+		}
+		<details class="commercial-agreement__scope" data-agreement-scope>
+			<summary class="commercial-agreement__scope-toggle"
+				><span>Experiencias del negocio</span><span class="commercial-agreement__scope-count"
+					>{experiences.length} {experiences.length === 1 ? "experiencia" : "experiencias"}</span
+				><ChevronDown size={16} aria-hidden="true" /></summary
+			>
+			<div class="commercial-agreement__scope-content">
+				<p class="commercial-agreement__description">
+					La contratación se gestiona para esta línea, no por experiencia.
+				</p>
+				<ul class="commercial-agreement__experiences">
+					{
+						experiences.map((experience) => (
+							<li>
+								<a
+									class="commercial-agreement__experience-link"
+									href={`/product/${encodeURIComponent(experience.id)}`}
+								>
+									<>
+										<span>{experience.name || "Experiencia sin nombre"}</span>
+										<ArrowUpRight size={16} aria-hidden="true" />
+									</>
+								</a>
+							</li>
+						))
+					}
+				</ul>
+				{
+					!experiences.length && (
+						<p class="mt-2 text-sm text-slate-600">Todavía no tienes experiencias en esta línea.</p>
+					)
+				}
+			</div>
+		</details>
+		{
+			history.length > 0 && !readFailed && (
+				<details class="mt-5 border-t border-slate-200 pt-4">
+					<>
+						<summary class="cursor-pointer text-sm font-semibold">Versiones anteriores</summary>
+						<ul class="mt-3 divide-y divide-slate-100">
+							{history.map((row) => (
+								<li class="py-3 text-sm text-slate-600">
 									Versión {row.version} ·{" "}
 									{agreementStateLabels[row.status as keyof typeof agreementStateLabels]} ·{" "}
 									{row.acceptedAt
@@ -330,12 +417,183 @@ const statusLabel =
 									</details>
 								</li>
 							))}
-					</ul>
-				</>
-			</details>
-		)
-	}
+						</ul>
+					</>
+				</details>
+			)
+		}
+	</Card>
 </section>
+<style>
+	.commercial-agreement {
+		max-width: 56rem;
+		color: rgb(15 23 42);
+	}
+	.commercial-agreement__contract {
+		padding-block: 1.5rem;
+		border-top: 1px solid rgb(226 232 240);
+	}
+	.commercial-agreement__identity {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 1rem;
+		padding: 0.25rem 0 1.75rem;
+	}
+	.commercial-agreement__eyebrow {
+		margin: 0 0 0.375rem;
+		font-size: 0.75rem;
+		color: rgb(100 116 139);
+	}
+	.commercial-agreement__business {
+		font-size: 1.125rem;
+		font-weight: 600;
+		line-height: 1.5;
+		overflow-wrap: anywhere;
+	}
+	.commercial-agreement__row {
+		display: grid;
+		grid-template-columns: 10rem minmax(0, 1fr);
+		gap: 1.5rem;
+		padding: 1.75rem 0;
+		border-top: 1px solid rgb(226 232 240);
+	}
+	.commercial-agreement__label {
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: rgb(100 116 139);
+		line-height: 1.5rem;
+	}
+	.commercial-agreement__label :global(svg) {
+		flex-shrink: 0;
+	}
+	.commercial-agreement__body {
+		min-width: 0;
+	}
+	.commercial-agreement__value-row {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.5rem 1rem;
+	}
+	.commercial-agreement__value {
+		font-size: 0.9375rem;
+		font-weight: 500;
+		line-height: 1.5rem;
+	}
+	.commercial-agreement__confirmed {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		color: rgb(100 116 139);
+		font-size: 0.75rem;
+	}
+	.commercial-agreement__description {
+		max-width: 38rem;
+		margin-top: 0.5rem;
+		font-size: 0.875rem;
+		line-height: 1.65;
+		color: rgb(100 116 139);
+	}
+	.commercial-agreement__scope {
+		border-top: 1px solid rgb(226 232 240);
+	}
+	.commercial-agreement__scope-toggle {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		min-height: 4.5rem;
+		cursor: pointer;
+		list-style: none;
+		font-size: 0.875rem;
+		font-weight: 500;
+		transition: color 160ms ease;
+	}
+	.commercial-agreement__scope-toggle::-webkit-details-marker {
+		display: none;
+	}
+	.commercial-agreement__scope-count {
+		margin-left: auto;
+		color: rgb(100 116 139);
+		font-size: 0.8125rem;
+		font-weight: 400;
+	}
+	.commercial-agreement__scope-toggle :global(svg) {
+		flex-shrink: 0;
+		color: rgb(100 116 139);
+		transition: transform 180ms ease;
+	}
+	.commercial-agreement__scope[open] > summary :global(svg) {
+		transform: rotate(180deg);
+	}
+	.commercial-agreement__scope-content {
+		padding: 0 0 1rem;
+	}
+	.commercial-agreement__scope-content > p {
+		margin-top: 0;
+	}
+	.commercial-agreement__experiences {
+		margin-top: 0.75rem;
+	}
+	.commercial-agreement__experience-link {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		min-height: 2.75rem;
+		padding: 0.625rem 0.75rem;
+		margin-inline: -0.75rem;
+		border-radius: 0.5rem;
+		color: rgb(51 65 85);
+		font-size: 0.875rem;
+		line-height: 1.5;
+		text-decoration: none;
+		transition:
+			background-color 160ms ease,
+			color 160ms ease;
+	}
+	.commercial-agreement__experience-link span {
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+	.commercial-agreement__experience-link :global(svg) {
+		flex-shrink: 0;
+		color: rgb(100 116 139);
+	}
+	.commercial-agreement__experience-link:hover {
+		background: rgb(248 250 252);
+		color: rgb(15 23 42);
+	}
+	.commercial-agreement__scope-toggle:focus-visible,
+	.commercial-agreement__experience-link:focus-visible {
+		outline: 2px solid rgb(2 132 199);
+		outline-offset: 4px;
+	}
+	@media (max-width: 639px) {
+		.commercial-agreement__row {
+			grid-template-columns: minmax(0, 1fr);
+			gap: 0.75rem;
+			padding-block: 1.25rem;
+		}
+		.commercial-agreement__identity {
+			padding-bottom: 1.25rem;
+		}
+		.commercial-agreement__scope-toggle {
+			min-height: 4rem;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.commercial-agreement__scope-toggle,
+		.commercial-agreement__scope-toggle :global(svg),
+		.commercial-agreement__experience-link {
+			transition: none;
+		}
+	}
+</style>
 <script>
 	import { bindAgreementForms } from "@/lib/commercial-policy/agreement-forms"
 	bindAgreementForms()

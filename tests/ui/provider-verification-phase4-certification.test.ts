@@ -256,10 +256,10 @@ describe("Fase 4 — certificación de Verificación", () => {
 		const workspace = read("src/components/provider/ProviderVerificationWorkspace.astro")
 		const styles = read("src/styles/global.css")
 
-		expect(layout).toContain("aria-valuenow={rawPercent}")
-		expect(layout).toContain("width: ${visualProgressPercent}%")
+		expect(layout).toContain("data-verification-operational-summary")
+		expect(layout).not.toContain('role="progressbar"')
 		expect(layout).not.toContain("stepPositionPercent")
-		expect(layout).toContain("verification-wizard-progress-label")
+		expect(layout).not.toContain("verification-wizard-progress-label")
 		expect(tabs).toContain("overflow-x-auto")
 		expect(rail).toContain('aria-current={active ? "page" : undefined}')
 		expect(rail).not.toContain("Siguiente")
