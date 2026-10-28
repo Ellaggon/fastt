@@ -4652,7 +4652,7 @@ CREATE INDEX "PolicyAssignment_effective_range_idx" ON "PolicyAssignment" ("effe
 
 CREATE INDEX "PolicyAssignment_group_active_idx" ON "PolicyAssignment" ("policyGroupId", "isActive");
 
-CREATE UNIQUE INDEX "CancellationTier_policyId_daysBeforeArrival_unique" ON "CancellationTier" ("policyId", "daysBeforeArrival");
+CREATE UNIQUE INDEX "CancellationTier_policyId_leadHours_unique" ON "CancellationTier" ("policyId", (coalesce("hoursBeforeDeparture", "daysBeforeArrival"::bigint * 24)));
 
 CREATE INDEX "CancellationTier_hoursBeforeDeparture_idx" ON "CancellationTier" ("hoursBeforeDeparture");
 

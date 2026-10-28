@@ -1,6 +1,7 @@
 import { z } from "zod"
 import type { PolicyCategory } from "../../../domain/policy.category"
 import { PolicyValidationError, type ValidationIssue } from "../../errors/policyValidationError"
+import { tierLeadHours } from "../../../domain/cancellation/cancellationEngine"
 
 export const cancellationTierSchema = z.object({
 	daysBeforeArrival: z.number().int().min(0),
@@ -39,12 +40,13 @@ function validateCancellationTiers(tiers: CancellationTierInput[] | undefined) {
 		throw new PolicyValidationError([{ path: ["cancellationTiers"], code: "required" }])
 	}
 
-	const byDay = new Set<number>()
+	const cutoffs = new Set<number>()
 	for (const tier of tiers) {
-		if (byDay.has(tier.daysBeforeArrival)) {
-			issues.push({ path: ["cancellationTiers"], code: "duplicate_days_before_arrival" })
+		const cutoff = tierLeadHours(tier)
+		if (cutoffs.has(cutoff)) {
+			issues.push({ path: ["cancellationTiers"], code: "duplicate_cancellation_cutoff" })
 		}
-		byDay.add(tier.daysBeforeArrival)
+		cutoffs.add(cutoff)
 
 		if (tier.penaltyType === "percentage" && tier.penaltyAmount > 100) {
 			issues.push({ path: ["cancellationTiers"], code: "invalid_percentage_penalty" })
@@ -54,7 +56,7 @@ function validateCancellationTiers(tiers: CancellationTierInput[] | undefined) {
 		}
 	}
 
-	const sorted = [...tiers].sort((a, b) => b.daysBeforeArrival - a.daysBeforeArrival)
+	const sorted = [...tiers].sort((a, b) => tierLeadHours(b) - tierLeadHours(a))
 	let previousPenalty = -Infinity
 	for (const tier of sorted) {
 		if (tier.penaltyAmount < previousPenalty) {

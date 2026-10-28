@@ -3064,9 +3064,9 @@ export const CancellationTier = pgTable(
 		penaltyAmount: amountOpt("penaltyAmount"),
 	},
 	(table) => [
-		uniqueIndex("CancellationTier_policyId_daysBeforeArrival_unique").on(
+		uniqueIndex("CancellationTier_policyId_leadHours_unique").on(
 			table.policyId,
-			table.daysBeforeArrival
+			sql`coalesce(${table.hoursBeforeDeparture}, ${table.daysBeforeArrival}::bigint * 24)`
 		),
 		index("CancellationTier_hoursBeforeDeparture_idx").on(table.hoursBeforeDeparture),
 	]

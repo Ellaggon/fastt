@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
+import { is, SQL } from "drizzle-orm"
 import { PgDialect } from "drizzle-orm/pg-core"
 
 import * as schema from "../../src/shared/infrastructure/db/schema/tables"
@@ -44,7 +45,7 @@ type ExtraConfigItem = {
 	config?: {
 		name: string
 		unique?: boolean
-		columns: { name: string }[]
+		columns: ({ name: string } | SQL)[]
 		where?: unknown
 	}
 	name?: string
@@ -233,7 +234,11 @@ function indexSql(table: DrizzleTable): string[] {
 		.map((index) => {
 			const config = index.config!
 			const uniqueness = config.unique ? "UNIQUE " : ""
-			const columnList = config.columns.map((column) => q(column.name)).join(", ")
+			const columnList = config.columns
+				.map((column) =>
+					is(column, SQL) ? `(${renderExpression(column, tableName(table))})` : q(column.name)
+				)
+				.join(", ")
 			const predicate = config.where
 				? ` WHERE ${renderExpression(config.where, tableName(table))}`
 				: ""
