@@ -1,4 +1,5 @@
 ---
+import ProviderPublicationPolicyBlockers from "@/components/admin/ProviderPublicationPolicyBlockers.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -12,6 +13,7 @@ import {
 	principalHasPermission,
 	requireInternalPermission,
 } from "@/lib/auth/internal-authorization"
+import { loadAdminPolicyBlockers } from "@/lib/commercial-policy/admin-publication-blockers"
 import {
 	tourComplianceActivityClasses,
 	tourComplianceActivityLabels,
@@ -37,6 +39,24 @@ try {
 	if (error instanceof Response) return error
 	throw error
 }
+const providerId = Astro.url.searchParams.get("providerId")?.trim() ?? ""
+if (
+	providerId &&
+	!principalHasPermission(principal, "provider.compliance.read", {
+		type: "provider",
+		id: providerId,
+	})
+) {
+	return new Response("Forbidden", { status: 403 })
+}
+let policyReadFailed = false
+const policyBlockers = providerId
+	? await loadAdminPolicyBlockers(providerId).catch((error) => {
+			policyReadFailed = true
+			console.error("admin.policy_diagnosis_failed", error)
+			return []
+		})
+	: []
 const rows = await db
 	.select({ version: CompliancePolicyVersion, set: CompliancePolicySet })
 	.from(CompliancePolicyVersion)
@@ -81,6 +101,31 @@ const areas = [
 				gestionan por proveedor.
 			</p>
 		</div>
+		{
+			providerId && (
+				<>
+					<Button
+						variant="secondary"
+						size="sm"
+						href={`/admin/providers?${new URLSearchParams({ filter: "payments", providerId })}#provider-review-payments`}
+					>
+						Volver al proveedor
+					</Button>
+					<ProviderPublicationPolicyBlockers
+						providerId={providerId}
+						blockers={policyBlockers}
+						failed={policyReadFailed}
+						linked={false}
+					/>
+					{!policyReadFailed && policyBlockers.length === 0 && (
+						<p role="status" class="text-sm text-slate-400">
+							No se detectaron bloqueos de configuración de políticas. Esto no implica que el
+							acuerdo o la publicación estén aprobados.
+						</p>
+					)}
+				</>
+			)
+		}
 		{
 			canEdit && (
 				<details class="border-b border-slate-200 pb-5">
@@ -191,6 +236,16 @@ const areas = [
 						</form>
 					</>
 				</details>
+			)
+		}
+		{
+			rows.length === 0 && (
+				<p class="border-t border-slate-700 pt-4 text-sm text-slate-400" role="status">
+					No hay versiones de políticas comerciales de Tours configuradas.{" "}
+					{canEdit
+						? "Abre Crear versión de política para preparar una versión documentada y enviarla a las aprobaciones correspondientes."
+						: "El equipo con permiso de edición debe preparar las versiones y sus aprobaciones."}
+				</p>
 			)
 		}
 		{

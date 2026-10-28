@@ -1,0 +1,69 @@
+---
+import Button from "@/components/ui/Button.astro"
+import type { projectAdminPolicyBlockers } from "@/lib/commercial-policy/admin-publication-blockers"
+type Props = {
+	providerId: string
+	blockers: ReturnType<typeof projectAdminPolicyBlockers>
+	failed?: boolean
+	linked?: boolean
+}
+const { providerId, blockers, failed = false, linked = true } = Astro.props
+---
+
+{
+	(failed || blockers.length > 0) && (
+		<section
+			class="fastt-card space-y-3 bg-white p-4 text-slate-900 sm:p-6"
+			aria-label="Habilitación de publicación"
+			data-admin-policy-blockers
+		>
+			<h3 class="font-semibold text-slate-950">Habilitación de publicación</h3>
+			{failed ? (
+				<p role="status" class="text-sm text-slate-600">
+					No se pudieron comprobar las políticas aplicables. Vuelve a consultar antes de tomar una
+					decisión.
+				</p>
+			) : (
+				<>
+					<p class="text-sm text-slate-600">
+						Falta resolver la configuración de políticas generales de Fastt. Verificar documentos o
+						aprobar un acuerdo particular no resuelve este bloqueo.
+					</p>
+					<ul class="divide-y divide-slate-200">
+						{blockers.map((blocker) => (
+							<li class="py-3 text-sm">
+								<p class="font-medium text-slate-900">
+									{blocker.label} ·{" "}
+									{/conflict/.test(blocker.code)
+										? "Políticas en conflicto"
+										: /contract/.test(blocker.code)
+											? "Requisitos por completar"
+											: "Sin política aplicable aprobada"}
+								</p>
+								<p class="text-slate-600">
+									{blocker.products.map((product) => product.name).join(" · ")}
+								</p>
+							</li>
+						))}
+					</ul>
+					{linked && (
+						<Button
+							variant="secondary"
+							size="sm"
+							href={`/admin/commercial-policies?${new URLSearchParams({ providerId })}`}
+						>
+							Revisar políticas aplicables
+						</Button>
+					)}
+					{!linked && (
+						<p class="text-sm text-slate-600">
+							Revisa el país, titular, ámbito, vigencia y alcance de las versiones. Completa
+							requisitos con fuentes verificables y las aprobaciones exigidas; no crees requisitos
+							vacíos para habilitar la publicación.
+						</p>
+					)}
+				</>
+			)}
+		</section>
+	)
+}
