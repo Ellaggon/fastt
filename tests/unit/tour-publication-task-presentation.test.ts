@@ -19,4 +19,10 @@ it("maps provider authorization review tasks to settings-style labels", () => {
 	expect(tourPublicationTaskHeadline(task)).toBe("Cuenta en revisión")
 	expect(tourPublicationTaskImpact(task)).toContain("Bloquea publicación")
 	expect(tourPublicationTaskStatus(task)).toEqual({ label: "En revisión", variant: "info" })
+	expect(tourPublicationTaskStatus({ ...task, code: "policy_context_unsupported_holder" })).toEqual(
+		{
+			label: "Pendiente de Fastt",
+			variant: "warning",
+		}
+	)
 })

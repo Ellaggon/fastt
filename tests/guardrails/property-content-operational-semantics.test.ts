@@ -361,10 +361,12 @@ describe("Guardrail: Property Content operational semantics", () => {
 		const productSurface = read("src/pages/product/[id]/index.astro")
 		const productHydration = read("src/pages/product/_client/product-summary-hydration.ts")
 		const locationPreview = read("src/components/product/ProductLocationPreview.astro")
+		const locationSummary = read("src/components/product/ProductLocationSummary.astro")
 
 		expect(summaryEndpoint).toContain("latitude: aggregate.location.lat")
 		expect(summaryEndpoint).toContain("longitude: aggregate.location.lng")
-		expect(productSurface).toContain("ProductLocationPreview")
+		expect(productSurface).toContain("ProductLocationSummary")
+		expect(locationSummary).toContain("ProductLocationPreview")
 		expect(productHydration).toContain("product-location-preview:update")
 		expect(locationPreview).toContain("IntersectionObserver")
 		expect(locationPreview).toContain("dragging: false")

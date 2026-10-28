@@ -21,7 +21,7 @@ export function tourPublicationTaskStatus(task: ChecklistTask): {
 		return { label: "En revisión", variant: "info" }
 	}
 	if (task.responsible === "fastt") {
-		return { label: "En revisión", variant: "info" }
+		return { label: "Pendiente de Fastt", variant: "warning" }
 	}
 	if ("unknown" in task && task.unknown) {
 		return { label: "Acción necesaria", variant: "error" }

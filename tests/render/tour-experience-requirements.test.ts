@@ -42,6 +42,10 @@ it("shows a single pending Fastt decision without asking for more documents", as
 	expect(html).not.toContain("data-optional-upload-form")
 	expect(html).not.toContain("data-verification-trust-panel")
 	expect(html).toContain("Editar operación")
+	expect(html).toContain("Datos de operación")
+	expect(html).not.toContain("Operación declarada para determinar sus respaldos")
+	expect(html).toContain("md:!mt-16")
+	expect(html).toContain("data-operation-saved-summary")
 })
 it("keeps missing operation actionable without two repeated prerequisite notices", async () => {
 	const container = await AstroContainer.create()

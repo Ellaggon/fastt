@@ -6,6 +6,7 @@ import FormField from "@/components/ui/FormField.astro"
 import Notice from "@/components/ui/Notice.astro"
 import Select from "@/components/ui/Select.astro"
 import { routes } from "@/lib/routes"
+import { Pencil } from "@lucide/astro"
 import {
 	storedTourActivityClasses,
 	tourComplianceActivityClasses,
@@ -81,23 +82,23 @@ const activityHelp: Record<string, string> = {
 
 <Card class="space-y-5" data-tour-operating-context>
 	<div class="max-w-2xl">
-		<h2 id="tour-operating-context" class="text-lg font-semibold text-slate-950">
-			Cómo operas esta experiencia
-		</h2>
-		<p class="mt-1 text-sm leading-6 text-slate-600">
-			{
-				operationComplete
-					? "Operación declarada para determinar sus respaldos."
-					: "Indica quién opera, dónde y qué actividades incluye. Guardar no aprueba la experiencia."
-			}
-		</p>
+		<h3 id="tour-operating-context" class="text-base font-semibold text-slate-950">
+			Datos de operación
+		</h3>
+		{
+			!operationComplete && (
+				<p class="mt-1 text-sm leading-6 text-slate-600">
+					Indica quién opera, dónde y qué actividades incluye. Guardar no aprueba la experiencia.
+				</p>
+			)
+		}
 	</div>
 	{
 		operationComplete && (
 			<dl class="grid gap-3 text-sm sm:grid-cols-3" data-operation-saved-summary>
 				<div>
 					<>
-						<dt class="text-xs text-slate-500">Operación</dt>
+						<dt class="text-xs text-slate-500">Quién opera</dt>
 						<dd class="mt-1 font-medium text-slate-900">
 							{roles.find((role) => role.value === context?.operatingRole)?.label}
 						</dd>
@@ -167,16 +168,20 @@ const activityHelp: Record<string, string> = {
 			<details open={editorOpen} data-operation-editor class="space-y-4">
 				<summary
 					class:list={[
-						"cursor-pointer text-sm font-semibold text-slate-800",
+						"fastt-button inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600",
 						!operationComplete && "sr-only",
 					]}
 				>
-					{canEdit ? "Editar operación" : "Consultar operación declarada"}
+					<Pencil size={15} aria-hidden="true" />
+					<span data-operation-edit-label>
+						{canEdit ? "Editar operación" : "Consultar operación declarada"}
+					</span>
+					<span data-operation-close-label>{canEdit ? "Cerrar edición" : "Cerrar detalle"}</span>
 				</summary>
 				<form
 					method="post"
 					action={`${submitUrl.pathname}${submitUrl.search}`}
-					class="space-y-5"
+					class="space-y-6 border-t border-slate-100 pt-5"
 					data-tour-operating-context-form
 				>
 					<input type="hidden" name="productId" value={productId} />
@@ -186,13 +191,13 @@ const activityHelp: Record<string, string> = {
 						</p>
 					)}
 					<fieldset disabled={!canEdit} class="space-y-5">
-						<div class="grid gap-4 sm:grid-cols-2">
+						<div class="space-y-6">
 							<FormField
 								label="Tu papel en esta experiencia"
 								htmlFor="tour-operating-role"
 								required
 							>
-								<Select id="tour-operating-role" name="operatingRole" required>
+								<Select id="tour-operating-role" name="operatingRole" required class="max-w-sm">
 									<option value="" selected={!context?.operatingRole}>
 										Selecciona quién opera
 									</option>
@@ -219,12 +224,13 @@ const activityHelp: Record<string, string> = {
 							>
 								<fieldset
 									id="tour-jurisdiction-code"
-									class="grid gap-2 sm:grid-cols-2"
+									class="grid grid-cols-2 gap-2 sm:grid-cols-3"
 									aria-describedby="tour-territory-help"
 								>
 									<legend class="sr-only">Selecciona al menos un departamento</legend>
 									{tourOperatingTerritories.map((territory) => (
 										<Checkbox
+											class="fastt-soft-box fastt-check-option min-h-11 rounded-lg border border-slate-200 p-3 has-[:checked]:border-[var(--fastt-color-selection)] has-[:checked]:bg-[var(--fastt-color-selection-soft)]"
 											name="jurisdictionCodes"
 											value={territory.code}
 											checked={selectedTerritories.includes(territory.code)}
@@ -233,15 +239,14 @@ const activityHelp: Record<string, string> = {
 									))}
 								</fieldset>
 								<p id="tour-territory-help" class="text-xs leading-5 text-slate-500">
-									Selecciona solo los departamentos de esta experiencia. Varias ciudades del mismo
-									departamento requieren una sola selección. Si falta tu territorio,{" "}
+									Marca los departamentos del recorrido; varias ciudades de un mismo departamento
+									requieren una sola selección. Si falta un territorio,{" "}
 									<a
 										class="font-semibold underline"
 										href={`${routes.providerSupport()}?${supportParams}`}
 									>
-										solicita revisión
+										solicita revisión.
 									</a>
-									. No selecciones uno por aproximación.
 								</p>
 							</FormField>
 						</div>
@@ -256,9 +261,9 @@ const activityHelp: Record<string, string> = {
 								</span>
 							</legend>
 							<p id="tour-activities-help" class="text-xs leading-5 text-slate-500">
-								Selecciona al menos una. Incluye solo las que forman parte de esta experiencia.
+								Marca al menos una actividad que forme parte del recorrido.
 							</p>
-							<div class="grid gap-2 sm:grid-cols-2">
+							<div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
 								{tourComplianceActivityClasses.map((activity) => (
 									<Checkbox
 										class="fastt-check-option min-h-11 border border-slate-200 p-3 has-[:checked]:border-[var(--fastt-color-selection)] has-[:checked]:bg-[var(--fastt-color-selection-soft)]"
@@ -318,6 +323,23 @@ const activityHelp: Record<string, string> = {
 		)
 	}
 </Card>
+<style>
+	:global(
+		[data-tour-operating-context]:has([data-operation-editor][open]) [data-operation-saved-summary]
+	) {
+		display: none;
+	}
+	:global([data-operation-editor] > summary::-webkit-details-marker) {
+		display: none;
+	}
+	:global([data-operation-close-label]),
+	:global([data-operation-editor][open] [data-operation-edit-label]) {
+		display: none;
+	}
+	:global([data-operation-editor][open] [data-operation-close-label]) {
+		display: inline;
+	}
+</style>
 
 <script>
 	function bindOperatingContextValidation() {

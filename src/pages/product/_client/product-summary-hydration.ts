@@ -190,7 +190,14 @@ function setBadgeState(key: string, complete: boolean, label?: string): void {
 	if (!badgeElement) return
 	setStayPreparationRowVisual(key, complete)
 	badgeElement.textContent = label || (complete ? "Completo" : "Pendiente")
-	badgeElement.className = complete ? BADGE_VARIANT_CLASS.success : BADGE_VARIANT_CLASS.warning
+	if (key === "location") {
+		badgeElement.closest("[data-product-location-status]")?.classList.toggle("sr-only", complete)
+	}
+	badgeElement.className = complete
+		? key === "images"
+			? "text-xs font-medium text-slate-500"
+			: BADGE_VARIANT_CLASS.success
+		: BADGE_VARIANT_CLASS.warning
 }
 
 function setText(id: string, value: string): void {
@@ -330,7 +337,7 @@ export function initProductSummaryHydration(): void {
 			}
 			const contentCheck = applyCheck("content", "content", Boolean(payload?.checks?.hasContent))
 			applyCheck("location", "location", Boolean(payload?.checks?.hasLocation))
-			const photosCheck = applyCheck("images", "photos", Boolean(payload?.checks?.hasImages))
+			applyCheck("images", "photos", Boolean(payload?.checks?.hasImages))
 			const subtypeCheck = applyCheck("subtype", "subtype", Boolean(payload?.checks?.hasSubtype))
 			const roomsCheck = config.isHotel
 				? applyCheck("variants", "rooms", Boolean(payload?.checks?.hasVariants))
@@ -395,14 +402,6 @@ export function initProductSummaryHydration(): void {
 				locationPreview.dataset.longitude = Number.isFinite(longitude) ? String(longitude) : ""
 				locationPreview.dataset.locationResolved = "true"
 				document.dispatchEvent(new CustomEvent("product-location-preview:update"))
-			}
-			const imageCount = Number(payload?.images?.count ?? 0)
-			setText(
-				"summaryImagesCount",
-				imageCount === 1 ? "1 foto cargada" : `${imageCount} fotos cargadas`
-			)
-			if (isUsefulPreparationDetail(photosCheck?.detail)) {
-				setText("summaryImagesCount", photosCheck.detail)
 			}
 			if (!config.isTour) {
 				setText("summaryProductType", subtypeSummary)

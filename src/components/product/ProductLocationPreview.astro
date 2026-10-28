@@ -3,13 +3,17 @@ import "leaflet/dist/leaflet.css"
 
 interface Props {
 	label: string
+	compact?: boolean
 }
 
-const { label } = Astro.props
+const { label, compact = false } = Astro.props
 ---
 
 <div
-	class="relative max-w-full min-h-80 overflow-hidden bg-slate-100 [&_.leaflet-container]:max-w-full"
+	class:list={[
+		"relative max-w-full overflow-hidden bg-slate-100 [&_.leaflet-container]:max-w-full",
+		compact ? "h-[280px] rounded-lg" : "min-h-80",
+	]}
 	data-product-location-preview
 	data-state="loading"
 	data-latitude=""
