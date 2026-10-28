@@ -2,7 +2,7 @@
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import { Images } from "@lucide/astro"
+import { Images, Pencil } from "@lucide/astro"
 
 interface Props {
 	imagesHref: string
@@ -18,19 +18,24 @@ const { imagesHref, singularLabel } = Astro.props
 	data-product-media-gallery-card
 >
 	<div
-		class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 md:px-6"
+		class="flex min-h-[88px] items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 md:px-6"
 	>
-		<div class="min-w-0">
-			<div class="flex flex-wrap items-center gap-2">
-				<span class="fastt-section-icon">
-					<Images class="size-4" aria-hidden="true" />
-				</span>
-				<p class="text-sm font-semibold text-slate-950">Galería de fotos</p>
+		<div class="flex min-w-0 items-center gap-3">
+			<span class="fastt-section-icon">
+				<Images class="size-4" aria-hidden="true" />
+			</span>
+			<div class="min-w-0 space-y-1">
+				<h2 class="text-sm font-semibold text-slate-950">Galería de fotos</h2>
 				<Badge id="blockBadge-images" variant="neutral">Cargando...</Badge>
 			</div>
-			<p id="summaryImagesCount" class="mt-1 text-sm text-slate-500">Cargando fotos...</p>
 		</div>
-		<Button href={imagesHref} variant="secondary" size="sm"> Gestionar fotos </Button>
+		<Button
+			href={imagesHref}
+			variant="ghost"
+			class="!h-10 !w-10 shrink-0 rounded-lg !p-0"
+			aria-label="Gestionar fotos"
+			title="Gestionar fotos"><Pencil size={17} aria-hidden="true" /></Button
+		>
 	</div>
 
 	<div class="max-w-full overflow-hidden p-2 md:p-3" data-product-media-gallery>
@@ -66,7 +71,7 @@ const { imagesHref, singularLabel } = Astro.props
 		<div class="product-media-mosaic hidden md:grid" aria-label={`Galería de ${singularLabel}`}>
 			<div
 				data-product-media-cover
-				class="product-media-mosaic__cover relative overflow-hidden rounded-[var(--fastt-radius-card)] bg-slate-100"
+				class="product-media-mosaic__cover relative overflow-hidden rounded-lg bg-slate-100"
 			>
 				<div
 					class="flex h-full min-h-[280px] items-center justify-center text-sm font-medium text-slate-500"
@@ -79,7 +84,7 @@ const { imagesHref, singularLabel } = Astro.props
 				Array.from({ length: 4 }).map((_, index) => (
 					<div
 						data-product-media-thumb
-						class="product-media-mosaic__thumb relative overflow-hidden rounded-[var(--fastt-radius-card)] bg-slate-100"
+						class="product-media-mosaic__thumb relative overflow-hidden rounded-lg bg-slate-100"
 						data-thumb-index={index}
 						hidden
 					>
@@ -101,14 +106,20 @@ const { imagesHref, singularLabel } = Astro.props
 	.product-media-mosaic {
 		position: relative;
 		grid-template-columns: minmax(0, 1.45fr) repeat(2, minmax(0, 1fr));
-		grid-template-rows: repeat(2, minmax(136px, 1fr));
+		grid-template-rows: repeat(2, minmax(0, 1fr));
 		gap: 0.5rem;
-		min-height: 280px;
+		height: 280px;
 	}
 
 	.product-media-mosaic__cover {
 		grid-column: 1;
 		grid-row: 1 / span 2;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.product-media-mosaic__thumb :global(img),
+		.product-media-mosaic__cover :global(img) {
+			transition: none;
+		}
 	}
 
 	.product-media-mosaic__thumb :global(img),

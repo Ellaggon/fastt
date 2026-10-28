@@ -59,31 +59,34 @@ const {
 		<ArrowRight class="size-4 shrink-0" aria-hidden="true" />
 		Continuar ficha
 	</Button>
-	<Button href={previewHref} variant="secondary" className="w-full justify-start">
+	<Button href={previewHref} variant="ghost" className="w-full justify-start">
 		<Eye class="size-4 shrink-0" aria-hidden="true" />
 		Vista previa
 	</Button>
-	<Button href={departuresHref} variant="secondary" className="w-full justify-start">
+	<Button href={departuresHref} variant="ghost" className="w-full justify-start">
 		<CalendarDays class="size-4 shrink-0" aria-hidden="true" />
-		Gestionar opciones y horarios
+		Opciones y horarios
 	</Button>
-	<Button href={publicationHref} variant="secondary" className="w-full justify-start">
+	<Button href={publicationHref} variant="ghost" className="w-full justify-start">
 		<ClipboardList class="size-4 shrink-0" aria-hidden="true" />
 		Revisar publicación
 	</Button>
 	<Button
 		href={`/product/${encodeURIComponent(productId)}#experience-requirements`}
-		variant="secondary"
+		variant="ghost"
 		className="w-full justify-start"
 	>
 		<ClipboardList class="size-4 shrink-0" aria-hidden="true" />
 		Operación y requisitos
 	</Button>
-	<div class="border-t border-slate-100 pt-3">
+	<details class="mt-2 border-t border-slate-100 pt-3">
+		<summary class="min-h-10 cursor-pointer py-2 text-sm font-medium text-slate-500"
+			>Más opciones</summary
+		>
 		<Button
 			type="button"
-			variant="danger"
-			className="w-full justify-start"
+			variant="ghost"
+			className="w-full justify-start !text-red-600 hover:!bg-red-50 hover:!text-red-700"
 			data-open-product-delete
 			data-product-id={productId}
 			data-product-name={productName}
@@ -91,5 +94,5 @@ const {
 			<Trash2 class="size-4 shrink-0" aria-hidden="true" />
 			{deleteLabel}
 		</Button>
-	</div>
+	</details>
 </div>
