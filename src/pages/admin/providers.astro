@@ -3,6 +3,8 @@ import AdminComplianceSlaAssign from "@/components/admin/AdminComplianceSlaAssig
 import ReviewedProviderDocuments from "@/components/admin/ReviewedProviderDocuments.astro"
 import ProviderBankAccountReview from "@/components/admin/ProviderBankAccountReview.astro"
 import ProviderCommercialAgreementSummary from "@/components/admin/ProviderCommercialAgreementSummary.astro"
+import ProviderPublicationPolicyBlockers from "@/components/admin/ProviderPublicationPolicyBlockers.astro"
+import { loadAdminPolicyBlockers } from "@/lib/commercial-policy/admin-publication-blockers"
 import { loadAdminAgreementSurface } from "@/lib/commercial-policy/admin-agreement-surface"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
@@ -73,7 +75,8 @@ const canReadAgreement = Boolean(
 	})
 )
 let agreementReadFailed = false
-const [consolePayload, focusedDetail, agreementSummary] = await Promise.all([
+let policyReadFailed = false
+const [consolePayload, focusedDetail, agreementSummary, policyBlockers] = await Promise.all([
 	isAdmin
 		? loadProviderComplianceConsole({ filter, auditLimit: filter === "audit" ? 80 : 25 })
 		: null,
@@ -85,6 +88,13 @@ const [consolePayload, focusedDetail, agreementSummary] = await Promise.all([
 				return null
 			})
 		: null,
+	canReadAgreement && filter === "payments"
+		? loadAdminPolicyBlockers(focusedProviderId).catch((error) => {
+				policyReadFailed = true
+				console.error("admin.policy_diagnosis_failed", error)
+				return []
+			})
+		: [],
 ])
 const canOfferAgreement = Boolean(
 	principal &&
@@ -1380,6 +1390,13 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 													</section>
 												)}
 
+												{canReadAgreement && filter === "payments" && (
+													<ProviderPublicationPolicyBlockers
+														providerId={focusedProviderId}
+														blockers={policyBlockers}
+														failed={policyReadFailed}
+													/>
+												)}
 												{agreementSummary && (
 													<ProviderCommercialAgreementSummary
 														model={agreementSummary}
