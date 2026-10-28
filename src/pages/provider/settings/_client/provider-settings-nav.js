@@ -1,11 +1,13 @@
 const SETTINGS_TAB_PATHS = new Set([
 	"/provider/settings",
 	"/provider/settings/profile",
+	"/provider/settings/payments",
 	"/provider/settings/team",
 ])
 
-/** @type {Map<string, Promise<{ title: string; header: string; panel: string }>>} */
+/** @type {Map<string, Promise<{ title: string; header: string; panel: string; styles: string[] }>>} */
 const tabPayloadCache = new Map()
+const pendingStyles = new Map()
 let navigationRevision = 0
 
 function normalizePath(pathname) {
@@ -48,6 +50,10 @@ function extractTabPayload(doc) {
 		title: doc.title,
 		header: header.outerHTML,
 		panel: panel.outerHTML,
+		styles: Array.from(
+			doc.head.querySelectorAll('style, link[rel="stylesheet"]'),
+			(node) => node.outerHTML
+		),
 	}
 }
 
@@ -111,7 +117,61 @@ async function fetchTabPayload(path) {
 	const doc = new DOMParser().parseFromString(html, "text/html")
 	const payload = extractTabPayload(doc)
 	if (!payload) throw new Error("settings_tab_missing_shell")
+	await prepareTabAssets(payload)
 	return payload
+}
+
+function styleKey(node) {
+	return node.getAttribute("href") ?? node.getAttribute("data-vite-dev-id") ?? node.textContent
+}
+
+async function prepareTabAssets(payload) {
+	const existing = new Set(
+		Array.from(document.head.querySelectorAll('style, link[rel="stylesheet"]'), styleKey)
+	)
+	const pending = []
+	for (const html of payload.styles) {
+		const node = htmlToElement(html)
+		if (!node) continue
+		const key = styleKey(node)
+		if (pendingStyles.has(key)) {
+			pending.push(pendingStyles.get(key))
+			continue
+		}
+		if (existing.has(key)) continue
+		existing.add(key)
+		if (node.tagName === "LINK") {
+			const ready = new Promise((resolve, reject) => {
+				const timer = window.setTimeout(() => {
+					node.remove()
+					reject(new Error("settings_tab_style_timeout"))
+				}, 8000)
+				node.addEventListener(
+					"load",
+					() => {
+						window.clearTimeout(timer)
+						resolve(undefined)
+					},
+					{ once: true }
+				)
+				node.addEventListener(
+					"error",
+					() => {
+						window.clearTimeout(timer)
+						node.remove()
+						reject(new Error("settings_tab_style_failed"))
+					},
+					{ once: true }
+				)
+			}).finally(() => pendingStyles.delete(key))
+			pendingStyles.set(key, ready)
+			pending.push(ready)
+		}
+		document.head.append(node)
+	}
+	if (payload.panel.includes("data-agreement-form"))
+		pending.push(import("@/lib/commercial-policy/agreement-forms"))
+	await Promise.all(pending)
 }
 
 function loadTabPayload(pathname, { force = false } = {}) {
@@ -180,6 +240,10 @@ async function applyTabPayload(payload, destination, { pushHistory = true } = {}
 	document.title = payload.title
 	if (pushHistory) window.history.pushState({ providerSettingsTab: destination }, "", destination)
 	syncSettingsSubnavActive()
+	if (newPanel?.querySelector("[data-agreement-form]")) {
+		const { bindAgreementForms } = await import("@/lib/commercial-policy/agreement-forms")
+		bindAgreementForms()
+	}
 	hideSettingsPending()
 	preserveSettingsScrollPosition(scrollX, scrollY)
 	document.dispatchEvent(new Event("provider-settings-tab-applied"))
@@ -304,11 +368,10 @@ function drainSettingsNavQueue() {
 }
 
 export function bootProviderSettingsNav() {
-	if (
-		!isSettingsHubTabPath(window.location.pathname) &&
-		normalizePath(window.location.pathname) !== "/provider/settings/payments"
-	)
-		return
+	if (!isSettingsHubTabPath(window.location.pathname)) return
+	const currentKey = settingsTabCacheKey(window.location.href)
+	const currentPayload = extractTabPayload(document)
+	if (currentKey && currentPayload) tabPayloadCache.set(currentKey, Promise.resolve(currentPayload))
 	window.__fasttNavigateSettingsTab = (href) => {
 		void navigateSettingsTab(href)
 	}

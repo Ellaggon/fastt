@@ -42,6 +42,9 @@ it("clears the commercial agreement highlight when navigating to another setting
 		"/provider/settings/profile?edit=1"
 	)
 	expect(settingsTabCacheKey("/provider/settings/profile")).toBe("/provider/settings/profile")
+	expect(settingsTabCacheKey("/provider/settings/payments?scope=tour&productId=experience-a")).toBe(
+		"/provider/settings/payments?scope=tour&productId=experience-a"
+	)
 	expect(settingsTabCacheKey("https://example.com/provider/settings")).toBeNull()
 	for (const path of [...paths, "/provider/settings/"]) {
 		location.pathname = path
