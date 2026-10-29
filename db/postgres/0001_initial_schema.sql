@@ -24,6 +24,7 @@ CREATE TABLE "ProviderHolderProfile" (
 	"providerId" text PRIMARY KEY,
 	"holderType" text NOT NULL,
 	"holderCountry" text NOT NULL,
+	"legalFormCode" text,
 	"taxResidenceCountry" text,
 	"payoutCountry" text,
 	"collectionModel" text NOT NULL DEFAULT 'undecided',
@@ -142,6 +143,8 @@ CREATE TABLE "ProviderDocument" (
 	"id" text PRIMARY KEY,
 	"providerId" text NOT NULL,
 	"type" text NOT NULL,
+	"definitionVersionId" text,
+	"replacesDocumentId" text,
 	"status" text NOT NULL DEFAULT 'pending',
 	"fileUrl" text,
 	"metadataJson" jsonb,
@@ -155,6 +158,24 @@ CREATE TABLE "ProviderDocument" (
 	"reviewedBy" text,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "DocumentDefinition" (
+	"id" text PRIMARY KEY,
+	"key" text NOT NULL,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "DocumentDefinitionVersion" (
+	"id" text PRIMARY KEY,
+	"definitionId" text NOT NULL,
+	"version" integer NOT NULL,
+	"status" text NOT NULL DEFAULT 'draft',
+	"label" text NOT NULL,
+	"description" text NOT NULL,
+	"family" text NOT NULL,
+	"captureJson" jsonb NOT NULL,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "ProviderDocumentScope" (
@@ -856,6 +877,8 @@ CREATE TABLE "TourComplianceContext" (
 	"providerId" text NOT NULL,
 	"operatingRole" text,
 	"activityClassesJson" jsonb,
+	"operationJson" jsonb,
+	"revision" integer NOT NULL DEFAULT 0,
 	"jurisdictionCode" text,
 	"jurisdictionCodes" jsonb,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
@@ -921,6 +944,7 @@ CREATE TABLE "TourOperationalResource" (
 	"languagesJson" jsonb,
 	"capacity" integer,
 	"credentialsJson" jsonb,
+	"declarationJson" jsonb,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
@@ -2398,9 +2422,30 @@ ALTER TABLE "ProviderDocument"
 ;
 
 ALTER TABLE "ProviderDocument"
+	ADD CONSTRAINT "ProviderDocument_definitionVersionId_fk"
+	FOREIGN KEY ("definitionVersionId")
+	REFERENCES "DocumentDefinitionVersion" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "ProviderDocument"
+	ADD CONSTRAINT "ProviderDocument_replacesDocumentId_fk"
+	FOREIGN KEY ("replacesDocumentId")
+	REFERENCES "ProviderDocument" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "ProviderDocument"
 	ADD CONSTRAINT "ProviderDocument_reviewedBy_fk"
 	FOREIGN KEY ("reviewedBy")
 	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "DocumentDefinitionVersion"
+	ADD CONSTRAINT "DocumentDefinitionVersion_definitionId_fk"
+	FOREIGN KEY ("definitionId")
+	REFERENCES "DocumentDefinition" ("id")
+	ON DELETE RESTRICT
 ;
 
 ALTER TABLE "ProviderDocumentScope"
@@ -2429,6 +2474,12 @@ ALTER TABLE "ProviderDocumentScope"
 	FOREIGN KEY ("resourceId")
 	REFERENCES "TourOperationalResource" ("id")
 	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderDocumentScope"
+	ADD CONSTRAINT "ProviderDocumentScope_territoryCode_fk"
+	FOREIGN KEY ("territoryCode")
+	REFERENCES "GeoPlace" ("id")
 ;
 
 ALTER TABLE "ProviderDocumentInspection"
@@ -4316,9 +4367,17 @@ CREATE UNIQUE INDEX "ProviderOptionPreparationSession_first_active_idx" ON "Prov
 
 CREATE INDEX "ProviderDocument_providerId_type_idx" ON "ProviderDocument" ("providerId", "type");
 
+CREATE INDEX "ProviderDocument_definitionVersion_idx" ON "ProviderDocument" ("definitionVersionId");
+
+CREATE INDEX "ProviderDocument_replacement_idx" ON "ProviderDocument" ("replacesDocumentId");
+
 CREATE INDEX "ProviderDocument_providerId_status_idx" ON "ProviderDocument" ("providerId", "status");
 
 CREATE INDEX "ProviderDocument_provider_expiry_idx" ON "ProviderDocument" ("providerId", "expiresAt");
+
+CREATE UNIQUE INDEX "DocumentDefinition_key_unique" ON "DocumentDefinition" ("key");
+
+CREATE UNIQUE INDEX "DocumentDefinitionVersion_definition_version_unique" ON "DocumentDefinitionVersion" ("definitionId", "version");
 
 CREATE INDEX "ProviderDocumentScope_document_idx" ON "ProviderDocumentScope" ("documentId");
 
@@ -5034,6 +5093,8 @@ ALTER TABLE "ProviderHolderProfile" ADD CONSTRAINT "ProviderHolderProfile_holder
 
 ALTER TABLE "ProviderHolderProfile" ADD CONSTRAINT "ProviderHolderProfile_holderCountry_check" CHECK ("holderCountry" ~ '^[A-Z]{2}$');
 
+ALTER TABLE "ProviderHolderProfile" ADD CONSTRAINT "ProviderHolderProfile_legalFormCountry_check" CHECK ("legalFormCode" IS NULL OR split_part("legalFormCode", ':', 1) = "holderCountry");
+
 ALTER TABLE "ProviderHolderProfile" ADD CONSTRAINT "ProviderHolderProfile_taxResidenceCountry_check" CHECK ("taxResidenceCountry" IS NULL OR "taxResidenceCountry" ~ '^[A-Z]{2}$');
 
 ALTER TABLE "ProviderHolderProfile" ADD CONSTRAINT "ProviderHolderProfile_payoutCountry_check" CHECK ("payoutCountry" IS NULL OR "payoutCountry" ~ '^[A-Z]{2}$');
@@ -5083,6 +5144,12 @@ ALTER TABLE "ProviderOptionPreparationSession" ADD CONSTRAINT "ProviderOptionPre
 ALTER TABLE "ProviderOptionPreparationSession" ADD CONSTRAINT "ProviderOptionPreparationSession_status_check" CHECK ("status" IN ('active', 'completed', 'abandoned'));
 
 ALTER TABLE "ProviderDocument" ADD CONSTRAINT "ProviderDocument_subjectType_check" CHECK ("subjectType" IN ('provider', 'legal_entity', 'person', 'resource', 'third_party'));
+
+ALTER TABLE "DocumentDefinitionVersion" ADD CONSTRAINT "DocumentDefinitionVersion_version_check" CHECK ("version" > 0);
+
+ALTER TABLE "DocumentDefinitionVersion" ADD CONSTRAINT "DocumentDefinitionVersion_status_check" CHECK ("status" IN ('draft', 'published', 'retired'));
+
+ALTER TABLE "DocumentDefinitionVersion" ADD CONSTRAINT "DocumentDefinitionVersion_capture_check" CHECK (jsonb_typeof("captureJson") = 'object');
 
 ALTER TABLE "ProviderDocumentScope" ADD CONSTRAINT "ProviderDocumentScope_type_check" CHECK ("scopeType" IN ('product', 'resource', 'territory', 'activity'));
 
@@ -5188,7 +5255,11 @@ ALTER TABLE "Tour" ADD CONSTRAINT "Tour_formatContractVersion_check" CHECK ("for
 
 ALTER TABLE "Tour" ADD CONSTRAINT "Tour_activity_contract_check" CHECK ("activityContractVersion" IN (0, 1) AND ("activityContractVersion" = 1 OR "primaryActivityCategoryId" IS NULL) AND "classificationRevision" >= 0);
 
-ALTER TABLE "TourComplianceContext" ADD CONSTRAINT "TourComplianceContext_territories_check" CHECK ("jurisdictionCodes" IS NULL OR (jsonb_typeof("jurisdictionCodes") = 'array' AND jsonb_array_length("jurisdictionCodes") BETWEEN 1 AND 9 AND "jurisdictionCodes" <@ '["BO-BN","BO-CH","BO-CB","BO-LP","BO-OR","BO-PN","BO-PT","BO-SC","BO-TJ"]'::jsonb));
+ALTER TABLE "TourComplianceContext" ADD CONSTRAINT "TourComplianceContext_revision_check" CHECK ("revision" >= 0);
+
+ALTER TABLE "TourComplianceContext" ADD CONSTRAINT "TourComplianceContext_operation_check" CHECK ("operationJson" IS NULL OR ((jsonb_typeof("operationJson") = 'object' AND "operationJson"->>'version' = '2' AND "operationJson"->>'executionMode' IN ('self', 'team', 'external') AND jsonb_typeof("operationJson"->'transportServices') = 'array' AND jsonb_typeof("operationJson"->'resourceIds') = 'array' AND jsonb_typeof("operationJson"->'guidingService') = 'boolean' AND jsonb_typeof("operationJson"->'waterActivity') = 'boolean' AND jsonb_typeof("operationJson"->'airActivity') = 'boolean' AND "operationJson"->>'foodHandling' IN ('none', 'visit', 'serve', 'prepare')) IS TRUE));
+
+ALTER TABLE "TourComplianceContext" ADD CONSTRAINT "TourComplianceContext_territories_check" CHECK ("jurisdictionCodes" IS NULL OR (jsonb_typeof("jurisdictionCodes") = 'array' AND jsonb_array_length("jurisdictionCodes") BETWEEN 1 AND 100));
 
 ALTER TABLE "TourComplianceContext" ADD CONSTRAINT "TourComplianceContext_operatingRole_check" CHECK ("operatingRole" IS NULL OR "operatingRole" IN ('operator', 'guide', 'intermediary'));
 
@@ -5203,6 +5274,8 @@ ALTER TABLE "WholeHomeUnit" ADD CONSTRAINT "WholeHomeUnit_unitCount_check" CHECK
 ALTER TABLE "TourSlotProfile" ADD CONSTRAINT "TourSlotProfile_bookingMode_check" CHECK ("bookingMode" in ('shared', 'private'));
 
 ALTER TABLE "TourSlotProfile" ADD CONSTRAINT "TourSlotProfile_maxPax_check" CHECK ("maxPax" >= 1);
+
+ALTER TABLE "TourOperationalResource" ADD CONSTRAINT "TourOperationalResource_declaration_check" CHECK (("declarationJson" IS NULL AND "type" <> 'service_operator') OR ((jsonb_typeof("declarationJson") = 'object' AND "declarationJson"->>'country' ~ '^[A-Z]{2}$') IS TRUE));
 
 ALTER TABLE "TourTicketType" ADD CONSTRAINT "TourTicketType_code_check" CHECK ("code" in ('adult', 'child', 'infant', 'custom'));
 
@@ -6422,6 +6495,118 @@ BEGIN
  END IF;
  RETURN NEW;
 END $$;
+
+CREATE FUNCTION fastt_document_definition_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF OLD.status <> 'draft' THEN
+    IF TG_OP = 'DELETE' OR (to_jsonb(NEW) - 'status') IS DISTINCT FROM (to_jsonb(OLD) - 'status')
+      OR NOT (NEW.status = OLD.status OR (OLD.status = 'published' AND NEW.status = 'retired')) THEN
+      RAISE EXCEPTION 'document_definition_immutable';
+    END IF;
+  END IF;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER document_definition_immutable BEFORE UPDATE OR DELETE ON "DocumentDefinitionVersion"
+FOR EACH ROW EXECUTE FUNCTION fastt_document_definition_immutable();
+
+CREATE FUNCTION fastt_document_reference_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE predecessor "ProviderDocument"%ROWTYPE;
+BEGIN
+  IF TG_OP = 'UPDATE' AND OLD.status IN ('verified','superseded') AND
+    (NEW."definitionVersionId", NEW."subjectType", NEW."subjectReference", NEW."providerId", NEW."fileUrl", NEW."replacesDocumentId")
+    IS DISTINCT FROM
+    (OLD."definitionVersionId", OLD."subjectType", OLD."subjectReference", OLD."providerId", OLD."fileUrl", OLD."replacesDocumentId") THEN
+    RAISE EXCEPTION 'reviewed_document_identity_immutable';
+  END IF;
+  IF NEW."definitionVersionId" IS NOT NULL AND (TG_OP = 'INSERT' OR NEW."definitionVersionId" IS DISTINCT FROM OLD."definitionVersionId") THEN
+    PERFORM 1 FROM "DocumentDefinitionVersion" WHERE id = NEW."definitionVersionId" AND status = 'published' FOR SHARE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'document_definition_not_published'; END IF;
+  END IF;
+  IF NEW."replacesDocumentId" IS NOT NULL THEN
+    IF NEW.id = NEW."replacesDocumentId" THEN RAISE EXCEPTION 'document_replacement_cycle'; END IF;
+    IF TG_OP = 'UPDATE' AND NEW."replacesDocumentId" IS DISTINCT FROM OLD."replacesDocumentId" THEN
+      RAISE EXCEPTION 'document_predecessor_immutable';
+    END IF;
+    SELECT * INTO predecessor FROM "ProviderDocument" WHERE id = NEW."replacesDocumentId" FOR UPDATE;
+    IF NOT FOUND OR predecessor."providerId" <> NEW."providerId" OR predecessor.type <> NEW.type
+      OR predecessor."subjectType" <> NEW."subjectType"
+      OR predecessor."subjectReference" IS DISTINCT FROM NEW."subjectReference"
+      OR predecessor."definitionVersionId" IS DISTINCT FROM NEW."definitionVersionId" THEN
+      RAISE EXCEPTION 'invalid_document_replacement';
+    END IF;
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER document_reference_guard BEFORE INSERT OR UPDATE ON "ProviderDocument"
+FOR EACH ROW EXECUTE FUNCTION fastt_document_reference_guard();
+
+CREATE OR REPLACE FUNCTION fastt_validate_operating_territories() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE ids jsonb; place_id text; matched text;
+BEGIN
+  ids := NEW."jurisdictionCodes";
+  IF ids IS NULL THEN
+    IF NEW."jurisdictionCode" IS NOT NULL THEN RAISE EXCEPTION 'territory_projection_mismatch'; END IF;
+    RETURN NEW;
+  END IF;
+  IF jsonb_typeof(ids) <> 'array' OR jsonb_array_length(ids) NOT BETWEEN 1 AND 100
+    OR (SELECT count(*) FROM jsonb_array_elements(ids)) <> (SELECT count(DISTINCT value) FROM jsonb_array_elements(ids)) THEN
+    RAISE EXCEPTION 'invalid_operating_territories';
+  END IF;
+  FOR place_id IN SELECT jsonb_array_elements_text(ids) LOOP
+    SELECT id INTO matched FROM "GeoPlace" WHERE id = place_id FOR KEY SHARE;
+    IF matched IS NULL THEN RAISE EXCEPTION 'unknown_operating_territory: %', place_id; END IF;
+  END LOOP;
+  IF NEW."jurisdictionCode" IS DISTINCT FROM ids->>0 THEN RAISE EXCEPTION 'territory_projection_mismatch'; END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS "TourComplianceContext_geography_guard" ON "TourComplianceContext";
+CREATE TRIGGER "TourComplianceContext_geography_guard" BEFORE INSERT OR UPDATE OF "jurisdictionCodes", "jurisdictionCode"
+ON "TourComplianceContext" FOR EACH ROW EXECUTE FUNCTION fastt_validate_operating_territories();
+
+CREATE OR REPLACE FUNCTION fastt_restrict_operating_place_delete() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM "TourComplianceContext" WHERE "jurisdictionCodes" ? OLD.id) THEN
+    RAISE EXCEPTION 'GeoPlace is referenced by an operating declaration';
+  END IF;
+  IF EXISTS (SELECT 1 FROM "CompliancePolicyVersion" v
+    WHERE v."contextJson"->'jurisdictionCodes' ? OLD.id
+      OR EXISTS (SELECT 1 FROM "GeoPlaceExternalId" e WHERE e."placeId" = OLD.id
+        AND e.source = 'fastt_legacy_jurisdiction' AND v."contextJson"->'jurisdictionCodes' ? e."externalId"))
+    OR EXISTS (SELECT 1 FROM "ComplianceRequirementRule" r WHERE r."conditionJson"->'jurisdictionCodes' ? OLD.id) THEN
+    RAISE EXCEPTION 'GeoPlace is referenced by a commercial policy';
+  END IF;
+  RETURN OLD;
+END $$;
+DROP TRIGGER IF EXISTS "GeoPlace_operating_reference_guard" ON "GeoPlace";
+CREATE TRIGGER "GeoPlace_operating_reference_guard" BEFORE DELETE ON "GeoPlace"
+FOR EACH ROW EXECUTE FUNCTION fastt_restrict_operating_place_delete();
+CREATE INDEX IF NOT EXISTS "TourComplianceContext_jurisdictionCodes_gin_idx" ON "TourComplianceContext" USING gin ("jurisdictionCodes");
+
+CREATE OR REPLACE FUNCTION fastt_validate_policy_territories() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE ids jsonb; place_id text; country text; matched text;
+BEGIN
+  IF TG_TABLE_NAME = 'CompliancePolicyVersion' THEN
+    ids := NEW."contextJson"->'jurisdictionCodes';
+    SELECT s.country INTO country FROM "CompliancePolicySet" s WHERE s.id = NEW."policySetId";
+  ELSE
+    ids := NEW."conditionJson"->'jurisdictionCodes';
+    SELECT s.country INTO country FROM "CompliancePolicySet" s JOIN "CompliancePolicyVersion" v ON v."policySetId" = s.id WHERE v.id = NEW."policyVersionId";
+  END IF;
+  IF ids IS NULL THEN RETURN NEW; END IF;
+  IF jsonb_typeof(ids) <> 'array' OR jsonb_array_length(ids) > 100 THEN RAISE EXCEPTION 'invalid_policy_territories'; END IF;
+  FOR place_id IN SELECT jsonb_array_elements_text(ids) LOOP
+    SELECT id INTO matched FROM "GeoPlace" WHERE id = place_id AND "countryCode" = country AND status = 'active' FOR KEY SHARE;
+    IF matched IS NULL THEN RAISE EXCEPTION 'invalid_policy_territory: %', place_id; END IF;
+  END LOOP;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS "CompliancePolicyVersion_geography_guard" ON "CompliancePolicyVersion";
+CREATE TRIGGER "CompliancePolicyVersion_geography_guard" BEFORE INSERT OR UPDATE OF "contextJson"
+ON "CompliancePolicyVersion" FOR EACH ROW EXECUTE FUNCTION fastt_validate_policy_territories();
+DROP TRIGGER IF EXISTS "ComplianceRequirementRule_geography_guard" ON "ComplianceRequirementRule";
+CREATE TRIGGER "ComplianceRequirementRule_geography_guard" BEFORE INSERT OR UPDATE OF "conditionJson"
+ON "ComplianceRequirementRule" FOR EACH ROW EXECUTE FUNCTION fastt_validate_policy_territories();
 
 
 

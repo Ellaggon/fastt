@@ -3,12 +3,15 @@
 Status: active
 Document type: index
 Owner: Engineering
-Last verified: 2026-10-25
+Last verified: 2026-10-29
 Scope: decisiones de expansión de esquema y capacidades de tours
 Source of truth: ADRs enlazados; respetar el estado individual de cada decisión
 Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
 
 ADRs in this folder gate **schema expansions** for the tour vertical.
+
+Document definitions: [0008 — versioned document catalogue](./0008-document-definition-catalog.md).
+Its explicit pre-launch exception permits implementation and development migration only.
 
 ## When an ADR is mandatory
 
@@ -50,12 +53,14 @@ Before moving an ADR from `deferred`/`proposed` → `accepted`, attach:
 | Cost of status quo | Why Variant / JSON / DailyInventory workarounds fail at that volume |
 | Owner | Named product + eng owner for the rollout |
 
-Without all four, status must stay `deferred` or `proposed`, except for the specific
-pre-launch exception approved by the project owner on 2026-10-25 in
-[ADR 0007](./0007-provider-commercial-agreement.md). That exception permits merging
-contractual-correctness persistence definitions and code disabled by default, with
-`adm1n` as DRI; it does not claim volume/incident evidence, authorize immediate
-production migration/activation or apply to ADRs 0001–0004 or other new tables.
+Without all four, status must stay `deferred` or `proposed`, except for the narrow
+pre-launch exceptions recorded in the applicable ADR. [ADR 0007](./0007-provider-commercial-agreement.md)
+permits merging contractual-correctness persistence definitions and code disabled by
+default, with `adm1n` as DRI; it does not claim volume/incident evidence, authorize
+immediate production migration/activation or apply to ADRs 0001–0004 or other new tables.
+[ADR 0008](./0008-document-definition-catalog.md) permits only the document-catalog
+implementation and a development migration; it does not authorize production migration
+or activation and does not extend to other schema changes.
 CI guardrail
 `tests/guardrails/tour-p3-deferred-capabilities.test.ts` blocks premature tables.
 

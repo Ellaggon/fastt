@@ -22,6 +22,8 @@ export const databaseTablesByDomain = {
 		"ProviderOptionPreparationSession",
 		"ProviderProfile",
 		"ProviderDocument",
+		"DocumentDefinition",
+		"DocumentDefinitionVersion",
 		"ProviderDocumentScope",
 		"ProviderDocumentInspection",
 		"ProviderDocumentProcessingJob",
