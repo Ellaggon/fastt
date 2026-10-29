@@ -6,6 +6,7 @@ function bindExperienceDrafts() {
 	root.dataset.draftsReady = "true"
 	const controller = new AbortController()
 	const { signal } = controller
+	root.addEventListener("fastt:dispose", () => controller.abort(), { once: true, signal })
 	document.addEventListener("astro:before-swap", () => controller.abort(), { once: true, signal })
 	const forms = Array.from(root.querySelectorAll<HTMLFormElement>("form"))
 	const initial = new Map(forms.map((form) => [form, formDraftFingerprint(new FormData(form))]))
@@ -58,3 +59,4 @@ function bindExperienceDrafts() {
 }
 bindExperienceDrafts()
 document.addEventListener("astro:page-load", bindExperienceDrafts)
+document.addEventListener("fastt:operation-refreshed", bindExperienceDrafts)

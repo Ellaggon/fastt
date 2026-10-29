@@ -4,7 +4,6 @@ import {
 	type VerificationEvidenceOperation,
 } from "./evidence-diagnosis"
 import type { VerificationRequirement } from "./requirement-resolver"
-import { tourOperatingTerritory } from "@/lib/tours/tour-operating-territories"
 import { tourComplianceActivityLabels } from "@/lib/tours/tour-compliance-context"
 
 export type DocumentListPresentation = {
@@ -87,7 +86,6 @@ export function presentExperienceDocument(input: {
 							? input.resources.find((resource) => resource.id === scope.resourceId)?.name ||
 								"Recurso no disponible"
 							: scope.territoryLabel ||
-								tourOperatingTerritory(scope.territoryCode)?.label ||
 								scope.territoryCode ||
 								(scope.activityClass
 									? tourComplianceActivityLabels[

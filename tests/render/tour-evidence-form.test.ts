@@ -61,11 +61,11 @@ describe("requirement-specific tour evidence", () => {
 		expect(html).not.toContain('value="legal_entity"')
 		expect(html).not.toContain("Identificador del guía o recurso registrado")
 	})
-	it("limits an operator licence to business holders", async () => {
+	it("identifies an operator licence through the business or a registered external executor", async () => {
 		const html = await render("operating_license::tour.operator_license")
 		expect(html).toContain('value="provider"')
 		expect(html).toContain('value="legal_entity"')
-		expect(html).not.toContain('value="third_party"')
+		expect(html).toContain('value="third_party"')
 		expect(html).not.toContain('value="person"')
 	})
 	it("asks for actual insurance coverage without selecting territory or activities", async () => {

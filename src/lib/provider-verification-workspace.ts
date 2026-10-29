@@ -3,6 +3,7 @@ import {
 	type DocumentListPresentation,
 } from "@/lib/verification/document-list-presentation"
 import { getIdentityVendorStatus } from "@/lib/identity-vendor"
+import { readTerritoryAncestors } from "@/lib/tours/operating-geography"
 import { resolveProductCommercialDiagnosis } from "@/lib/commercial-policy/enforcement"
 import {
 	isHolderDeclarationInReview,
@@ -83,6 +84,7 @@ import {
 	Tour,
 	TourOperationalResource,
 } from "@/shared/infrastructure/db/compat"
+import { readTourOperation, operationSubjects } from "@/shared/domain/tour-operation"
 
 export type VerificationTrustPanelId = VerificationTab
 
@@ -98,10 +100,12 @@ type SlaAssignment = {
 }
 
 export type ProviderVerificationWorkspaceModel = {
+	documentDefinitions?: Array<{ id: string; label: string; family: string }>
 	businessProfile?: {
 		displayName: string | null
 		legalName: string | null
 		holderCountry: string | null
+		legalFormCode?: string | null
 	} | null
 	activeSectionId: VerificationTrustPanelId
 	navigation: VerificationNavigation | null
@@ -297,6 +301,9 @@ export async function loadProviderVerificationWorkspace(params: {
 	const displayedTours = params.experienceWorkspace
 		? tourProducts.filter((product) => product.id === selectedExperienceId)
 		: []
+	const normalizedOperation = readTourOperation(tourContext?.operationJson)
+	const territoryAncestors = await readTerritoryAncestors(tourContext?.jurisdictionCodes ?? [])
+	const declaredSubjects = normalizedOperation ? operationSubjects(normalizedOperation) : []
 	const selectedDiagnosis =
 		params.experienceWorkspace && selectedExperienceId
 			? (
@@ -367,7 +374,10 @@ export async function loadProviderVerificationWorkspace(params: {
 				document,
 				requirements: tourRequirements,
 				operation: {
+					territoryAncestors,
 					productId: selectedExperienceId,
+					operatorResourceId: normalizedOperation?.operatorResourceId,
+					subjectReferences: declaredSubjects,
 					territoryCodes:
 						tourContext?.jurisdictionCodes ??
 						(tourContext?.jurisdictionCode ? [tourContext.jurisdictionCode] : []),
@@ -457,7 +467,10 @@ export async function loadProviderVerificationWorkspace(params: {
 					})),
 					tourOperation: selectedExperienceId
 						? {
+								territoryAncestors,
 								productId: selectedExperienceId,
+								operatorResourceId: normalizedOperation?.operatorResourceId,
+								subjectReferences: declaredSubjects,
 								territoryCodes:
 									tourContext?.jurisdictionCodes ??
 									(tourContext?.jurisdictionCode ? [tourContext.jurisdictionCode] : []),
@@ -641,7 +654,11 @@ export async function loadProviderVerificationWorkspace(params: {
 	return {
 		activeSectionId,
 		businessProfile: trustSnapshot?.businessProfile
-			? { ...trustSnapshot.businessProfile, holderCountry: holder?.holderCountry ?? null }
+			? {
+					...trustSnapshot.businessProfile,
+					holderCountry: holder?.holderCountry ?? null,
+					legalFormCode: holder?.legalFormCode ?? null,
+				}
 			: null,
 		navigation,
 		tourPlaybook,
@@ -685,6 +702,9 @@ export async function loadProviderVerificationWorkspace(params: {
 		tourVerification,
 		tourContext,
 		commercialLine,
+		documentDefinitions: await (
+			await import("@/lib/documents/document-definitions")
+		).listPublishedDocumentDefinitions(),
 		tourEvidenceOptions: {
 			activity: tourEvidenceOptions.activity.map(mapEvidenceOption),
 			safety: tourEvidenceOptions.safety.map(mapEvidenceOption),

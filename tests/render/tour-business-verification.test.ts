@@ -21,7 +21,7 @@ it("shows an independent operator without a company-document form", async () => 
 	const html = await container.renderToString(Business, { props: { model } })
 	expect(html).toContain("Persona natural")
 	expect(html).toContain("Bolivia")
-	expect(html).toContain("No necesitas presentar un registro de empresa")
+		expect(html).toContain("Los respaldos dependen de su actividad y forma de registro")
 	expect(html).toContain("Editar datos del negocio")
 	expect(html).not.toContain("data-kyc-slots")
 })

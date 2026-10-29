@@ -1,3 +1,15 @@
+import { tourComplianceActivityClasses } from "@/shared/domain/tour-operation"
+import { readPublishedDocumentDefinition } from "@/lib/documents/document-definitions"
+import { validateDocumentCapture } from "@/shared/domain/document-definition"
+import { withPostgresTransaction } from "@/shared/infrastructure/db/client"
+import {
+	assertOperatingPlaces,
+	resolveOperatingPlaceAliases,
+} from "@/lib/tours/operating-geography"
+import {
+	allTerritoriesCovered,
+	type TerritoryAncestors,
+} from "@/shared/domain/territorial-coverage"
 import {
 	first,
 	and,
@@ -7,12 +19,14 @@ import {
 	gte,
 	inArray,
 	lt,
+	ne,
 	Booking,
 	Product,
 	ProviderDocument,
 	ProviderDocumentInspection,
 	ProviderDocumentProcessingJob,
 	ProviderDocumentScope,
+	GeoPlace,
 	ProviderUser,
 	RatePlan,
 	TourResourceAssignment,
@@ -68,13 +82,7 @@ export type ProviderDocumentSubjectType =
 	| "person"
 	| "resource"
 	| "third_party"
-export type ProviderDocumentActivityClass =
-	| "urban_cultural"
-	| "guided_nature"
-	| "adventure"
-	| "transport"
-	| "water_air"
-	| "gastronomic"
+export type ProviderDocumentActivityClass = (typeof tourComplianceActivityClasses)[number]
 export type ProviderDocumentScopeRecord = {
 	id: string
 	scopeType: "product" | "resource" | "territory" | "activity"
@@ -99,6 +107,8 @@ export type ProviderDocumentEvidenceInput = {
 
 export type ProviderDocumentRecord = {
 	id: string
+	definitionVersionId?: string | null
+	replacesDocumentId?: string | null
 	providerId: string
 	type: ProviderDocumentType
 	typeLabel: string
@@ -766,14 +776,7 @@ const subjectTypes = new Set<ProviderDocumentSubjectType>([
 	"resource",
 	"third_party",
 ])
-const activityClasses = new Set<ProviderDocumentActivityClass>([
-	"urban_cultural",
-	"guided_nature",
-	"adventure",
-	"transport",
-	"water_air",
-	"gastronomic",
-])
+const activityClasses = new Set<ProviderDocumentActivityClass>(tourComplianceActivityClasses)
 
 function boundedText(value: unknown, maximum: number): string | null {
 	const text = String(value ?? "").trim()
@@ -820,15 +823,20 @@ export function parseProviderDocumentEvidence(
 	const territoriesRaw: unknown[] = Array.isArray((raw as any).territories)
 		? ((raw as any).territories as unknown[])
 		: []
-	const territories = territoriesRaw.slice(0, 20).map((item) => {
+	if (territoriesRaw.length > 100) throw new Error("invalid_document_territory")
+	const territories = territoriesRaw.map((item) => {
 		if (!item || typeof item !== "object") throw new Error("invalid_document_territory")
-		const code = boundedText((item as any).code, 64)
+		const code = boundedText((item as any).code, 200)
 		const label = boundedText((item as any).label, 160)
 		if (!code) throw new Error("invalid_document_territory")
 		return { code, label }
 	})
 	const classes = stringList((raw as any).activityClasses, 12)
-	if (classes.some((item) => !activityClasses.has(item as ProviderDocumentActivityClass)))
+	if (
+		classes.some(
+			(item) => item === "water_air" || !activityClasses.has(item as ProviderDocumentActivityClass)
+		)
+	)
 		throw new Error("invalid_document_activity_class")
 	const parsed = {
 		issuer: boundedText((raw as any).issuer, 240),
@@ -894,6 +902,7 @@ export function documentAppliesToOperation(
 		productId?: string | null
 		resourceId?: string | null
 		territoryCodes?: string[]
+		territoryAncestors?: TerritoryAncestors
 		activityClasses?: ProviderDocumentActivityClass[]
 		subjectReferences?: string[]
 	}
@@ -921,8 +930,10 @@ export function documentAppliesToOperation(
 	const territories = byType.get("territory") ?? []
 	if (
 		territories.length &&
-		!territories.some((scope) =>
-			context.territoryCodes?.includes(String(scope.territoryCode ?? ""))
+		!allTerritoriesCovered(
+			context.territoryCodes ?? [],
+			territories.map((scope) => String(scope.territoryCode ?? "")),
+			context.territoryAncestors
 		)
 	)
 		return false
@@ -961,6 +972,8 @@ function readMetadata(value: unknown): {
 
 function mapRow(row: {
 	id: string
+	definitionVersionId?: string | null
+	replacesDocumentId?: string | null
 	providerId: string
 	type: string
 	status: string
@@ -984,6 +997,8 @@ function mapRow(row: {
 	const metadata = readMetadata(row.metadataJson)
 	return {
 		id: row.id,
+		definitionVersionId: row.definitionVersionId ?? null,
+		replacesDocumentId: row.replacesDocumentId ?? null,
 		providerId: row.providerId,
 		type,
 		typeLabel: typeLabel(type),
@@ -1013,6 +1028,8 @@ function mapRow(row: {
 
 const documentColumns = {
 	id: ProviderDocument.id,
+	definitionVersionId: ProviderDocument.definitionVersionId,
+	replacesDocumentId: ProviderDocument.replacesDocumentId,
 	providerId: ProviderDocument.providerId,
 	type: ProviderDocument.type,
 	status: ProviderDocument.status,
@@ -1043,12 +1060,12 @@ async function withDocumentScopes(rows: DocumentRow[]): Promise<ProviderDocument
 			productId: ProviderDocumentScope.productId,
 			resourceId: ProviderDocumentScope.resourceId,
 			territoryCode: ProviderDocumentScope.territoryCode,
-			territoryLabel: ProviderDocumentScope.territoryLabel,
+			territoryLabel: GeoPlace.canonicalName,
 			activityClass: ProviderDocumentScope.activityClass,
 		})
 		.from(ProviderDocumentScope)
+		.leftJoin(GeoPlace, eq(GeoPlace.id, ProviderDocumentScope.territoryCode))
 		.where(inArray(ProviderDocumentScope.documentId, ids))
-		.catch(() => [])
 	const byDocument = new Map<string, ProviderDocumentScopeRecord[]>()
 	for (const scope of scopes) {
 		const list = byDocument.get(scope.documentId) ?? []
@@ -1171,10 +1188,12 @@ async function assertEvidenceScopeBelongsToProvider(
 	}
 	if (
 		evidence.subjectReference &&
-		(evidence.subjectType === "person" || evidence.subjectType === "resource")
+		(evidence.subjectType === "person" ||
+			evidence.subjectType === "resource" ||
+			evidence.subjectType === "third_party")
 	) {
 		const subject = await db
-			.select({ id: TourOperationalResource.id })
+			.select({ id: TourOperationalResource.id, type: TourOperationalResource.type })
 			.from(TourOperationalResource)
 			.where(
 				and(
@@ -1185,6 +1204,8 @@ async function assertEvidenceScopeBelongsToProvider(
 			.then(first)
 			.catch(() => null)
 		if (!subject) throw new Error("document_subject_not_found")
+		if (evidence.subjectType === "third_party" && subject.type !== "service_operator")
+			throw new Error("document_subject_not_found")
 	}
 }
 
@@ -1262,6 +1283,7 @@ export async function submitProviderDocument(params: {
 	providerId: string
 	actorUserId: string
 	type: unknown
+	definitionVersionId?: unknown
 	fileUrl?: unknown
 	fileName?: unknown
 	mimeType?: unknown
@@ -1311,7 +1333,40 @@ export async function submitProviderDocument(params: {
 			allowedSubjectTypes: params.allowedSubjectTypes,
 		}
 	)
+	if (evidence.territories.length) {
+		const canonicalIds = await resolveOperatingPlaceAliases(
+			evidence.territories.map((territory) => territory.code)
+		)
+		evidence.territories = evidence.territories.map((territory, index) => ({
+			...territory,
+			code: canonicalIds[index],
+		}))
+	}
 	await assertEvidenceScopeBelongsToProvider(params.providerId, evidence, params.scopeProductType)
+	const definitionVersionId = String(params.definitionVersionId ?? "").trim() || null
+	if (definitionVersionId) {
+		const definition = await readPublishedDocumentDefinition(definitionVersionId)
+		if (definition.family !== type)
+			throw Object.assign(new Error("document_family_mismatch"), { status: 422 })
+		validateDocumentCapture(definition.capture, {
+			...evidence,
+			scopeTypes: [
+				...(evidence.productIds.length ? ["product"] : []),
+				...(evidence.resourceIds.length ? ["resource"] : []),
+				...(evidence.territories.length ? ["territory"] : []),
+				...(evidence.activityClasses.length ? ["activity"] : []),
+			],
+		})
+	}
+	if (evidence.territories.length) {
+		const places = await assertOperatingPlaces(
+			evidence.territories.map((territory) => territory.code)
+		)
+		for (const territory of evidence.territories) {
+			const place = places.find((place) => place.id === territory.code)!
+			territory.label = `${place.name} · ${place.country}`
+		}
+	}
 	const replacesDocumentId = String(params.replacesDocumentId ?? "").trim() || null
 	const hasBytes = Boolean(params.fileBytes && params.fileBytes.byteLength > 0)
 
@@ -1416,6 +1471,9 @@ export async function submitProviderDocument(params: {
 					type: ProviderDocument.type,
 					status: ProviderDocument.status,
 					expiresAt: ProviderDocument.expiresAt,
+					subjectType: ProviderDocument.subjectType,
+					subjectReference: ProviderDocument.subjectReference,
+					definitionVersionId: ProviderDocument.definitionVersionId,
 				})
 				.from(ProviderDocument)
 				.where(
@@ -1426,31 +1484,19 @@ export async function submitProviderDocument(params: {
 				)
 				.then(first)
 		: null
-	const replacementIsRenewable =
-		replacement?.status === "verified" && isProviderDocumentExpired(replacement.expiresAt, now)
 	if (
 		replacesDocumentId &&
 		(!replacement ||
 			replacement.type !== type ||
-			(replacement.status === "verified" && !replacementIsRenewable))
+			replacement.status === "superseded" ||
+			replacement.subjectType !== evidence.subjectType ||
+			replacement.subjectReference !== evidence.subjectReference ||
+			replacement.definitionVersionId !== definitionVersionId)
 	) {
 		const error = new Error("invalid_document_replacement")
 		;(error as Error & { status?: number }).status = 409
 		throw error
 	}
-
-	const activeSameType = await db
-		.select({ id: ProviderDocument.id, status: ProviderDocument.status })
-		.from(ProviderDocument)
-		.where(
-			and(
-				eq(ProviderDocument.providerId, params.providerId),
-				eq(ProviderDocument.type, type),
-				eq(ProviderDocument.status, "pending")
-			)
-		)
-
-		.catch(() => [])
 
 	const metadataJson = {
 		fileName,
@@ -1489,12 +1535,9 @@ export async function submitProviderDocument(params: {
 		),
 	]
 
-	await db.transaction(async (tx) => {
-		const supersedeIds = replacement
-			? [replacement.id]
-			: ["government_id", "business_registration", "tax_document"].includes(type)
-				? activeSameType.map((row) => row.id)
-				: []
+	await withPostgresTransaction(async () => {
+		const tx = db
+		const supersedeIds = replacement && replacement.status !== "verified" ? [replacement.id] : []
 		for (const documentId of supersedeIds) {
 			await tx
 				.update(ProviderDocument)
@@ -1505,6 +1548,8 @@ export async function submitProviderDocument(params: {
 			id,
 			providerId: params.providerId,
 			type,
+			definitionVersionId,
+			replacesDocumentId: replacement?.id ?? null,
 			status: "pending",
 			fileUrl,
 			metadataJson,
@@ -1545,28 +1590,27 @@ export async function submitProviderDocument(params: {
 				}))
 			)
 		}
-	})
 
-	await writeProviderAuditLog({
-		providerId: params.providerId,
-		actorUserId: params.actorUserId,
-		action: "provider.document.submit",
-		entityType: "ProviderDocument",
-		entityId: id,
-		beforeJson:
-			replacement || ["government_id", "business_registration", "tax_document"].includes(type)
-				? { supersededIds: replacement ? [replacement.id] : activeSameType.map((row) => row.id) }
+		await writeProviderAuditLog({
+			providerId: params.providerId,
+			actorUserId: params.actorUserId,
+			action: "provider.document.submit",
+			entityType: "ProviderDocument",
+			entityId: id,
+			beforeJson: replacement
+				? { replacesDocumentId: replacement.id, predecessorStatus: replacement.status }
 				: null,
-		afterJson: {
-			type,
-			status: "pending",
-			fileUrl,
-			fileName,
-			mimeType,
-			sizeBytes: normalizedSize,
-			evidence,
-		},
-		riskLevel: inferSettingsRiskLevel({ domain: "documents" }),
+			afterJson: {
+				type,
+				status: "pending",
+				fileUrl,
+				fileName,
+				mimeType,
+				sizeBytes: normalizedSize,
+				evidence,
+			},
+			riskLevel: inferSettingsRiskLevel({ domain: "documents" }),
+		})
 	})
 
 	// Avoid a second full list query (can timeout on remote Postgres under load).
@@ -1667,40 +1711,77 @@ export async function reviewProviderDocument(params: {
 	const now = new Date()
 	const before = (await withDocumentScopes([existing]))[0]!
 
-	await db
-		.update(ProviderDocument)
-		.set({
-			status: nextStatus,
-			reviewNotes: reviewNotes || null,
-			reviewedAt: now,
-			reviewedBy: params.actorUserId,
-			updatedAt: now,
-		})
-		.where(eq(ProviderDocument.id, existing.id))
+	await withPostgresTransaction(async () => {
+		const tx = db
+		if (nextStatus === "verified" && existing.replacesDocumentId) {
+			await tx
+				.select({ id: ProviderDocument.id })
+				.from(ProviderDocument)
+				.where(eq(ProviderDocument.id, existing.replacesDocumentId))
+				.for("update")
+			const siblings = await tx
+				.select({ id: ProviderDocument.id })
+				.from(ProviderDocument)
+				.where(
+					and(
+						eq(ProviderDocument.replacesDocumentId, existing.replacesDocumentId),
+						eq(ProviderDocument.status, "verified"),
+						ne(ProviderDocument.id, existing.id)
+					)
+				)
+				.limit(1)
+			if (siblings.length)
+				throw Object.assign(new Error("document_replacement_obsolete"), { status: 409 })
+		}
+		const changed = await tx
+			.update(ProviderDocument)
+			.set({
+				status: nextStatus,
+				reviewNotes: reviewNotes || null,
+				reviewedAt: now,
+				reviewedBy: params.actorUserId,
+				updatedAt: now,
+			})
+			.where(and(eq(ProviderDocument.id, existing.id), eq(ProviderDocument.status, "pending")))
+			.returning({ id: ProviderDocument.id })
+		if (!changed.length) throw Object.assign(new Error("not_pending"), { status: 409 })
+		if (nextStatus === "verified" && existing.replacesDocumentId) {
+			await tx
+				.update(ProviderDocument)
+				.set({ status: "superseded", updatedAt: now })
+				.where(
+					and(
+						eq(ProviderDocument.id, existing.replacesDocumentId),
+						eq(ProviderDocument.providerId, params.providerId),
+						eq(ProviderDocument.status, "verified")
+					)
+				)
+		}
 
-	await writeProviderAuditLog({
-		providerId: params.providerId,
-		actorUserId: params.actorUserId,
-		action: "provider.document.review",
-		entityType: "ProviderDocument",
-		entityId: existing.id,
-		beforeJson: {
-			status: before.status,
-			reviewNotes: before.reviewNotes,
-		},
-		afterJson: {
-			status: nextStatus,
-			reviewNotes: reviewNotes || null,
-			evidence: {
-				issuer: before.issuer,
-				issuedAt: before.issuedAt,
-				expiresAt: before.expiresAt,
-				subjectType: before.subjectType,
-				subjectReference: before.subjectReference,
-				scopes: before.scopes,
+		await writeProviderAuditLog({
+			providerId: params.providerId,
+			actorUserId: params.actorUserId,
+			action: "provider.document.review",
+			entityType: "ProviderDocument",
+			entityId: existing.id,
+			beforeJson: {
+				status: before.status,
+				reviewNotes: before.reviewNotes,
 			},
-		},
-		riskLevel: inferSettingsRiskLevel({ domain: "documents" }),
+			afterJson: {
+				status: nextStatus,
+				reviewNotes: reviewNotes || null,
+				evidence: {
+					issuer: before.issuer,
+					issuedAt: before.issuedAt,
+					expiresAt: before.expiresAt,
+					subjectType: before.subjectType,
+					subjectReference: before.subjectReference,
+					scopes: before.scopes,
+				},
+			},
+			riskLevel: inferSettingsRiskLevel({ domain: "documents" }),
+		})
 	})
 
 	await completeComplianceAssignment({

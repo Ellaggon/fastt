@@ -1,6 +1,8 @@
 export const documentUploadErrorMessages: Record<string, string> = {
+	invalid_document_activity_class:
+		"Revisa la actividad cubierta. Indica por separado actividades acuáticas y aéreas; no uses la categoría anterior combinada.",
 	document_subject_not_found:
-		"El titular no es un guía o recurso vigente de este negocio. Selecciónalo nuevamente antes de enviar.",
+		"El titular no es una persona, recurso o prestador registrado de este negocio. Selecciónalo nuevamente antes de enviar.",
 	document_subject_reference_required: "Selecciona el guía titular de la credencial.",
 	document_subject_type_invalid:
 		"El titular elegido no corresponde a este requisito. Revisa a quién se emitió el documento.",

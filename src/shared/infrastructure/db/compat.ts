@@ -54,6 +54,8 @@ export {
 	CompliancePolicyVersion,
 	ComplianceRequirementRule,
 	DailyInventory,
+	DocumentDefinition,
+	DocumentDefinitionVersion,
 	DomainEventOutbox,
 	EffectiveAvailability,
 	EffectivePricing,

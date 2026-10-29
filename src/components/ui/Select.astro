@@ -151,7 +151,7 @@ const listboxId = id ? `${id}-listbox` : undefined
 
 			const selectedOption = () => options()[select.selectedIndex] ?? null
 
-			const enabledOptions = () => options().filter((option) => !option.disabled)
+			const enabledOptions = () => options().filter((option) => !option.disabled && !option.hidden)
 
 			const syncLabel = () => {
 				const current = selectedOption()
@@ -169,6 +169,7 @@ const listboxId = id ? `${id}-listbox` : undefined
 				menu.innerHTML = ""
 				let previousGroup: Element | null = null
 				options().forEach((option, index) => {
+					if (option.hidden) return
 					const group = option.parentElement
 					if (group?.tagName === "OPTGROUP" && group !== previousGroup) {
 						const heading = document.createElement("li")
@@ -227,6 +228,7 @@ const listboxId = id ? `${id}-listbox` : undefined
 				setOpen(false)
 				trigger.focus()
 			}
+			rootEl.addEventListener("fastt:dispose", () => setOpen(false))
 
 			const moveActive = (direction: 1 | -1) => {
 				const enabled = enabledOptions()
@@ -298,7 +300,10 @@ const listboxId = id ? `${id}-listbox` : undefined
 				}
 			})
 
-			select.addEventListener("fastt:options-updated", renderMenu)
+			select.addEventListener("fastt:options-updated", () => {
+				syncLabel()
+				renderMenu()
+			})
 			select.addEventListener("change", () => {
 				syncLabel()
 				renderMenu()
@@ -317,4 +322,8 @@ const listboxId = id ? `${id}-listbox` : undefined
 
 	initFasttSelects()
 	document.addEventListener("astro:page-load", () => initFasttSelects())
+	document.addEventListener("fastt:content-updated", (event) => {
+		const root = (event as CustomEvent<{ root?: ParentNode }>).detail?.root
+		initFasttSelects(root ?? document)
+	})
 </script>

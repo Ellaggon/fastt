@@ -1,5 +1,16 @@
 import { isProviderDocumentExpired } from "@/lib/provider-document-validity"
+import {
+	evaluateDocumentAcceptance,
+	type DocumentAcceptance,
+} from "@/shared/domain/document-acceptance"
 import { isExperienceFormat, type ExperienceFormat } from "@/shared/domain/experience-format"
+import type { TourOperation } from "@/shared/domain/tour-operation"
+import {
+	allTerritoriesCovered,
+	territoryIsCovered,
+	type TerritoryAncestors,
+} from "@/shared/domain/territorial-coverage"
+import type { ProviderDocumentActivityClass } from "@/lib/provider-documents"
 import {
 	diagnoseVerificationEvidence,
 	normalizeVerificationEvidence,
@@ -17,6 +28,8 @@ export type CommercialPolicyContext = {
 	formatContractVersion?: number
 	holderType: "persona_natural" | "entidad"
 	holderCountry: string
+	legalFormCode?: string | null
+	operation?: TourOperation | null
 	taxCountry: string | null
 	payoutCountry: string | null
 	productCountry: string
@@ -25,6 +38,7 @@ export type CommercialPolicyContext = {
 	productId?: string | null
 	jurisdictionCode?: string | null
 	jurisdictionCodes?: string[]
+	territoryAncestors?: TerritoryAncestors
 	operatingRole?: "operator" | "guide" | "intermediary" | null
 	activityClasses?: string[]
 	resourceIds?: string[]
@@ -39,6 +53,7 @@ export type CommercialEvidenceScope = {
 }
 export type CommercialEvidence = {
 	id: string
+	definitionVersionId?: string | null
 	type: string
 	status: "pending" | "verified" | "rejected" | "superseded"
 	expiresAt?: Date | null
@@ -47,6 +62,10 @@ export type CommercialEvidence = {
 	scopes?: CommercialEvidenceScope[]
 }
 export type CommercialRequirementCondition = {
+	legalFormCodes?: string[]
+	executionModes?: string[]
+	foodHandlingModes?: string[]
+	transportProviders?: string[]
 	operatingRoles?: string[]
 	activityClasses?: string[]
 	jurisdictionCodes?: string[]
@@ -57,6 +76,9 @@ export type CommercialRequirementCondition = {
 }
 export type CommercialPolicyRequirement = {
 	key: string
+	documentAcceptance?: DocumentAcceptance | null
+	/** All named subjects must independently satisfy a complete alternative. */
+	requiredSubjectReferences?: string[]
 	capabilities: CommercialCapability[]
 	acceptedEvidence: string[]
 	required: boolean
@@ -69,7 +91,13 @@ export type CommercialPolicyRequirement = {
 }
 export type CommercialPolicyContextSelector = Pick<
 	CommercialRequirementCondition,
-	"operatingRoles" | "activityClasses" | "jurisdictionCodes"
+	| "operatingRoles"
+	| "activityClasses"
+	| "jurisdictionCodes"
+	| "legalFormCodes"
+	| "executionModes"
+	| "foodHandlingModes"
+	| "transportProviders"
 > & { contextVersion?: number; experienceFormats?: ExperienceFormat[] }
 export type CommercialPolicyApprovalArea = "policy" | "finance" | "tour_operations"
 export type CommercialPolicyApproval = {
@@ -101,6 +129,16 @@ export type CommercialPolicyBlocker = {
 	capabilities: CommercialCapability[]
 	action: string
 	policyVersionId: string | null
+	/** Explains configuration failures without changing capability enforcement. */
+	configurationReason?:
+		| "missing"
+		| "draft"
+		| "retired"
+		| "expired"
+		| "future"
+		| "approval_missing"
+		| "incompatible"
+		| "conflict"
 	evidenceState?: "missing" | "pending_review" | "rejected" | "expired" | "out_of_scope"
 }
 export type CommercialPolicyDiagnosis = {
@@ -111,6 +149,7 @@ export type CommercialPolicyDiagnosis = {
 	satisfiedRequirements: Array<{
 		key: string
 		evidenceId: string
+		evidenceIds?: string[]
 		policyVersionId: string
 		/** The approved policy, not the UI, decides whether this is account reuse. */
 		evidenceScope?: "provider" | "product" | "operation"
@@ -135,6 +174,28 @@ function requirementApplies(
 ) {
 	if (!condition) return true
 	if (
+		condition.legalFormCodes?.length &&
+		(!context.legalFormCode || !condition.legalFormCodes.includes(context.legalFormCode))
+	)
+		return false
+	if (
+		condition.executionModes?.length &&
+		(!context.operation || !condition.executionModes.includes(context.operation.executionMode))
+	)
+		return false
+	if (
+		condition.foodHandlingModes?.length &&
+		(!context.operation || !condition.foodHandlingModes.includes(context.operation.foodHandling))
+	)
+		return false
+	if (
+		condition.transportProviders?.length &&
+		!context.operation?.transportServices.some((service) =>
+			condition.transportProviders?.includes(service.providedBy)
+		)
+	)
+		return false
+	if (
 		condition.operatingRoles?.length &&
 		(!context.operatingRole || !condition.operatingRoles.includes(context.operatingRole))
 	)
@@ -149,7 +210,9 @@ function requirementApplies(
 		condition.jurisdictionCodes?.length &&
 		!(
 			context.jurisdictionCodes ?? (context.jurisdictionCode ? [context.jurisdictionCode] : [])
-		).some((code) => condition.jurisdictionCodes?.includes(code))
+		).some((code) =>
+			territoryIsCovered(code, condition.jurisdictionCodes ?? [], context.territoryAncestors)
+		)
 	)
 		return false
 	if (
@@ -173,7 +236,11 @@ export const requiredTourApprovalAreas: CommercialPolicyApprovalArea[] = [
 	"tour_operations",
 ]
 
-function versionMatchesContext(version: CommercialPolicyVersion, context: CommercialPolicyContext) {
+function versionMatchesContext(
+	version: CommercialPolicyVersion,
+	context: CommercialPolicyContext,
+	validateSelectorOnly = false
+) {
 	if (version.vertical !== "tour") return true
 	const selector = version.context
 	if (selector?.experienceFormats?.length && selector.contextVersion !== 2) return false
@@ -197,10 +264,29 @@ function versionMatchesContext(version: CommercialPolicyVersion, context: Commer
 		return false
 	if (
 		context.jurisdictionCodes?.length &&
-		!context.jurisdictionCodes.every((code) => selector.jurisdictionCodes?.includes(code))
+		!allTerritoriesCovered(
+			context.jurisdictionCodes,
+			selector.jurisdictionCodes,
+			context.territoryAncestors
+		)
 	)
 		return false
-	return requirementApplies(selector, context)
+	// A normalized declaration must not gain coverage through just one benign activity.
+	if (
+		context.operation &&
+		context.activityClasses?.some((activity) => !selector.activityClasses?.includes(activity))
+	)
+		return false
+	return requirementApplies(
+		validateSelectorOnly
+			? {
+					operatingRoles: selector.operatingRoles,
+					activityClasses: selector.activityClasses,
+					jurisdictionCodes: selector.jurisdictionCodes,
+				}
+			: selector,
+		context
+	)
 }
 
 export function hasRequiredTourApprovals(version: CommercialPolicyVersion): boolean {
@@ -232,20 +318,24 @@ export function tourPolicyPublicationErrors(version: CommercialPolicyVersion): s
 	)
 		errors.push("experience_policy_formats_incomplete")
 	if (
-		!versionMatchesContext(version, {
-			holderType: version.holderType,
-			holderCountry: version.country,
-			taxCountry: null,
-			payoutCountry: null,
-			productCountry: version.country,
-			vertical: "tour",
-			collectionModel: version.collectionModel,
-			experienceFormat: version.context?.experienceFormats?.[0],
-			operatingRole: version.context
-				?.operatingRoles?.[0] as CommercialPolicyContext["operatingRole"],
-			activityClasses: version.context?.activityClasses,
-			jurisdictionCode: version.context?.jurisdictionCodes?.[0],
-		})
+		!versionMatchesContext(
+			version,
+			{
+				holderType: version.holderType,
+				holderCountry: version.country,
+				taxCountry: null,
+				payoutCountry: null,
+				productCountry: version.country,
+				vertical: "tour",
+				collectionModel: version.collectionModel,
+				experienceFormat: version.context?.experienceFormats?.[0],
+				operatingRole: version.context
+					?.operatingRoles?.[0] as CommercialPolicyContext["operatingRole"],
+				activityClasses: version.context?.activityClasses,
+				jurisdictionCode: version.context?.jurisdictionCodes?.[0],
+			},
+			true
+		)
 	) {
 		errors.push("tour_policy_context_incomplete")
 	}
@@ -254,7 +344,7 @@ export function tourPolicyPublicationErrors(version: CommercialPolicyVersion): s
 		errors.push("tour_policy_approval_metadata_missing")
 	}
 	for (const requirement of version.requirements.filter((item) => item.required)) {
-		if (!requirement.acceptedEvidence.length)
+		if (!requirement.acceptedEvidence.length && !requirement.documentAcceptance)
 			errors.push(`requirement_${requirement.key}_evidence_missing`)
 		if (!requirement.capabilities.length)
 			errors.push(`requirement_${requirement.key}_capability_missing`)
@@ -286,20 +376,16 @@ function evidenceAppliesToContext(
 			},
 			evidence: normalizeVerificationEvidence([evidence]),
 			operation: {
+				territoryAncestors: context.territoryAncestors,
 				productId: context.productId,
+				operatorResourceId: context.operation?.operatorResourceId,
+				requireAllActivityScopes: Boolean(context.operation),
 				resourceId: context.resourceIds?.length === 1 ? context.resourceIds[0] : null,
 				territoryCodes: (context.jurisdictionCodes?.length
 					? context.jurisdictionCodes
 					: [context.jurisdictionCode ?? context.productCountry]
 				).filter((value): value is string => Boolean(value)),
-				activityClasses: (context.activityClasses ?? []) as Array<
-					| "urban_cultural"
-					| "guided_nature"
-					| "adventure"
-					| "transport"
-					| "water_air"
-					| "gastronomic"
-				>,
+				activityClasses: (context.activityClasses ?? []) as ProviderDocumentActivityClass[],
 				subjectReferences: context.subjectReferences,
 				at,
 			},
@@ -327,25 +413,31 @@ function evidenceAppliesToContext(
 	if (
 		territoryScopes.length &&
 		context.jurisdictionCodes?.length &&
-		!context.jurisdictionCodes.every((code) =>
-			territoryScopes.some(
-				(scope) => scope.territoryCode === code || scope.territoryCode === context.productCountry
-			)
+		!allTerritoriesCovered(
+			context.jurisdictionCodes,
+			territoryScopes.map((scope) => scope.territoryCode ?? ""),
+			context.territoryAncestors
 		)
 	)
 		return "out_of_scope" as const
 	if (
 		territoryScopes.length &&
-		!territoryScopes.some((scope) => {
-			const territory = String(scope.territoryCode ?? "")
-			return (
-				(context.jurisdictionCodes ?? [context.jurisdictionCode]).includes(territory) ||
-				territory === context.productCountry
-			)
-		})
+		!allTerritoriesCovered(
+			context.jurisdictionCodes ?? (context.jurisdictionCode ? [context.jurisdictionCode] : []),
+			territoryScopes.map((scope) => scope.territoryCode ?? ""),
+			context.territoryAncestors
+		)
 	)
 		return "out_of_scope" as const
 	const activityScopes = byType("activity")
+	if (
+		context.operation &&
+		activityScopes.length &&
+		context.activityClasses?.some(
+			(activity) => !activityScopes.some((scope) => scope.activityClass === activity)
+		)
+	)
+		return "out_of_scope" as const
 	if (
 		activityScopes.length &&
 		!activityScopes.some((scope) =>
@@ -427,7 +519,37 @@ export function evaluateCommercialPolicy(input: {
 				(!row.effectiveTo || row.effectiveTo > now)
 		)
 		if (matching.length !== 1) {
+			const candidates = input.versions.filter(
+				(row) =>
+					row.jurisdictionRole === role &&
+					row.country === country &&
+					row.vertical === input.context.vertical &&
+					row.holderType === input.context.holderType &&
+					row.collectionModel === input.context.collectionModel
+			)
+			const scoped = candidates.filter((row) => versionMatchesContext(row, input.context))
+			const published = scoped.filter((row) => row.status === "published")
+			const current = published.filter(
+				(row) => row.effectiveFrom <= now && (!row.effectiveTo || row.effectiveTo > now)
+			)
+			const configurationReason: NonNullable<CommercialPolicyBlocker["configurationReason"]> =
+				matching.length
+					? "conflict"
+					: !candidates.length
+						? "missing"
+						: !scoped.length
+							? "incompatible"
+							: current.length
+								? "approval_missing"
+								: published.some((row) => row.effectiveFrom > now)
+									? "future"
+									: published.length
+										? "expired"
+										: scoped.some((row) => row.status === "draft")
+											? "draft"
+											: "retired"
 			blockers.push({
+				configurationReason,
 				id: matching.length
 					? `policy_context_conflict_${role}`
 					: `policy_context_unsupported_${role}`,
@@ -469,13 +591,37 @@ export function evaluateCommercialPolicy(input: {
 		for (const requirement of version.requirements) {
 			if (!requirement.required || !requirementApplies(requirement.condition, input.context))
 				continue
-			const accepted = evidence.filter((item) => requirement.acceptedEvidence.includes(item.type))
+			const definitionIds =
+				requirement.documentAcceptance?.alternatives.flatMap((alternative) =>
+					alternative.allOf.map((part) => part.definitionVersionId)
+				) ?? []
+			const accepted = evidence.filter((item) =>
+				requirement.documentAcceptance
+					? Boolean(item.definitionVersionId && definitionIds.includes(item.definitionVersionId))
+					: requirement.acceptedEvidence.includes(item.type)
+			)
 			const evidenceScope = requirement.condition?.evidenceScope ?? "product"
-			const applicable = accepted.find(
+			const eligible = accepted.filter(
 				(item) =>
 					item.status === "verified" &&
 					!evidenceAppliesToContext(item, input.context, now, evidenceScope)
 			)
+			const packageResult = requirement.documentAcceptance
+				? evaluateDocumentAcceptance(
+						requirement.documentAcceptance,
+						requirement.requiredSubjectReferences ?? [],
+						eligible.map((item) => ({
+							id: item.id,
+							definitionVersionId: item.definitionVersionId ?? null,
+							subjectId: item.subjectReference ?? "",
+						}))
+					)
+				: null
+			const applicable = packageResult
+				? packageResult.satisfied
+					? eligible[0]
+					: undefined
+				: eligible[0]
 			if (!applicable) {
 				blockers.push({
 					id: `requirement_${requirement.key}`,
@@ -488,6 +634,13 @@ export function evaluateCommercialPolicy(input: {
 				satisfiedRequirements.push({
 					key: requirement.key,
 					evidenceId: applicable.id,
+					...(packageResult
+						? {
+								evidenceIds: packageResult.subjects.flatMap(
+									(subject) => subject.satisfiedBy?.evidenceIds ?? []
+								),
+							}
+						: {}),
 					policyVersionId: version.id,
 					evidenceScope,
 				})

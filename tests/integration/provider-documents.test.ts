@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { beforeAll, describe, expect, it } from "vitest"
 import {
 	db,
 	eq,
@@ -14,6 +14,7 @@ import { POST as adminDocumentsPost } from "@/pages/api/admin/providers/document
 import { GET as settingsSummaryGet } from "@/pages/api/provider/settings/summary"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 import { elevateInternalTestSession } from "../test-support/internal-mfa"
+import { ensureOperatingGeographyFixtures } from "../test-support/operating-geography"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -76,6 +77,8 @@ function makeAuthedRequest(path: string, token: string, body?: FormData | string
 }
 
 describe("provider compliance documents", () => {
+	beforeAll(ensureOperatingGeographyFixtures)
+
 	it("lets an owner submit documents and only an internal admin review them", async () => {
 		const providerId = "provider_documents_flow"
 		const token = "t_documents_owner"
@@ -206,7 +209,7 @@ describe("provider compliance documents", () => {
 		)
 	})
 
-	it("keeps separate tour licences and returns only their recorded scopes", async () => {
+	it("canonicalizes historical territory IDs while keeping licence scopes separate", async () => {
 		const providerId = "provider_documents_scoped_evidence"
 		const token = "t_documents_scoped_evidence"
 		const ownerEmail = "documents.scoped@example.com"
@@ -241,7 +244,7 @@ describe("provider compliance documents", () => {
 			second.set("type", "operating_license")
 			second.set("fileUrl", "https://cdn.example.com/licencia-uyuni.pdf")
 			second.set("fileName", "licencia-uyuni.pdf")
-			second.set("territoryCode", "BO-PO")
+		second.set("territoryCode", "BO-PT")
 			second.set("territoryLabel", "Potosí")
 			second.append("activityClass", "adventure")
 
@@ -266,7 +269,10 @@ describe("provider compliance documents", () => {
 				licences.find((document: any) => document.id === firstDocument.document.id).scopes
 			).toEqual(
 				expect.arrayContaining([
-					expect.objectContaining({ scopeType: "territory", territoryCode: "BO-LP" }),
+					expect.objectContaining({
+						scopeType: "territory",
+						territoryCode: "geo:bo:la-paz-department",
+					}),
 					expect.objectContaining({ scopeType: "activity", activityClass: "guided_nature" }),
 				])
 			)
@@ -274,7 +280,7 @@ describe("provider compliance documents", () => {
 				licences.find((document: any) => document.id === secondDocument.document.id).scopes
 			).toEqual(
 				expect.arrayContaining([
-					expect.objectContaining({ scopeType: "territory", territoryCode: "BO-PO" }),
+				expect.objectContaining({ scopeType: "territory", territoryCode: "geo:bo:potosi" }),
 					expect.objectContaining({ scopeType: "activity", activityClass: "adventure" }),
 				])
 			)
@@ -309,7 +315,8 @@ describe("provider compliance documents", () => {
 				providerId,
 				operatingRole: "operator",
 				activityClassesJson: ["urban_cultural"],
-				jurisdictionCode: "BO-LP",
+				jurisdictionCode: "geo:bo:la-paz-department",
+				jurisdictionCodes: ["geo:bo:la-paz-department"],
 			}))
 		)
 
@@ -347,7 +354,10 @@ describe("provider compliance documents", () => {
 				expect.arrayContaining([
 					expect.objectContaining({ scopeType: "product", productId: productIds[0] }),
 					expect.objectContaining({ scopeType: "product", productId: productIds[1] }),
-					expect.objectContaining({ scopeType: "territory", territoryCode: "BO-LP" }),
+					expect.objectContaining({
+						scopeType: "territory",
+						territoryCode: "geo:bo:la-paz-department",
+					}),
 				])
 			)
 			expect(document?.scopes.filter((scope: any) => scope.scopeType === "product")).toHaveLength(2)

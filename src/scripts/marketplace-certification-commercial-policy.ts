@@ -23,7 +23,7 @@ const tourApproverUserIds: Record<(typeof tourApprovalAreas)[number], string> = 
 const tourContextJson = {
 	operatingRoles: ["guide"],
 	activityClasses: ["urban_cultural"],
-	jurisdictionCodes: ["BO-LP"],
+	jurisdictionCodes: ["geo:bo:la-paz-department"],
 }
 
 async function ensureTourApproverUsers(db: Db) {
@@ -185,7 +185,8 @@ export async function seedMarketplaceCertificationCommercialPolicy(params: {
 			productId: params.tourProductId,
 			providerId: params.providerId,
 			operatingRole: "guide",
-			jurisdictionCode: "BO-LP",
+			jurisdictionCode: "geo:bo:la-paz-department",
+			jurisdictionCodes: ["geo:bo:la-paz-department"],
 			activityClassesJson: ["urban_cultural"],
 			updatedAt: params.now,
 		})
@@ -193,7 +194,8 @@ export async function seedMarketplaceCertificationCommercialPolicy(params: {
 			target: TourComplianceContext.productId,
 			set: {
 				operatingRole: "guide",
-				jurisdictionCode: "BO-LP",
+				jurisdictionCode: "geo:bo:la-paz-department",
+				jurisdictionCodes: ["geo:bo:la-paz-department"],
 				activityClassesJson: ["urban_cultural"],
 				updatedAt: params.now,
 			},

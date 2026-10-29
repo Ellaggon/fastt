@@ -1,0 +1,178 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Checkbox from "@/components/ui/Checkbox.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import { db, desc, DocumentDefinitionVersion } from "@/shared/infrastructure/db/compat"
+const { canEdit = false, canPublish = false } = Astro.props
+const versions = await db
+	.select()
+	.from(DocumentDefinitionVersion)
+	.orderBy(desc(DocumentDefinitionVersion.createdAt))
+	.limit(100)
+const fieldRules = [
+	{ value: "required", label: "Obligatorio" },
+	{ value: "optional", label: "Opcional" },
+	{ value: "not_applicable", label: "No corresponde" },
+]
+const subjects = [
+	{ value: "provider", label: "Titular del negocio" },
+	{ value: "legal_entity", label: "Entidad legal" },
+	{ value: "person", label: "Persona registrada" },
+	{ value: "resource", label: "Recurso operativo" },
+	{ value: "third_party", label: "Prestador externo" },
+]
+---
+
+<section class="space-y-4 border-t border-slate-200 pt-6" aria-labelledby="document-catalog-title">
+	<h2 id="document-catalog-title" class="text-lg font-semibold text-slate-900">
+		Catálogo documental
+	</h2>
+	{
+		canEdit && (
+			<details class="fastt-soft-box border border-slate-200 bg-white p-4">
+				<summary class="cursor-pointer text-sm font-semibold">Nueva definición o versión</summary>
+				<form
+					action="/api/admin/document-definitions"
+					method="post"
+					data-agreement-form
+					data-idempotent-command
+					class="mt-4 space-y-4"
+				>
+					<input type="hidden" name="action" value="create" />
+					<div class="grid gap-4 sm:grid-cols-2">
+						<FormField label="Clave estable" htmlFor="document-key" required>
+							<Input id="document-key" name="key" required pattern="[a-z][a-z0-9_.]{2,100}" />
+						</FormField>
+						<FormField label="Nombre del documento" htmlFor="document-label" required>
+							<Input id="document-label" name="label" required minlength="3" maxlength="120" />
+						</FormField>
+						<FormField label="Familia" htmlFor="document-family" required>
+							<Select id="document-family" name="family" required>
+								<>
+									<option value="government_id">Identidad</option>
+									<option value="business_registration">Registro del negocio</option>
+									<option value="tax_document">Fiscalidad</option>
+									<option value="operating_license">Habilitación operativa</option>
+									<option value="insurance">Seguro</option>
+									<option value="ownership_proof">Titularidad del inmueble</option>
+									<option value="address_proof">Domicilio</option>
+								</>
+							</Select>
+						</FormField>
+						{[
+							["issuer", "Emisor"],
+							["issuedAt", "Fecha de emisión"],
+							["expiresAt", "Fecha de vencimiento"],
+						].map(([name, label]) => (
+							<FormField label={label} htmlFor={`document-${name}`}>
+								<Select id={`document-${name}`} name={name}>
+									{fieldRules.map((rule) => (
+										<option value={rule.value} selected={rule.value === "optional"}>
+											{rule.label}
+										</option>
+									))}
+								</Select>
+							</FormField>
+						))}
+					</div>
+					<FormField
+						label="Qué debe presentar el proveedor"
+						htmlFor="document-description"
+						required
+					>
+						<Textarea
+							id="document-description"
+							name="description"
+							required
+							minlength="3"
+							maxlength="1000"
+						/>
+					</FormField>
+					<fieldset>
+						<>
+							<legend class="mb-2 text-sm font-semibold">Titulares admitidos</legend>
+							<div class="flex flex-wrap gap-4">
+								{subjects.map((subject) => (
+									<Checkbox
+										name="allowedSubjectTypes"
+										value={subject.value}
+										label={subject.label}
+									/>
+								))}
+							</div>
+						</>
+					</fieldset>
+					<fieldset>
+						<>
+							<legend class="mb-2 text-sm font-semibold">Alcance obligatorio</legend>
+							<div class="flex flex-wrap gap-4">
+								{[
+									{ value: "product", label: "Oferta" },
+									{ value: "territory", label: "Territorio" },
+									{ value: "activity", label: "Actividad" },
+									{ value: "resource", label: "Recurso" },
+								].map((scope) => (
+									<Checkbox name="requiredScopes" value={scope.value} label={scope.label} />
+								))}
+							</div>
+						</>
+					</fieldset>
+					<>
+						<Button type="submit">Guardar borrador</Button>
+						<p role="status" data-agreement-feedback class="text-sm text-slate-600" />
+					</>
+				</form>
+			</details>
+		)
+	}
+	{
+		!versions.length && (
+			<p class="text-sm text-slate-500">No hay definiciones documentales configuradas.</p>
+		)
+	}
+	<ul class="divide-y divide-slate-200">
+		{
+			versions.map((version) => (
+				<li class="flex flex-wrap items-center justify-between gap-3 py-4">
+					<div>
+						<>
+							<p class="font-medium text-slate-900">
+								{version.label} <span class="text-xs text-slate-500">v{version.version}</span>
+							</p>
+							<p class="text-sm text-slate-600">{version.description}</p>
+							<span class="text-xs text-slate-500">
+								{version.status === "draft"
+									? "Borrador"
+									: version.status === "published"
+										? "Publicada"
+										: "Retirada"}
+							</span>
+						</>
+					</div>
+					{canPublish && version.status !== "retired" && (
+						<form
+							action="/api/admin/document-definitions"
+							method="post"
+							data-agreement-form
+							data-idempotent-command
+						>
+							<input
+								type="hidden"
+								name="action"
+								value={version.status === "draft" ? "publish" : "retire"}
+							/>
+							<input type="hidden" name="versionId" value={version.id} />
+							<Button type="submit" variant="secondary">
+								{version.status === "draft" ? "Publicar definición" : "Retirar"}
+							</Button>
+							<p role="status" data-agreement-feedback class="text-sm text-slate-600" />
+						</form>
+					)}
+				</li>
+			))
+		}
+	</ul>
+</section>

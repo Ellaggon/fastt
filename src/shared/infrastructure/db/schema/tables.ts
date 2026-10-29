@@ -72,6 +72,7 @@ export const ProviderHolderProfile = pgTable(
 			.references(() => Provider.id, { onDelete: "cascade" }),
 		holderType: txt("holderType"),
 		holderCountry: txt("holderCountry"),
+		legalFormCode: txtOpt("legalFormCode"),
 		taxResidenceCountry: txtOpt("taxResidenceCountry"),
 		payoutCountry: txtOpt("payoutCountry"),
 		collectionModel: text("collectionModel").default("undecided").notNull(),
@@ -86,6 +87,10 @@ export const ProviderHolderProfile = pgTable(
 			sql`${table.holderType} IN ('persona_natural', 'entidad')`
 		),
 		check("ProviderHolderProfile_holderCountry_check", sql`${table.holderCountry} ~ '^[A-Z]{2}$'`),
+		check(
+			"ProviderHolderProfile_legalFormCountry_check",
+			sql`${table.legalFormCode} IS NULL OR split_part(${table.legalFormCode}, ':', 1) = ${table.holderCountry}`
+		),
 		check(
 			"ProviderHolderProfile_taxResidenceCountry_check",
 			sql`${table.taxResidenceCountry} IS NULL OR ${table.taxResidenceCountry} ~ '^[A-Z]{2}$'`
@@ -580,12 +585,62 @@ export const ProviderProfile = pgTable("ProviderProfile", {
 	governanceUpdatedAt: ts("governanceUpdatedAt"),
 })
 
+export const DocumentDefinition = pgTable(
+	"DocumentDefinition",
+	{
+		id: pk(),
+		key: txt("key"),
+		createdAt: now("createdAt"),
+	},
+	(table) => [uniqueIndex("DocumentDefinition_key_unique").on(table.key)]
+)
+
+export const DocumentDefinitionVersion = pgTable(
+	"DocumentDefinitionVersion",
+	{
+		id: pk(),
+		definitionId: txt("definitionId").references(() => DocumentDefinition.id, {
+			onDelete: "restrict",
+		}),
+		version: int("version"),
+		status: text("status").notNull().default("draft"),
+		label: txt("label"),
+		description: txt("description"),
+		family: txt("family"),
+		captureJson: jsonb("captureJson").notNull(),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		uniqueIndex("DocumentDefinitionVersion_definition_version_unique").on(
+			table.definitionId,
+			table.version
+		),
+		check("DocumentDefinitionVersion_version_check", sql`${table.version} > 0`),
+		check(
+			"DocumentDefinitionVersion_status_check",
+			sql`${table.status} IN ('draft', 'published', 'retired')`
+		),
+		check(
+			"DocumentDefinitionVersion_capture_check",
+			sql`jsonb_typeof(${table.captureJson}) = 'object'`
+		),
+	]
+)
+
 export const ProviderDocument = pgTable(
 	"ProviderDocument",
 	{
 		id: pk(),
 		providerId: txt("providerId").references(() => Provider.id),
 		type: txt("type"),
+		definitionVersionId: txtOpt("definitionVersionId").references(
+			() => DocumentDefinitionVersion.id,
+			{ onDelete: "restrict" }
+		),
+		replacesDocumentId: text("replacesDocumentId").references(
+			(): AnyPgColumn => ProviderDocument.id,
+			{ onDelete: "restrict" }
+		),
 		status: text("status").default("pending").notNull(),
 		fileUrl: txtOpt("fileUrl"),
 		metadataJson: jsonb("metadataJson"),
@@ -602,6 +657,8 @@ export const ProviderDocument = pgTable(
 	},
 	(table) => [
 		index("ProviderDocument_providerId_type_idx").on(table.providerId, table.type),
+		index("ProviderDocument_definitionVersion_idx").on(table.definitionVersionId),
+		index("ProviderDocument_replacement_idx").on(table.replacesDocumentId),
 		index("ProviderDocument_providerId_status_idx").on(table.providerId, table.status),
 		index("ProviderDocument_provider_expiry_idx").on(table.providerId, table.expiresAt),
 		check(
@@ -2747,12 +2804,13 @@ export const TourOperationalResource = pgTable(
 		id: pk(),
 		providerId: txt("providerId").references(() => Provider.id),
 		userId: txtOpt("userId").references(() => User.id),
-		type: txt("type"), // guide | vehicle | pickup_coordinator
+		type: txt("type"), // guide | driver | vehicle | pickup_coordinator | service_operator
 		name: txt("name"),
 		status: text("status").default("active").notNull(),
 		languagesJson: jsonb("languagesJson"),
 		capacity: intOpt("capacity"),
 		credentialsJson: jsonb("credentialsJson"),
+		declarationJson: jsonb("declarationJson"),
 		createdAt: now("createdAt"),
 		updatedAt: now("updatedAt"),
 	},
@@ -2761,6 +2819,10 @@ export const TourOperationalResource = pgTable(
 			table.providerId,
 			table.type,
 			table.status
+		),
+		check(
+			"TourOperationalResource_declaration_check",
+			sql`(${table.declarationJson} IS NULL AND ${table.type} <> 'service_operator') OR ((jsonb_typeof(${table.declarationJson}) = 'object' AND ${table.declarationJson}->>'country' ~ '^[A-Z]{2}$') IS TRUE)`
 		),
 	]
 )
@@ -2775,6 +2837,8 @@ export const TourComplianceContext = pgTable(
 		providerId: txt("providerId").references(() => Provider.id, { onDelete: "cascade" }),
 		operatingRole: txtOpt("operatingRole"),
 		activityClassesJson: jsonb("activityClassesJson"),
+		operationJson: jsonb("operationJson"),
+		revision: integer("revision").notNull().default(0),
 		jurisdictionCode: txtOpt("jurisdictionCode"),
 		jurisdictionCodes: jsonb("jurisdictionCodes").$type<string[]>(),
 		createdAt: now("createdAt"),
@@ -2782,9 +2846,14 @@ export const TourComplianceContext = pgTable(
 	},
 	(table) => [
 		index("TourComplianceContext_provider_idx").on(table.providerId),
+		check("TourComplianceContext_revision_check", sql`${table.revision} >= 0`),
+		check(
+			"TourComplianceContext_operation_check",
+			sql`${table.operationJson} IS NULL OR ((jsonb_typeof(${table.operationJson}) = 'object' AND ${table.operationJson}->>'version' = '2' AND ${table.operationJson}->>'executionMode' IN ('self', 'team', 'external') AND jsonb_typeof(${table.operationJson}->'transportServices') = 'array' AND jsonb_typeof(${table.operationJson}->'resourceIds') = 'array' AND jsonb_typeof(${table.operationJson}->'guidingService') = 'boolean' AND jsonb_typeof(${table.operationJson}->'waterActivity') = 'boolean' AND jsonb_typeof(${table.operationJson}->'airActivity') = 'boolean' AND ${table.operationJson}->>'foodHandling' IN ('none', 'visit', 'serve', 'prepare')) IS TRUE)`
+		),
 		check(
 			"TourComplianceContext_territories_check",
-			sql`${table.jurisdictionCodes} IS NULL OR (jsonb_typeof(${table.jurisdictionCodes}) = 'array' AND jsonb_array_length(${table.jurisdictionCodes}) BETWEEN 1 AND 9 AND ${table.jurisdictionCodes} <@ '["BO-BN","BO-CH","BO-CB","BO-LP","BO-OR","BO-PN","BO-PT","BO-SC","BO-TJ"]'::jsonb)`
+			sql`${table.jurisdictionCodes} IS NULL OR (jsonb_typeof(${table.jurisdictionCodes}) = 'array' AND jsonb_array_length(${table.jurisdictionCodes}) BETWEEN 1 AND 100)`
 		),
 		check(
 			"TourComplianceContext_operatingRole_check",
@@ -2805,7 +2874,8 @@ export const ProviderDocumentScope = pgTable(
 		resourceId: txtOpt("resourceId").references(() => TourOperationalResource.id, {
 			onDelete: "cascade",
 		}),
-		territoryCode: txtOpt("territoryCode"),
+		/** Canonical GeoPlace ID; the column name is retained to avoid parallel scope fields. */
+		territoryCode: txtOpt("territoryCode").references(() => GeoPlace.id),
 		territoryLabel: txtOpt("territoryLabel"),
 		activityClass: txtOpt("activityClass"),
 		createdAt: now("createdAt"),

@@ -1,5 +1,11 @@
 import { experimental_AstroContainer as AstroContainer } from "astro/container"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+vi.mock("@/lib/tours/operating-geography", () => ({
+	readOperatingPlaces: async (ids: string[]) =>
+		ids
+			.filter((id) => ["geo:bo:la-paz-department", "geo:bo:oruro"].includes(id))
+			.map((id) => ({ id, name: id.endsWith("oruro") ? "Oruro" : "La Paz", country: "BO" })),
+}))
 import ProviderTourOperatingContext from "@/components/provider/ProviderTourOperatingContext.astro"
 import ProviderVerificationLineSections from "@/components/provider/ProviderVerificationLineSections.astro"
 import type { VerificationScreen, VerificationScreenItem } from "@/lib/verification/screen-sections"
@@ -49,6 +55,60 @@ const license: VerificationScreenItem = {
 }
 
 describe("experience operation and applicable licenses", () => {
+	it("requires explicit clarification of ambiguous historical services", async () => {
+		const container = await AstroContainer.create()
+		const html = await container.renderToString(ProviderTourOperatingContext, {
+			request,
+			props: {
+				productId: "tour-a",
+				canEdit: true,
+				context: {
+					operatingRole: "operator",
+					jurisdictionCode: "geo:bo:la-paz-department",
+					activityClassesJson: ["water_air", "transport", "gastronomic"],
+				},
+			},
+		})
+		expect(html).toMatch(/name="waterDecision"[^>]*required/)
+		expect(html).toMatch(/name="airDecision"[^>]*required/)
+		expect(html).toMatch(/name="legacyTransportDecision"[^>]*required/)
+		expect(html).toContain("Confirma cómo participan los alimentos")
+	})
+	it("renders a normalized summary and separate water, air and transport controls", async () => {
+		const container = await AstroContainer.create()
+		const html = await container.renderToString(ProviderTourOperatingContext, {
+			request,
+			props: {
+				productId: "tour-a",
+				canEdit: true,
+				context: {
+					operatingRole: "operator",
+					jurisdictionCode: "geo:bo:la-paz-department",
+					activityClassesJson: ["urban_cultural"],
+					revision: 2,
+					operationJson: {
+						version: 2,
+						executionMode: "team",
+						guidingService: false,
+						characteristics: ["urban_cultural"],
+						operatorResourceId: null,
+						waterActivity: false,
+						airActivity: false,
+						foodHandling: "none",
+						transportServices: [],
+						resourceIds: [],
+					},
+				},
+			},
+		})
+		expect(html).toContain("data-operation-saved-summary")
+		expect(html).not.toContain("Aclara la operación guardada")
+		expect(html).toContain('name="waterActivity"')
+		expect(html).toContain('name="airActivity"')
+		expect(html).toContain("data-transport-template")
+		expect(html).toMatch(/name="revision"[^>]*value="2"/)
+		expect(html).not.toMatch(/<details open[^>]*data-operation-editor/)
+	})
 	it("restores every department selected for the experience", async () => {
 		const container = await AstroContainer.create()
 		const html = await container.renderToString(ProviderTourOperatingContext, {
@@ -58,13 +118,13 @@ describe("experience operation and applicable licenses", () => {
 				canEdit: true,
 				context: {
 					operatingRole: "guide",
-					jurisdictionCode: "BO-LP",
-					jurisdictionCodes: ["BO-LP", "BO-OR"],
+					jurisdictionCode: "geo:bo:la-paz-department",
+					jurisdictionCodes: ["geo:bo:la-paz-department", "geo:bo:oruro"],
 					activityClassesJson: ["urban_cultural"],
 				},
 			},
 		})
-		for (const code of ["BO-LP", "BO-OR"])
+		for (const code of ["geo:bo:la-paz-department", "geo:bo:oruro"])
 			expect(html).toMatch(new RegExp(`name="jurisdictionCodes"[^>]*value="${code}"[^>]*checked`))
 	})
 	it.each([
@@ -148,8 +208,8 @@ describe("experience operation and applicable licenses", () => {
 		expect(html).not.toContain('value="requires_review"')
 		expect(html).toContain("context=tour_territory")
 		expect(html).toContain("experience=tour-a")
-		expect(html).toContain("Guía independiente")
-		expect(html).toContain("Empresa operadora")
+		expect(html).toContain("La experiencia incluye un servicio de guía")
+		expect(html).toContain("Mi negocio, con su equipo")
 		expect(html).toContain("Guardar no aprueba la experiencia")
 		expect(html).toContain("data-operation-status")
 	})
@@ -194,14 +254,17 @@ describe("experience operation and applicable licenses", () => {
 				canEdit: false,
 				context: {
 					operatingRole: "guide",
-					jurisdictionCode: "BO-LP",
+					jurisdictionCode: "geo:bo:la-paz-department",
 					activityClassesJson: ["urban_cultural"],
 				},
 			},
 		})
 		expect(html).toContain("disabled")
-		expect(html).toContain('value="guide" selected')
-		expect(html).toMatch(/name="jurisdictionCodes"[^>]*value="BO-LP"[^>]*checked/)
+		expect(html).toContain("Papel anterior: Guía independiente")
+		expect(html).not.toContain('value="self" selected')
+		expect(html).toMatch(
+			/name="jurisdictionCodes"[^>]*value="geo:bo:la-paz-department"[^>]*checked/
+		)
 		expect(html).not.toContain("Guardar operación")
 	})
 })

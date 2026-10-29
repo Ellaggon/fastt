@@ -49,6 +49,8 @@ export function bindAgreementForms() {
 			}
 		}
 		let pending = false
+		let commandKey = ""
+		let commandPayload = ""
 		const reviewed = bindProposalReview(form)
 		form.addEventListener("submit", async (event) => {
 			event.preventDefault()
@@ -63,10 +65,18 @@ export function bindAgreementForms() {
 			feedback.textContent = "Guardando…"
 			try {
 				const asJson = form.hasAttribute("data-agreement-json")
+				if (form.hasAttribute("data-idempotent-command")) {
+					const payload = JSON.stringify([...new FormData(form).entries()])
+					if (!commandKey || commandPayload !== payload) {
+						commandKey = crypto.randomUUID()
+						commandPayload = payload
+					}
+				}
 				const response = await fetch(action.href, {
 					method: "POST",
 					headers: {
 						Accept: "application/json",
+						...(commandKey ? { "Idempotency-Key": commandKey } : {}),
 						...(asJson ? { "Content-Type": "application/json" } : {}),
 					},
 					credentials: "same-origin",

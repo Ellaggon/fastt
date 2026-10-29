@@ -280,6 +280,14 @@ async function main() {
 	})
 
 	const integritySql = await readFile(INTEGRITY_FILE, "utf8")
+	const documentDefinitionIntegrity = await readFile(
+		"src/shared/infrastructure/db/schema/document-definition-integrity.sql",
+		"utf8"
+	)
+	const operatingGeographyIntegrity = await readFile(
+		"src/shared/infrastructure/db/schema/operating-geography-integrity.sql",
+		"utf8"
+	)
 	const typedAssignmentIntegritySql = await readFile(TYPED_ASSIGNMENT_INTEGRITY_FILE, "utf8")
 	const financialRelationalIntegritySql = await readFile(
 		FINANCIAL_RELATIONAL_INTEGRITY_FILE,
@@ -310,6 +318,8 @@ async function main() {
 		"",
 		"-- Native PostgreSQL constraints, partial indexes and triggers.",
 		integritySql.trim(),
+		documentDefinitionIntegrity.trim(),
+		operatingGeographyIntegrity.trim(),
 		"",
 		"-- Canonical typed assignment ownership invariants.",
 		typedAssignmentIntegritySql.trim(),

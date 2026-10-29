@@ -12,6 +12,7 @@ import { readinessIconWellClass, readinessRowClass } from "@/lib/ui/readinessPre
 import { buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
+import { projectAuthorizationDecisions } from "@/lib/tours/tourPublicationDecisions"
 import {
 	ChevronRight,
 	CircleCheck,
@@ -34,7 +35,28 @@ const summary = summarizeTourDiagnostic(diagnosis)
 const presentation = presentTourDiagnostic(diagnosis, { previewHref: reviewHref, published })
 const { tasks, waiting, completed } = projectTourPublicationTasks(diagnosis)
 const openTasks = [...tasks, ...waiting]
+const decisions =
+	diagnosis.publicationDecisions ??
+	projectAuthorizationDecisions({
+		productId: diagnosis.context.productId,
+		policy: null,
+		verification: null,
+		agreement: null,
+	})
+const preparationTasks = openTasks.filter((task) =>
+	task.ids.some((id) => id !== "provider_authorization" && id !== "experience_authorization")
+)
 const selection = diagnosis.context.selection
+const decisionHref = (href: string) => {
+	const target = new URL(href, "http://fastt.local")
+	if (target.pathname.startsWith("/product/") && selection.state === "resolved") {
+		target.searchParams.set("variantId", selection.variantId)
+		target.searchParams.set("ratePlanId", selection.ratePlanId)
+	}
+	if (target.pathname === "/provider/settings/payments" || target.pathname.startsWith("/product/"))
+		target.searchParams.set("returnTo", reviewHref)
+	return target.pathname + target.search + target.hash
+}
 const edit = new URL(
 	buildTourPlaybookHref(
 		`/product/${encodeURIComponent(diagnosis.context.productId)}/content`,
@@ -67,89 +89,155 @@ const taskIcon = (task: (typeof openTasks)[number]) => {
 ---
 
 <div class="space-y-5" data-tour-review-status>
-	{
-		!published && openTasks.length ? (
-			<div class="space-y-3" data-tour-publication-tasks>
-				{openTasks.map((task) => {
-					const status = tourPublicationTaskStatus(task)
-					const Icon = taskIcon(task)
-					const href = task.href ?? reviewHref
-					const actionLabel = "unknown" in task && task.unknown ? "Reintentar" : "Completar"
-					return (
-						<a
-							href={href}
-							class={readinessRowClass(status)}
-							data-tour-publication-task={task.key}
-							aria-label={`${actionLabel}: ${task.label}`}
-							data-astro-reload={"unknown" in task && task.unknown ? true : undefined}
-						>
-							<span class={readinessIconWellClass(status)} data-tour-publication-task-icon>
-								<Icon class="size-4" aria-hidden="true" />
-							</span>
-							<div class="min-w-0 flex-1">
-								<p class="text-sm font-semibold text-slate-950">
-									{tourPublicationTaskHeadline(task)}
-								</p>
-								<p class="mt-1 text-sm leading-5 text-slate-500">
-									{tourPublicationTaskImpact(task)}
-								</p>
-								{taskDetail(task) ? (
-									<p class="mt-1 text-sm leading-5 text-slate-600">{taskDetail(task)}</p>
-								) : null}
-							</div>
-							<div class="flex flex-wrap items-center gap-2 sm:justify-end">
-								<Badge variant={status.variant}>{status.label}</Badge>
-								<ChevronRight
-									class="size-4 shrink-0 text-slate-400 transition group-hover:text-[var(--fastt-color-selection)]"
-									aria-hidden="true"
-								/>
-							</div>
-						</a>
-					)
-				})}
-			</div>
-		) : null
-	}
-
-	{
-		completed.length ? (
-			<details class="group border-t border-slate-200 pt-4" data-tour-publication-completed>
-				<summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-sky-50 [&::-webkit-details-marker]:hidden">
-					<span class="inline-flex items-center gap-2">
-						<CircleCheck class="size-4 text-emerald-600" aria-hidden="true" />
-						Requisitos cumplidos ({completed.length})
-					</span>
-					<span class="text-xs font-medium text-slate-500 group-open:hidden">Mostrar</span>
-					<span class="hidden text-xs font-medium text-slate-500 group-open:inline">Ocultar</span>
-				</summary>
-				<div class="space-y-3 border-t border-slate-100 p-3">
-					{completed.map((item) => (
-						<a
-							href={item.href}
-							class={readinessRowClass({ variant: "success" }, true)}
-							data-tour-publication-completed-item={item.id}
-						>
-							<span class={readinessIconWellClass({ variant: "success" }, true)}>
-								<CircleCheck class="size-4" aria-hidden="true" />
-							</span>
-							<div class="min-w-0 flex-1">
-								<p class="text-sm font-semibold text-slate-950">{item.label}</p>
-								<p class="mt-1 text-sm leading-5 text-slate-500">Sin bloqueos directos</p>
-							</div>
-							<div class="flex flex-wrap items-center gap-2 sm:justify-end">
-								<Badge variant="success">Completo</Badge>
-								<ChevronRight
-									class="size-4 shrink-0 text-slate-400 transition group-hover:text-[var(--fastt-color-selection)]"
-									aria-hidden="true"
-								/>
-							</div>
-						</a>
-					))}
+	<section
+		aria-label="Estado para publicar"
+		class="divide-y divide-slate-200"
+		data-tour-publication-decisions
+	>
+		<h3 class="pb-3 text-base font-semibold text-slate-950">Estado para publicar</h3>
+		{
+			decisions.map((decision) => (
+				<div class="py-4" data-publication-decision={decision.id}>
+					<div class="flex flex-wrap items-center justify-between gap-2">
+						<h4 class="text-sm font-semibold text-slate-950">{decision.label}</h4>
+						<Badge variant={decision.tone}>{decision.status}</Badge>
+					</div>
+					<p class="mt-2 text-sm leading-6 text-slate-600">{decision.message}</p>
+					{decision.status === "No se pudo comprobar" && (
+						<Button href={reviewHref} variant="ghost" size="sm" data-astro-reload>
+							Reintentar comprobación
+						</Button>
+					)}
+					{decision.actions.length > 0 && (
+						<div class="mt-2 flex flex-wrap gap-2">
+							{decision.actions.map((action) => (
+								<Button href={decisionHref(action.href)} variant="ghost" size="sm">
+									{action.label}
+								</Button>
+							))}
+						</div>
+					)}
 				</div>
-			</details>
-		) : null
-	}
+			))
+		}
+	</section>
+	<details
+		class="group border-t border-slate-200 pt-4"
+		open={preparationTasks.length > 0}
+		data-publication-decision="preparation"
+	>
+		<summary
+			class="flex cursor-pointer flex-wrap items-center justify-between gap-2 text-sm font-semibold text-slate-950"
+		>
+			<span class="inline-flex items-center gap-2"
+				><ChevronRight
+					class="size-4 transition-transform motion-reduce:transition-none group-open:rotate-90"
+					aria-hidden="true"
+				/>Preparación de la experiencia</span
+			>
+			<Badge variant={preparationTasks.length ? "warning" : "success"}
+				>{
+					preparationTasks.length ? `Faltan ${preparationTasks.length} aspectos` : "Completa"
+				}</Badge
+			>
+		</summary>
+		<div class="mt-4 space-y-4">
+			{
+				!published && preparationTasks.length ? (
+					<div class="space-y-3" data-tour-publication-tasks>
+						{preparationTasks.map((task) => {
+							const status = tourPublicationTaskStatus(task)
+							const Icon = taskIcon(task)
+							const retry = "unknown" in task && task.unknown
+							const href = task.href ?? (retry ? reviewHref : undefined)
+							const TaskRow = href ? "a" : "div"
+							const actionLabel = "unknown" in task && task.unknown ? "Reintentar" : "Completar"
+							return (
+								<TaskRow
+									href={href}
+									class={readinessRowClass(status)}
+									data-tour-publication-task={task.key}
+									aria-label={href ? `${actionLabel}: ${task.label}` : undefined}
+									data-astro-reload={"unknown" in task && task.unknown ? true : undefined}
+								>
+									<span class={readinessIconWellClass(status)} data-tour-publication-task-icon>
+										<Icon class="size-4" aria-hidden="true" />
+									</span>
+									<div class="min-w-0 flex-1">
+										<p class="text-sm font-semibold text-slate-950">
+											{tourPublicationTaskHeadline(task)}
+										</p>
+										<p class="mt-1 text-sm leading-5 text-slate-500">
+											{tourPublicationTaskImpact(task)}
+										</p>
+										{taskDetail(task) ? (
+											<p class="mt-1 text-sm leading-5 text-slate-600">{taskDetail(task)}</p>
+										) : null}
+										{!href && (
+											<p class="mt-2 text-sm leading-5 text-slate-600">
+												Este paso corresponde a Fastt. No necesitas volver a completar la ficha ni
+												reenviar documentos.
+											</p>
+										)}
+									</div>
+									<div class="flex flex-wrap items-center gap-2 sm:justify-end">
+										<Badge variant={status.variant}>{status.label}</Badge>
+										{href && (
+											<ChevronRight
+												class="size-4 shrink-0 text-slate-400 transition group-hover:text-[var(--fastt-color-selection)]"
+												aria-hidden="true"
+											/>
+										)}
+									</div>
+								</TaskRow>
+							)
+						})}
+					</div>
+				) : null
+			}
 
+			{
+				completed.length ? (
+					<details class="group border-t border-slate-200 pt-4" data-tour-publication-completed>
+						<summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-sky-50 [&::-webkit-details-marker]:hidden">
+							<span class="inline-flex items-center gap-2">
+								<CircleCheck class="size-4 text-emerald-600" aria-hidden="true" />
+								Requisitos cumplidos ({completed.length})
+							</span>
+							<span class="text-xs font-medium text-slate-500 group-open:hidden">Mostrar</span>
+							<span class="hidden text-xs font-medium text-slate-500 group-open:inline">
+								Ocultar
+							</span>
+						</summary>
+						<div class="space-y-3 border-t border-slate-100 p-3">
+							{completed.map((item) => (
+								<a
+									href={item.href}
+									class={readinessRowClass({ variant: "success" }, true)}
+									data-tour-publication-completed-item={item.id}
+								>
+									<span class={readinessIconWellClass({ variant: "success" }, true)}>
+										<CircleCheck class="size-4" aria-hidden="true" />
+									</span>
+									<div class="min-w-0 flex-1">
+										<p class="text-sm font-semibold text-slate-950">{item.label}</p>
+										<p class="mt-1 text-sm leading-5 text-slate-500">Sin bloqueos directos</p>
+									</div>
+									<div class="flex flex-wrap items-center gap-2 sm:justify-end">
+										<Badge variant="success">Completo</Badge>
+										<ChevronRight
+											class="size-4 shrink-0 text-slate-400 transition group-hover:text-[var(--fastt-color-selection)]"
+											aria-hidden="true"
+										/>
+									</div>
+								</a>
+							))}
+						</div>
+					</details>
+				) : null
+			}
+		</div>
+	</details>
 	{
 		!published &&
 		!openTasks.length &&

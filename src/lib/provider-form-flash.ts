@@ -13,6 +13,7 @@ const identityFields = [
 	"legalName",
 	"holderType",
 	"holderCountry",
+	"legalFormCode",
 	"taxResidenceCountry",
 	"payoutCountry",
 	"collectionModel",
@@ -84,6 +85,8 @@ export function providerFormErrorMessage(field: string, fallback = "Revisa este 
 		legalName: "Escribe el nombre legal de al menos 2 caracteres.",
 		holderType: "Selecciona quién operará el negocio.",
 		holderCountry: "Usa un código de país de dos letras, por ejemplo BO.",
+		legalFormCode:
+			"Selecciona una forma jurídica compatible con el país y el titular, o déjala por clasificar.",
 		taxResidenceCountry: "Usa un código de país de dos letras, por ejemplo BO.",
 		payoutCountry: "Usa un código de país de dos letras, por ejemplo BO.",
 		collectionModel: "Selecciona una opción válida.",

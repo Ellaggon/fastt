@@ -7,6 +7,10 @@ import {
 	type ProviderDocumentSubjectType,
 } from "@/lib/provider-documents"
 import type { VerificationRequirement } from "@/lib/verification/requirement-resolver"
+import {
+	allTerritoriesCovered,
+	type TerritoryAncestors,
+} from "@/shared/domain/territorial-coverage"
 
 /**
  * The evidence decision used by the provider forms, progress and line gate.
@@ -21,7 +25,10 @@ export type VerificationEvidenceDocument = Pick<
 export type VerificationEvidenceOperation = {
 	productId?: string | null
 	resourceId?: string | null
+	operatorResourceId?: string | null
+	requireAllActivityScopes?: boolean
 	territoryCodes?: string[]
+	territoryAncestors?: TerritoryAncestors
 	activityClasses?: ProviderDocumentActivityClass[]
 	subjectReferences?: string[]
 	at?: Date
@@ -46,6 +53,15 @@ function scopeMatches(
 	document: VerificationEvidenceDocument,
 	operation: VerificationEvidenceOperation
 ): boolean {
+	const activityScopes = document.scopes.filter((scope) => scope.scopeType === "activity")
+	if (
+		operation.requireAllActivityScopes &&
+		activityScopes.length &&
+		operation.activityClasses?.some(
+			(activity) => !activityScopes.some((scope) => scope.activityClass === activity)
+		)
+	)
+		return false
 	// A named holder is meaningful only when the operation names that holder.
 	// Failing closed here prevents a credential attributed to Ana from covering
 	// an unknown guide or an unrelated resource.
@@ -71,10 +87,10 @@ function scopeMatches(
 	if (
 		territoryScopes.length &&
 		operation.territoryCodes?.length &&
-		!operation.territoryCodes.every((code) =>
-			territoryScopes.some(
-				(scope) => scope.territoryCode === code || scope.territoryCode === code.split("-")[0]
-			)
+		!allTerritoriesCovered(
+			operation.territoryCodes,
+			territoryScopes.map((scope) => scope.territoryCode ?? ""),
+			operation.territoryAncestors
 		)
 	)
 		return false
@@ -88,7 +104,7 @@ function scopeMatches(
 		},
 		{
 			...operation,
-			territoryCodes: operation.territoryCodes?.flatMap((code) => [code, code.split("-")[0]]),
+			territoryCodes: operation.territoryCodes,
 		}
 	)
 }
@@ -135,7 +151,14 @@ function appliesToRequirement(
 		if (!document.subjectReference && !options.allowUnboundGuide) return false
 	}
 	if (requirement.id === "tour.operator_license") {
-		if (document.subjectType !== "provider" && document.subjectType !== "legal_entity") return false
+		if (operation.operatorResourceId) {
+			if (
+				document.subjectType !== "third_party" ||
+				document.subjectReference !== operation.operatorResourceId
+			)
+				return false
+		} else if (document.subjectType !== "provider" && document.subjectType !== "legal_entity")
+			return false
 		// An establishment licence can share type and territory with a tour
 		// licence. The selected tour must be named in the reviewed scope.
 		if (

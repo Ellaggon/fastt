@@ -3,7 +3,7 @@
 Status: active  
 Document type: canonical  
 Owner: Product / Experiences  
-Last verified: 2026-10-13  
+Last verified: 2026-10-28
 Scope: ayudar a Producto, onboarding y proveedores a clasificar una oferta y detectar ampliaciones necesarias  
 Source of truth: contratos de clasificación y formato del código; taxonomía vigente enlazada abajo  
 Related code/tests: `src/shared/domain/experience-classification.ts`, `src/shared/domain/experience-format.ts`, `tests/unit/experience-classification.test.ts`  
@@ -36,7 +36,7 @@ Los códigos identifican las diez selecciones de Perfil. Los ejemplos amplían s
 no agregan valores técnicos ni requisitos documentales.
 
 | Selección de negocio | Ejemplos de proveedor | Ofertas posibles | Formatos orientativos |
-| --- | --- | --- | --- |
+| --------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------- | --------------------------------------------- |
 | Operador o guía (`operator`) | Guías independientes, agencias receptivas, operadores de visitas | Recorrido urbano; visita patrimonial; senderismo | Visita guiada |
 | Estudio o taller creativo (`creative_studio`) | Ceramistas, pintores, tejedores, joyeros, floristas | Crear una taza; tejer una pieza; diseñar un arreglo floral | Taller o clase |
 | Escuela o academia (`school`) | Academias de danza, música, cocina, fotografía o tecnología | Clase puntual de baile, canto, cocina o robótica | Clase o taller |
@@ -59,7 +59,7 @@ La aplicación consulta las categorías activas de la base; no debe copiar este 
 como lista fija. Una actividad ausente se solicita para revisión, sin elegir otra por aproximación.
 
 | Familia | Actividades iniciales |
-| --- | --- |
+| --------------------------------- | ----------------------------------------------------------------- |
 | Cultura y patrimonio | Recorrido urbano; Visita patrimonial; Visita a museo |
 | Arte y artesanía | Cerámica; Pintura; Tejido; Joyería; Arte floral |
 | Gastronomía y bebidas | Cocina; Panadería; Café; Chocolate; Degustación de productos |
@@ -73,7 +73,7 @@ como lista fija. Una actividad ausente se solicita para revisión, sin elegir ot
 ## Cuatro formatos, un recorrido común
 
 | Formato | Cuándo elegirlo | Programa |
-| --- | --- | --- |
+| ----------------------------------------- | -------------------------------------- | ------------------------------ |
 | Visita o recorrido guiado (`guided_tour`) | Conocer un lugar con acompañamiento. | Itinerario: mínimo 3 momentos. |
 | Taller (`workshop`) | Crear, elaborar o practicar algo. | Programa: mínimo 1 momento. |
 | Clase (`class`) | Aprender conocimientos o técnicas. | Programa: mínimo 1 momento. |
@@ -109,7 +109,7 @@ una etiqueta de instructor no reemplaza credenciales de guía ni crea equivalenc
 ## Ejemplos completos de clasificación
 
 | Proveedor | Experiencia | Actividad → familia | Formato | Alternativa comercial |
-| --- | --- | --- | --- | --- |
+| ---------------- | ------------------------------------ | ------------------------------------- | ------------------------- | ------------------------------------------------- |
 | Estudio creativo | Crea tu primera taza | Cerámica → Arte y artesanía | Taller | Grupo compartido a las 10:00; otra opción privada |
 | Cafetería | Introducción al café de especialidad | Café → Gastronomía y bebidas | Degustación | Horario de tarde y tarifa correspondiente |
 | Academia | Primera clase de salsa | Danza → Música y danza | Clase | Nivel inicial, horario y cupos |
@@ -121,10 +121,32 @@ una etiqueta de instructor no reemplaza credenciales de guía ni crea equivalenc
 Los ejemplos no autorizan comercialmente esas ofertas. Un segundo horario puede reutilizar datos
 comunes mediante el flujo existente, sin copiar reservas, inventario ni autorizaciones.
 
+## Declaración operativa y forma jurídica
+
+`legal-forms.ts` clasifica el negocio por país sin inferir obligaciones; una unipersonal no se
+convierte en sociedad. `tour-operation.ts` versiona ejecutor, guía, agua, aire, alimentos y transporte
+por responsable. La actividad editorial y el formato siguen separados. Ejecutar no acredita ser guía.
+Prestadores externos reutilizan `TourOperationalResource.service_operator`; registrarlos no verifica
+licencias. Los recursos conservan su asignación por salida. Guardar valida ownership, recursos y
+revisión concurrente; declaración y auditoría son atómicas. No se infieren datos desde `water_air`.
+
+`GeoPlace` es la identidad territorial para operación, documentos y políticas. `GeoPlaceClosure`
+resuelve cobertura direccional en lote; todos los territorios y actividades deben quedar cubiertos.
+La declaración guarda IDs en `jurisdictionCodes`, con `jurisdictionCode` como proyección protegida.
+No se duplica en `ProductGeoPlace.service_area`, que conserva su función editorial. Documentos usan
+FK; contexto y políticas tienen guards SQL. Los límites son técnicos, no específicos de Bolivia.
+
+La migración `2026-10-29_operating_geography.sql` convierte correspondencias exactas y aborta ante
+desconocidos. Las políticas firmadas conservan su payload: `GeoPlaceExternalId`, fuente
+`fastt_legacy_jurisdiction`, resuelve sus IDs históricos. El selector busca lugares activos sin
+listas nacionales; los ocultos conservan lectura histórica. No se amplía cobertura por aproximación.
+Estas declaraciones no habilitan países, sustituyen permisos especiales, componen políticas ni
+reescriben documentos históricos o snapshots de reservas.
+
 ## Qué requiere ampliar el modelo
 
 | Oferta propuesta | Encaje actual y decisión |
-| --- | --- |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Concierto, festival, teatro o entrada libre a un recinto | Los cuatro formatos no describen por sí solos una entrada a evento. Definir acceso, fechas y operación antes de incorporarla. |
 | Curso de varias semanas, membresía o abono | Una clase puntual encaja; inscripción a múltiples sesiones y derechos recurrentes requieren otro contrato. |
 | Alquiler de bicicleta, equipo o espacio | No convertir un alquiler en clase. Requiere recursos, devolución, disponibilidad y responsabilidades propias. |

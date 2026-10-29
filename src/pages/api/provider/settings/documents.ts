@@ -294,7 +294,15 @@ export const POST: APIRoute = async ({ request }) => {
 			subjectReference: form.get("subjectReference") || undefined,
 			replacesDocumentId: form.get("replacesDocumentId") || undefined,
 		})
-		const territoryCode = String(form.get("territoryCode") ?? "").trim()
+		const territoryCodes = [
+			...new Set(
+				form
+					.getAll("territoryCode")
+					.map(String)
+					.map((value) => value.trim())
+					.filter(Boolean)
+			),
+		]
 		const territoryLabel = String(form.get("territoryLabel") ?? "").trim()
 		const postedProductIds = form
 			.getAll("scopeProductId")
@@ -333,7 +341,7 @@ export const POST: APIRoute = async ({ request }) => {
 			subjectReference: parsed.subjectReference,
 			productIds: postedProductIds,
 			resourceIds: postedResourceIds,
-			territories: territoryCode ? [{ code: territoryCode, label: territoryLabel }] : [],
+			territories: territoryCodes.map((code) => ({ code, label: territoryLabel })),
 			activityClasses: postedActivities,
 		}
 
@@ -346,6 +354,7 @@ export const POST: APIRoute = async ({ request }) => {
 			providerId,
 			actorUserId: user.id,
 			type: parsed.type,
+			definitionVersionId: form.get("definitionVersionId"),
 			fileUrl: parsed.fileUrl,
 			fileName: parsed.fileName,
 			mimeType: parsed.mimeType,
@@ -357,7 +366,7 @@ export const POST: APIRoute = async ({ request }) => {
 			allowedSubjectTypes: isGuideCredential
 				? ["person", "resource"]
 				: matchedRequirement?.id === "tour.operator_license"
-					? ["provider", "legal_entity"]
+					? ["provider", "legal_entity", "third_party"]
 					: undefined,
 			scopeProductType:
 				matchedRequirement?.layer === "tour"

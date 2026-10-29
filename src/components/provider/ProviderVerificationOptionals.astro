@@ -18,6 +18,7 @@ import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
 type OptionalDocType = { value: string; label: string; description?: string }
 
 type Props = {
+	documentDefinitions?: Array<{ id: string; label: string; family: string }>
 	documentPresentation?: Record<string, DocumentListPresentation>
 	guideResources?: Array<{ id: string; name: string }>
 	resourceChoices?: Array<{ id: string; name: string; type: string }>
@@ -43,6 +44,7 @@ type Props = {
 }
 
 const {
+	documentDefinitions = [],
 	documentPresentation = {},
 	guideResources = [],
 	resourceChoices = [],
@@ -381,6 +383,7 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 
 					{tourSurface ? (
 						<ProviderTourEvidenceFields
+							documentDefinitions={documentDefinitions}
 							selectedType={selectedType}
 							scopeProductId={scopeProductId}
 							scopeProducts={scopeProducts}

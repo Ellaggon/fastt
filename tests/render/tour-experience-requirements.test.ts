@@ -1,5 +1,11 @@
 import { experimental_AstroContainer as AstroContainer } from "astro/container"
-import { expect, it } from "vitest"
+import { expect, it, vi } from "vitest"
+vi.mock("@/lib/tours/operating-geography", () => ({
+	readOperatingPlaces: async (ids: string[]) =>
+		ids
+			.filter((id) => id === "geo:bo:la-paz-department")
+			.map((id) => ({ id, name: "La Paz", country: "BO" })),
+}))
 import Workspace from "@/components/tours/TourExperienceRequirements.astro"
 import type { ProviderVerificationWorkspaceModel } from "@/lib/provider-verification-workspace"
 
@@ -8,8 +14,20 @@ function model(complete: boolean, pending: boolean): ProviderVerificationWorkspa
 		tourContext: complete
 			? {
 					operatingRole: "guide",
-					jurisdictionCode: "BO-LP",
+					jurisdictionCode: "geo:bo:la-paz-department",
 					activityClassesJson: ["urban_cultural"],
+					operationJson: {
+						version: 2,
+						executionMode: "self",
+						guidingService: true,
+						characteristics: ["urban_cultural"],
+						operatorResourceId: null,
+						waterActivity: false,
+						airActivity: false,
+						foodHandling: "none",
+						transportServices: [],
+						resourceIds: [],
+					},
 				}
 			: null,
 		canEditTourContext: true,

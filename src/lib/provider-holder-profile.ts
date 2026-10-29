@@ -1,10 +1,13 @@
-import { db, eq, first, ProviderHolderProfile } from "@/shared/infrastructure/db/compat"
+import { db, eq, first, Provider, ProviderHolderProfile } from "@/shared/infrastructure/db/compat"
 import { writeProviderAuditLog } from "@/lib/provider-audit"
+import { legalFormForCountry } from "@/shared/domain/legal-forms"
+import { withPostgresTransaction } from "@/shared/infrastructure/db/client"
 
 export type HolderType = "persona_natural" | "entidad"
 export type HolderDeclaration = {
 	holderType: HolderType
 	holderCountry: string
+	legalFormCode?: string | null
 	taxResidenceCountry: string | null
 	payoutCountry: string | null
 	collectionModel: "undecided" | "property_collect" | "platform_collect"
@@ -53,6 +56,10 @@ export function parseHolderDeclaration(form: FormData): HolderDeclaration | null
 	if ((holderType !== "persona_natural" && holderType !== "entidad") || !holderCountry) {
 		throw new Error("holder_declaration_invalid")
 	}
+	const legalFormCode = String(form.get("legalFormCode") ?? "").trim() || null
+	const legalForm = legalFormForCountry(legalFormCode, holderCountry)
+	if (legalFormCode && (!legalForm || legalForm.holderType !== holderType))
+		throw new Error("holder_declaration_invalid")
 	const taxRaw = String(form.get("taxResidenceCountry") ?? "").trim()
 	const payoutRaw = String(form.get("payoutCountry") ?? "").trim()
 	const taxResidenceCountry = taxRaw ? country(form.get("taxResidenceCountry")) : null
@@ -63,6 +70,7 @@ export function parseHolderDeclaration(form: FormData): HolderDeclaration | null
 	return {
 		holderType,
 		holderCountry,
+		legalFormCode,
 		taxResidenceCountry,
 		payoutCountry,
 		collectionModel: "undecided",
@@ -158,49 +166,74 @@ export async function saveProviderHolderProfile(params: {
 	userId: string
 	declaration: HolderDeclaration
 }) {
-	const previous = await readProviderHolderProfile(params.providerId)
-	const changed = Boolean(
-		previous &&
-		(previous.holderType !== params.declaration.holderType ||
-			previous.holderCountry !== params.declaration.holderCountry ||
-			previous.taxResidenceCountry !== params.declaration.taxResidenceCountry ||
-			previous.payoutCountry !== params.declaration.payoutCountry ||
-			previous.collectionModel !== params.declaration.collectionModel)
-	)
-	await db
-		.insert(ProviderHolderProfile)
-		.values({
-			providerId: params.providerId,
-			...params.declaration,
-			declaredByUserId: params.userId,
-			declarationStatus: "declared",
-		})
-		.onConflictDoUpdate({
-			target: ProviderHolderProfile.providerId,
-			set: {
+	return withPostgresTransaction(async () => {
+		const owner = await db
+			.select({ id: Provider.id })
+			.from(Provider)
+			.where(eq(Provider.id, params.providerId))
+			.for("update")
+			.then(first)
+		if (!owner) throw new Error("provider_not_found")
+		const previous = await readProviderHolderProfile(params.providerId)
+		params = {
+			...params,
+			declaration: {
+				...params.declaration,
+				legalFormCode: params.declaration.legalFormCode ?? null,
+				collectionModel: collectionModelForIdentitySave(previous),
+			},
+		}
+		if (
+			params.declaration.legalFormCode &&
+			legalFormForCountry(params.declaration.legalFormCode, params.declaration.holderCountry)
+				?.holderType !== params.declaration.holderType
+		)
+			throw new Error("holder_declaration_invalid")
+		const changed = Boolean(
+			previous &&
+			(previous.holderType !== params.declaration.holderType ||
+				(previous.legalFormCode ?? null) !== (params.declaration.legalFormCode ?? null) ||
+				previous.holderCountry !== params.declaration.holderCountry ||
+				previous.taxResidenceCountry !== params.declaration.taxResidenceCountry ||
+				previous.payoutCountry !== params.declaration.payoutCountry ||
+				previous.collectionModel !== params.declaration.collectionModel)
+		)
+		await db
+			.insert(ProviderHolderProfile)
+			.values({
+				providerId: params.providerId,
 				...params.declaration,
 				declaredByUserId: params.userId,
-				declarationStatus: changed ? "in_review" : (previous?.declarationStatus ?? "declared"),
-				updatedAt: new Date(),
-			},
+				declarationStatus: "declared",
+			})
+			.onConflictDoUpdate({
+				target: ProviderHolderProfile.providerId,
+				set: {
+					...params.declaration,
+					declaredByUserId: params.userId,
+					declarationStatus: changed ? "in_review" : (previous?.declarationStatus ?? "declared"),
+					updatedAt: new Date(),
+				},
+			})
+		await writeProviderAuditLog({
+			providerId: params.providerId,
+			actorUserId: params.userId,
+			action: changed ? "provider.holder_declaration_changed" : "provider.holder_declaration_saved",
+			entityType: "ProviderHolderProfile",
+			entityId: params.providerId,
+			beforeJson: previous
+				? {
+						holderType: previous.holderType,
+						holderCountry: previous.holderCountry,
+						legalFormCode: previous.legalFormCode,
+						taxResidenceCountry: previous.taxResidenceCountry,
+						payoutCountry: previous.payoutCountry,
+						collectionModel: previous.collectionModel,
+					}
+				: null,
+			afterJson: params.declaration,
+			riskLevel: changed ? "high" : "medium",
 		})
-	await writeProviderAuditLog({
-		providerId: params.providerId,
-		actorUserId: params.userId,
-		action: changed ? "provider.holder_declaration_changed" : "provider.holder_declaration_saved",
-		entityType: "ProviderHolderProfile",
-		entityId: params.providerId,
-		beforeJson: previous
-			? {
-					holderType: previous.holderType,
-					holderCountry: previous.holderCountry,
-					taxResidenceCountry: previous.taxResidenceCountry,
-					payoutCountry: previous.payoutCountry,
-					collectionModel: previous.collectionModel,
-				}
-			: null,
-		afterJson: params.declaration,
-		riskLevel: changed ? "high" : "medium",
+		return { changed, status: changed ? "in_review" : (previous?.declarationStatus ?? "declared") }
 	})
-	return { changed, status: changed ? "in_review" : (previous?.declarationStatus ?? "declared") }
 }

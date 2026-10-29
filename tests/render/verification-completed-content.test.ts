@@ -1,5 +1,11 @@
 import { experimental_AstroContainer as AstroContainer } from "astro/container"
-import { expect, it } from "vitest"
+import { expect, it, vi } from "vitest"
+vi.mock("@/lib/tours/operating-geography", () => ({
+	readOperatingPlaces: async (ids: string[]) =>
+		ids
+			.filter((id) => id === "geo:bo:la-paz-department")
+			.map((id) => ({ id, name: "La Paz", country: "BO" })),
+}))
 import Kyc from "@/components/provider/ProviderKycSlotsCard.astro"
 import Operation from "@/components/provider/ProviderTourOperatingContext.astro"
 import type { ProviderKycSlot } from "@/lib/provider-documents"
@@ -51,8 +57,20 @@ it("keeps saved operation compact and editable without losing its fields", async
 			canEdit: true,
 			context: {
 				operatingRole: "guide",
-				jurisdictionCode: "BO-LP",
+				jurisdictionCode: "geo:bo:la-paz-department",
 				activityClassesJson: ["urban_cultural"],
+				operationJson: {
+					version: 2,
+					executionMode: "self",
+					guidingService: true,
+					characteristics: ["urban_cultural"],
+					operatorResourceId: null,
+					waterActivity: false,
+					airActivity: false,
+					foodHandling: "none",
+					transportServices: [],
+					resourceIds: [],
+				},
 			},
 		},
 	})
@@ -61,7 +79,7 @@ it("keeps saved operation compact and editable without losing its fields", async
 	expect(html).toContain("Guardar cambios")
 	expect(html).toContain("data-operation-cancel")
 	expect(html).not.toMatch(/<details[^>]*open/)
-	expect(html).toContain('name="operatingRole"')
+	expect(html).toContain('name="executionMode"')
 })
 it("opens incomplete operation for correction", async () => {
 	const container = await AstroContainer.create()

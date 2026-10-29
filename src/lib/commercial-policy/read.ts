@@ -1,4 +1,6 @@
 import { type ExperienceFormat } from "@/shared/domain/experience-format"
+import { documentAcceptanceSchema } from "@/shared/domain/document-acceptance"
+import { readHistoricalTerritoryMap, readTerritoryAncestors } from "@/lib/tours/operating-geography"
 import {
 	and,
 	db,
@@ -39,9 +41,13 @@ function normalizeRequirementCondition(value: unknown): CommercialPolicyRequirem
 	const raw = value as Record<string, unknown>
 	const list = (key: string) => stringArray(raw[key]).slice(0, 50)
 	const condition = {
+		legalFormCodes: list("legalFormCodes"),
+		executionModes: list("executionModes"),
+		foodHandlingModes: list("foodHandlingModes"),
+		transportProviders: list("transportProviders"),
 		operatingRoles: list("operatingRoles"),
 		activityClasses: list("activityClasses"),
-		jurisdictionCodes: list("jurisdictionCodes"),
+		jurisdictionCodes: stringArray(raw.jurisdictionCodes),
 		resourceIds: list("resourceIds"),
 		subjectReferences: list("subjectReferences"),
 		evidenceScope: ["provider", "product", "operation"].includes(String(raw.evidenceScope))
@@ -59,11 +65,15 @@ function normalizeContextSelector(value: unknown): CommercialPolicyContextSelect
 	if (!value || typeof value !== "object" || Array.isArray(value)) return null
 	const raw = value as Record<string, unknown>
 	const selector = {
+		legalFormCodes: stringArray(raw.legalFormCodes),
+		executionModes: stringArray(raw.executionModes),
+		foodHandlingModes: stringArray(raw.foodHandlingModes),
+		transportProviders: stringArray(raw.transportProviders),
 		contextVersion: raw.contextVersion === undefined ? undefined : Number(raw.contextVersion),
 		experienceFormats: stringArray(raw.experienceFormats) as ExperienceFormat[],
 		operatingRoles: stringArray(raw.operatingRoles).slice(0, 12),
 		activityClasses: stringArray(raw.activityClasses).slice(0, 12),
-		jurisdictionCodes: stringArray(raw.jurisdictionCodes).slice(0, 20),
+		jurisdictionCodes: stringArray(raw.jurisdictionCodes),
 	}
 	return selector.operatingRoles.length &&
 		selector.activityClasses.length &&
@@ -172,6 +182,11 @@ export async function diagnoseCommercialPolicy(params: {
 					required: rule.required,
 					capabilities: capabilities.length ? capabilities : capabilityValues,
 					acceptedEvidence: stringArray(rule.acceptedEvidenceJson),
+					documentAcceptance:
+						Array.isArray(rule.acceptedEvidenceJson) || rule.acceptedEvidenceJson === null
+							? null
+							: documentAcceptanceSchema.parse(rule.acceptedEvidenceJson),
+					requiredSubjectReferences: params.context.subjectReferences,
 					blockingAction: rule.blockingAction || "Solicita revisión de este requisito.",
 					reviewOwner: rule.reviewOwner || "policies",
 					sourceKind: ["legal", "contract", "fastt_policy"].includes(String(rule.sourceKind))
@@ -183,8 +198,27 @@ export async function diagnoseCommercialPolicy(params: {
 				}
 			}),
 	}))
+	const [historical, territoryAncestors] = await Promise.all([
+		readHistoricalTerritoryMap(),
+		readTerritoryAncestors(
+			params.context.jurisdictionCodes ??
+				(params.context.jurisdictionCode ? [params.context.jurisdictionCode] : [])
+		),
+	])
+	for (const version of versions) {
+		if (version.context?.jurisdictionCodes)
+			version.context.jurisdictionCodes = version.context.jurisdictionCodes.map(
+				(id) => historical[id] ?? id
+			)
+		for (const rule of version.requirements) {
+			if (rule.condition?.jurisdictionCodes)
+				rule.condition.jurisdictionCodes = rule.condition.jurisdictionCodes.map(
+					(id) => historical[id] ?? id
+				)
+		}
+	}
 	return evaluateCommercialPolicy({
-		context: params.context,
+		context: { ...params.context, territoryAncestors },
 		versions,
 		verifiedEvidence: params.verifiedEvidence,
 		evidence: params.evidence,

@@ -7,7 +7,10 @@ import {
 	validateProviderDocumentEvidence,
 	type ProviderDocumentRecord,
 } from "@/lib/provider-documents"
-import { parseTourComplianceContext, storedTourActivityClasses } from "@/lib/tours/tour-compliance-context"
+import {
+	parseTourComplianceContext,
+	storedTourActivityClasses,
+} from "@/lib/tours/tour-compliance-context"
 
 function evidence(overrides: Partial<ProviderDocumentRecord> = {}): ProviderDocumentRecord {
 	return {
@@ -109,33 +112,108 @@ describe("provider document evidence scope", () => {
 	it("does not apply a scoped or expired evidence outside its real coverage", () => {
 		const licence = evidence({
 			scopes: [
-				{ id: "scope-product", scopeType: "product", productId: "tour-a", resourceId: null, territoryCode: null, territoryLabel: null, activityClass: null },
-				{ id: "scope-territory", scopeType: "territory", productId: null, resourceId: null, territoryCode: "BO-LP", territoryLabel: "La Paz", activityClass: null },
-				{ id: "scope-activity", scopeType: "activity", productId: null, resourceId: null, territoryCode: null, territoryLabel: null, activityClass: "guided_nature" },
+				{
+					id: "scope-product",
+					scopeType: "product",
+					productId: "tour-a",
+					resourceId: null,
+					territoryCode: null,
+					territoryLabel: null,
+					activityClass: null,
+				},
+				{
+					id: "scope-territory",
+					scopeType: "territory",
+					productId: null,
+					resourceId: null,
+					territoryCode: "BO-LP",
+					territoryLabel: "La Paz",
+					activityClass: null,
+				},
+				{
+					id: "scope-activity",
+					scopeType: "activity",
+					productId: null,
+					resourceId: null,
+					territoryCode: null,
+					territoryLabel: null,
+					activityClass: "guided_nature",
+				},
 			],
 		})
-		expect(documentAppliesToOperation(licence, { productId: "tour-a", territoryCodes: ["BO-LP"], activityClasses: ["guided_nature"] })).toBe(true)
-		expect(documentAppliesToOperation(licence, { productId: "tour-b", territoryCodes: ["BO-LP"], activityClasses: ["guided_nature"] })).toBe(false)
-		expect(documentAppliesToOperation(licence, { productId: "tour-a", territoryCodes: ["BO-LP"], activityClasses: ["adventure"] })).toBe(false)
-		expect(documentAppliesToOperation(licence, { at: new Date("2027-01-01T00:00:00Z"), productId: "tour-a", territoryCodes: ["BO-LP"], activityClasses: ["guided_nature"] })).toBe(false)
+		expect(
+			documentAppliesToOperation(licence, {
+				productId: "tour-a",
+				territoryCodes: ["BO-LP"],
+				activityClasses: ["guided_nature"],
+			})
+		).toBe(true)
+		expect(
+			documentAppliesToOperation(licence, {
+				productId: "tour-b",
+				territoryCodes: ["BO-LP"],
+				activityClasses: ["guided_nature"],
+			})
+		).toBe(false)
+		expect(
+			documentAppliesToOperation(licence, {
+				productId: "tour-a",
+				territoryCodes: ["BO-LP"],
+				activityClasses: ["adventure"],
+			})
+		).toBe(false)
+		expect(
+			documentAppliesToOperation(licence, {
+				at: new Date("2027-01-01T00:00:00Z"),
+				productId: "tour-a",
+				territoryCodes: ["BO-LP"],
+				activityClasses: ["guided_nature"],
+			})
+		).toBe(false)
 	})
 
 	it("keeps the operational declaration explicit and rejects unsupported activity classes", () => {
-		expect(parseTourComplianceContext({ operatingRole: "operator", activityClasses: ["transport", "adventure"], jurisdictionCode: "BO-LP" })).toMatchObject({ operatingRole: "operator", activityClasses: ["transport", "adventure"], jurisdictionCode: "BO-LP" })
-		expect(() => parseTourComplianceContext({ activityClasses: ["hotel_pool"] })).toThrow("invalid_tour_activity_class")
+		expect(
+			parseTourComplianceContext({
+				operatingRole: "operator",
+				activityClasses: ["transport", "adventure"],
+				jurisdictionCode: "BO-LP",
+			})
+		).toMatchObject({
+			operatingRole: "operator",
+			activityClasses: ["transport", "adventure"],
+			jurisdictionCode: "BO-LP",
+		})
+		expect(() => parseTourComplianceContext({ activityClasses: ["hotel_pool"] })).toThrow(
+			"invalid_tour_activity_class"
+		)
 	})
 
-	it.each(["BO-LP", "BO-CB", "BO-SC", "BO-PT"])("accepts the catalog territory %s without translating its code", (code) => {
-		expect(parseTourComplianceContext({ jurisdictionCode: code }).jurisdictionCode).toBe(code)
-	})
+	it.each(["BO-LP", "BO-CB", "BO-SC", "BO-PT"])(
+		"accepts the catalog territory %s without translating its code",
+		(code) => {
+			expect(parseTourComplianceContext({ jurisdictionCode: code }).jurisdictionCode).toBe(code)
+		}
+	)
 
-	it.each(["La Paz", "LP", "BO-unknown", "BO-LP,BO-SC"])("rejects unrecognized territory %s instead of guessing", (code) => {
-		expect(() => parseTourComplianceContext({ jurisdictionCode: code })).toThrow("invalid_tour_jurisdiction")
-	})
+	it.each(["La Paz", "LP", "BO-unknown", "BO-LP,BO-SC"])(
+		"preserves territory input %s for database catalogue validation without guessing",
+		(code) => {
+			expect(parseTourComplianceContext({ jurisdictionCode: code }).jurisdictionCodes).toEqual([
+				code,
+			])
+		}
+	)
 
 	it("restores previously saved activity declarations, including legacy JSON text", () => {
-		expect(storedTourActivityClasses(["adventure", "transport", "adventure"])).toEqual(["adventure", "transport"])
-		expect(storedTourActivityClasses('["guided_nature","water_air"]')).toEqual(["guided_nature", "water_air"])
+		expect(storedTourActivityClasses(["adventure", "transport", "adventure"])).toEqual([
+			"adventure",
+			"transport",
+		])
+		expect(storedTourActivityClasses('["guided_nature","water_air"]')).toEqual([
+			"guided_nature",
+			"water_air",
+		])
 		expect(storedTourActivityClasses('["hotel_pool"]')).toEqual([])
 	})
 

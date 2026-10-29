@@ -1,27 +1,35 @@
-import { and, db, eq, first, TourComplianceContext } from "@/shared/infrastructure/db/compat"
-import { tourOperatingTerritory } from "@/lib/tours/tour-operating-territories"
+import {
+	and,
+	db,
+	eq,
+	first,
+	Product,
+	ProviderUser,
+	TourComplianceContext,
+	TourOperationalResource,
+	inArray,
+} from "@/shared/infrastructure/db/compat"
+import { assertOperatingPlaces } from "@/lib/tours/operating-geography"
+import { withPostgresTransaction } from "@/shared/infrastructure/db/client"
+import { writeProviderAuditLog } from "@/lib/provider-audit"
+import { resolveProviderPermissions } from "@/lib/provider-permissions"
+import {
+	operationActivityClasses,
+	operationRole,
+	operationSubjects,
+	operationResourceIssue,
+	tourOperationSchema,
+	type TourOperation,
+	projectOperationContext,
+	tourOperatingRoles,
+	tourComplianceActivityClasses,
+} from "@/shared/domain/tour-operation"
 
-export const tourOperatingRoles = ["operator", "guide", "intermediary"] as const
-export const tourComplianceActivityClasses = [
-	"urban_cultural",
-	"guided_nature",
-	"adventure",
-	"transport",
-	"water_air",
-	"gastronomic",
-] as const
-
-export const tourComplianceActivityLabels: Record<
-	(typeof tourComplianceActivityClasses)[number],
-	string
-> = {
-	urban_cultural: "Cultura y ciudad",
-	guided_nature: "Naturaleza guiada",
-	adventure: "Aventura",
-	transport: "Transporte operado",
-	water_air: "Agua o aire",
-	gastronomic: "Gastronomía",
-}
+export {
+	tourOperatingRoles,
+	tourComplianceActivityClasses,
+	tourComplianceActivityLabels,
+} from "@/shared/domain/tour-operation"
 
 export type TourOperatingRole = (typeof tourOperatingRoles)[number]
 export type TourComplianceActivityClass = (typeof tourComplianceActivityClasses)[number]
@@ -72,8 +80,8 @@ export function parseTourComplianceContext(input: {
 		input.jurisdictionCodes ?? (input.jurisdictionCode ? [input.jurisdictionCode] : [])
 	)
 	if (
-		jurisdictionCodes.length > 9 ||
-		jurisdictionCodes.some((code) => !tourOperatingTerritory(code))
+		jurisdictionCodes.length > 100 ||
+		jurisdictionCodes.some((code) => code.length > 200 || !code.trim())
 	)
 		throw new Error("invalid_tour_jurisdiction")
 	return {
@@ -95,36 +103,121 @@ export async function readTourComplianceContext(productId: string, providerId: s
 			)
 		)
 		.then(first)
+		.then((context) => (context ? projectOperationContext(context) : context))
 }
 
 export async function saveTourComplianceContext(params: {
 	productId: string
 	providerId: string
 	input: ReturnType<typeof parseTourComplianceContext>
+	operation: TourOperation
+	expectedRevision: number
+	actorUserId: string
 }) {
 	const now = new Date()
-	await db
-		.insert(TourComplianceContext)
-		.values({
-			productId: params.productId,
-			providerId: params.providerId,
-			operatingRole: params.input.operatingRole,
-			activityClassesJson: params.input.activityClasses,
-			jurisdictionCode: params.input.jurisdictionCode,
-			jurisdictionCodes: params.input.jurisdictionCodes,
-			createdAt: now,
+	if (
+		!params.actorUserId.trim() ||
+		!Number.isSafeInteger(params.expectedRevision) ||
+		params.expectedRevision < 0
+	)
+		throw new Error("invalid_tour_revision")
+	const declaration = parseTourComplianceContext(params.input)
+	return withPostgresTransaction(async () => {
+		const tx = db
+		const owned = await tx
+			.select({ id: Product.id })
+			.from(Product)
+			.where(
+				and(
+					eq(Product.id, params.productId),
+					eq(Product.providerId, params.providerId),
+					eq(Product.productType, "tour")
+				)
+			)
+			.for("update")
+			.then(first)
+		if (!owned) throw new Error("tour_context_not_found")
+		await assertOperatingPlaces(declaration.jurisdictionCodes)
+		const membership = await tx
+			.select({ role: ProviderUser.role, permissionsJson: ProviderUser.permissionsJson })
+			.from(ProviderUser)
+			.where(
+				and(
+					eq(ProviderUser.providerId, params.providerId),
+					eq(ProviderUser.userId, params.actorUserId)
+				)
+			)
+			.for("share")
+			.then(first)
+		if (!membership || !resolveProviderPermissions(membership).canEditProfile)
+			throw new Error("tour_context_forbidden")
+		const operation = tourOperationSchema.parse(params.operation)
+		const previous = await readTourComplianceContext(params.productId, params.providerId)
+		if ((previous?.revision ?? 0) !== params.expectedRevision)
+			throw new Error("tour_context_conflict")
+		const ids = operationSubjects(operation)
+		const resources = ids.length
+			? await tx
+					.select()
+					.from(TourOperationalResource)
+					.where(
+						and(
+							eq(TourOperationalResource.providerId, params.providerId),
+							eq(TourOperationalResource.status, "active"),
+							inArray(TourOperationalResource.id, ids)
+						)
+					)
+					.for("share")
+			: []
+		const resourceIssue = operationResourceIssue(operation, resources)
+		if (resourceIssue) throw new Error(resourceIssue)
+		const role = operationRole(operation)
+		const activities = operationActivityClasses(operation)
+		if (!declaration.jurisdictionCodes.length || !activities.length)
+			throw new Error("invalid_tour_context")
+		const values = {
+			operatingRole: role,
+			activityClassesJson: activities,
+			jurisdictionCode: declaration.jurisdictionCode,
+			jurisdictionCodes: declaration.jurisdictionCodes,
+			operationJson: operation,
+			revision: params.expectedRevision + 1,
 			updatedAt: now,
-		})
-		.onConflictDoUpdate({
-			target: TourComplianceContext.productId,
-			set: {
+		}
+		await tx
+			.insert(TourComplianceContext)
+			.values({
+				productId: params.productId,
 				providerId: params.providerId,
-				operatingRole: params.input.operatingRole,
-				activityClassesJson: params.input.activityClasses,
-				jurisdictionCode: params.input.jurisdictionCode,
-				jurisdictionCodes: params.input.jurisdictionCodes,
-				updatedAt: now,
-			},
+				...values,
+				createdAt: now,
+			})
+			.onConflictDoUpdate({
+				target: TourComplianceContext.productId,
+				set: values,
+				setWhere: eq(TourComplianceContext.providerId, params.providerId),
+			})
+		const saved = await tx
+			.select()
+			.from(TourComplianceContext)
+			.where(
+				and(
+					eq(TourComplianceContext.productId, params.productId),
+					eq(TourComplianceContext.providerId, params.providerId)
+				)
+			)
+			.then(first)
+		if (!saved) throw new Error("tour_context_owner_mismatch")
+		await writeProviderAuditLog({
+			providerId: params.providerId,
+			actorUserId: params.actorUserId,
+			action: "tour_operation.updated",
+			entityType: "TourComplianceContext",
+			entityId: params.productId,
+			beforeJson: previous ?? null,
+			afterJson: saved,
+			riskLevel: "high",
 		})
-	return readTourComplianceContext(params.productId, params.providerId)
+		return saved
+	})
 }

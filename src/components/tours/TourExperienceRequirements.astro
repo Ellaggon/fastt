@@ -51,6 +51,7 @@ const returnTo = safeVerificationReturn(Astro.url.searchParams.get("returnTo"))
 		productId={productId}
 		context={model.tourContext ?? null}
 		canEdit={model.canEditTourContext}
+		resources={model.tourResources}
 		result={model.result}
 		error={["invalid_context", "invalid_territory", "forbidden"].includes(model.error)
 			? model.error
@@ -150,6 +151,7 @@ const returnTo = safeVerificationReturn(Astro.url.searchParams.get("returnTo"))
 								guideResources={model.tourResources.filter((resource) => resource.type === "guide")}
 								documents={documents}
 								documentTypes={model.tourEvidenceOptions[area]}
+								documentDefinitions={model.documentDefinitions}
 								requirementStates={states}
 								canManageDocuments={model.canManageDocuments}
 								scopeProductId={productId}
@@ -176,4 +178,5 @@ const returnTo = safeVerificationReturn(Astro.url.searchParams.get("returnTo"))
 
 <script>
 	import "@/lib/ui/experience-requirements-drafts"
+	import "@/lib/ui/tour-evidence-fields"
 </script>

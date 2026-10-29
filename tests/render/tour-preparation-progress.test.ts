@@ -4,6 +4,7 @@ import Progress from "@/components/tours/TourPreparationProgress.astro"
 import Review from "@/components/tours/TourReviewStatus.astro"
 import { tourDiagnosticFixture as fixture } from "../test-support/tour-diagnostic-fixture"
 import { projectTourPublishingStages } from "@/lib/playbook/tour-publishing-stages"
+import { projectAuthorizationDecisions } from "@/lib/tours/tourPublicationDecisions"
 
 const pending = {
 	state: "pending",
@@ -14,6 +15,51 @@ const pending = {
 const reviewHref = "/product/tour/preview?variantId=option&ratePlanId=rate"
 
 describe("tour preparation and review rendered contract", () => {
+	it("renders four independent decisions without enabling activation from their badges", async () => {
+		const diagnosis = fixture()
+		diagnosis.publicationDecisions = projectAuthorizationDecisions({
+			productId: "tour",
+			policy: null,
+			verification: null,
+			agreement: { state: "acceptance_required", hasProposal: true },
+		})
+		const container = await AstroContainer.create()
+		const html = await container.renderToString(Review, {
+			props: { diagnosis, reviewHref, published: false },
+		})
+		expect(html.match(/data-publication-decision=/g)).toHaveLength(4)
+		for (const label of [
+			"Modalidad y territorio",
+			"Verificación y respaldos",
+			"Acuerdo comercial",
+			"Preparación de la experiencia",
+		])
+			expect(html).toContain(label)
+		expect(html).toContain("Revisar propuesta")
+		expect(html).toContain(encodeURIComponent(reviewHref))
+		expect(html).not.toContain("/admin/")
+	})
+	it("renders Fastt policy gaps as notices instead of circular completion links", async () => {
+		const diagnosis = fixture()
+		diagnosis.requirements.experience_authorization.result = {
+			state: "blocked",
+			reason: {
+				code: "policy_context_unsupported_holder",
+				message: "Fastt debe definir las políticas.",
+			},
+			responsible: "fastt",
+			action: { label: "Consultar evaluación", href: "/product/tour#experience-requirements" },
+		}
+		const container = await AstroContainer.create()
+		const html = await container.renderToString(Review, {
+			props: { diagnosis, reviewHref, published: false },
+		})
+		expect(html).toContain("No se pudo comprobar")
+		expect(html).toContain("No necesitas enviar documentos adicionales")
+		expect(html.match(/data-publication-decision=/g)).toHaveLength(4)
+		expect(html).not.toContain('aria-label="Completar: Habilitación de la experiencia"')
+		expect(html).not.toMatch(/<a[^>]*data-tour-publication-task=/)
+	})
 	it("renders nine stable stages with current location independent from readiness", async () => {
 		const diagnosis = fixture()
 		diagnosis.requirements.photos.result = {
@@ -68,7 +114,7 @@ describe("tour preparation and review rendered contract", () => {
 		expect(html).toContain('aria-label="Completar: Fotos"')
 		expect(html).toContain("Requisitos cumplidos (9)")
 		expect(html).not.toContain("Ver etapas")
-		expect(html).not.toMatch(/<details[^>]*open/)
+		expect(html).toMatch(/<details[^>]*open/)
 		expect(html).toContain("tourFlowVersion=2")
 		expect(html).toContain("returnTo=")
 		expect(html).not.toMatch(/<button[^>]*data-tour-review-activate/)
@@ -94,7 +140,7 @@ describe("tour preparation and review rendered contract", () => {
 			props: { diagnosis, reviewHref, published: false },
 		})
 		expect(blocked).not.toMatch(/<button[^>]*data-tour-review-activate/)
-		expect(blocked).toContain("En revisión")
+		expect(blocked).toContain("No se pudo comprobar")
 	})
 	it("does not imply that private requests or publication are enabled by inventory exemption", async () => {
 		const diagnosis = fixture()

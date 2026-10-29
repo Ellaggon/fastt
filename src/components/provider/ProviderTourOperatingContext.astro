@@ -3,22 +3,22 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Checkbox from "@/components/ui/Checkbox.astro"
 import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
 import Notice from "@/components/ui/Notice.astro"
 import Select from "@/components/ui/Select.astro"
-import { routes } from "@/lib/routes"
-import { Pencil } from "@lucide/astro"
-import {
-	storedTourActivityClasses,
-	tourComplianceActivityClasses,
-	tourComplianceActivityLabels,
-	type TourOperatingRole,
-} from "@/lib/tours/tour-compliance-context"
-import {
-	tourOperatingTerritories,
-	tourOperatingTerritory,
-	tourTerritoryCodes,
-} from "@/lib/tours/tour-operating-territories"
+import { Pencil, Plus, Trash2 } from "@lucide/astro"
+import { storedTourActivityClasses } from "@/lib/tours/tour-compliance-context"
 import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
+import { tourTerritoryCodes } from "@/lib/tours/tour-operating-territories"
+import { readOperatingPlaces } from "@/lib/tours/operating-geography"
+import OperatingTerritoryPicker from "@/components/provider/OperatingTerritoryPicker.astro"
+import {
+	readTourOperation,
+	executionLabels,
+	executionModes,
+	operationCharacteristics,
+	tourComplianceActivityLabels,
+} from "@/shared/domain/tour-operation"
 
 type Props = {
 	productId: string | null
@@ -27,100 +27,96 @@ type Props = {
 		activityClassesJson: unknown
 		jurisdictionCode: string | null
 		jurisdictionCodes?: string[] | null
+		operationJson?: unknown
+		revision?: number
 	} | null
 	canEdit: boolean
+	resources?: Array<{ id: string; name: string; type: string }>
 	result?: string
 	error?: string
 }
-
-const { productId, context, canEdit, result, error } = Astro.props as Props
-const navigationSource = new URL(Astro.url)
-navigationSource.searchParams.set("line", "tour")
-navigationSource.searchParams.set("tab", "activity")
+const { productId, context, canEdit, resources = [], result, error } = Astro.props as Props
+const operation = readTourOperation(context?.operationJson)
+const activities = storedTourActivityClasses(context?.activityClassesJson)
+const clarifyWaterAir = !operation && activities.includes("water_air")
+const clarifyTransport = !operation && activities.includes("transport")
+const foodSelection = operation?.foodHandling ?? (activities.includes("gastronomic") ? "" : "none")
+const territories = tourTerritoryCodes(context)
+const territoryPlaces = await readOperatingPlaces(territories)
+const navigation = new URL(Astro.url)
+navigation.searchParams.set("line", "tour")
+navigation.searchParams.set("tab", "activity")
 const submitUrl = copyVerificationNavigationQuery(
 	new URL("/api/provider/settings/tour-operating-context", Astro.url),
-	navigationSource
+	navigation
 )
-const selectedActivities = storedTourActivityClasses(context?.activityClassesJson)
-const storedTerritory = context?.jurisdictionCode ?? ""
-const selectedTerritories = tourTerritoryCodes(context)
-const legacyTerritory = Boolean(storedTerritory && !tourOperatingTerritory(storedTerritory))
-const operationComplete = Boolean(
-	context?.operatingRole &&
-	selectedTerritories.length &&
-	selectedActivities.length &&
-	!legacyTerritory
-)
-const editorOpen = !operationComplete || Boolean(error)
 const supportParams = new URLSearchParams({
 	line: "tour",
 	context: "tour_territory",
 	experience: productId ?? "",
-	from: `${navigationSource.pathname}${navigationSource.search}`,
+	from: `${Astro.url.pathname}${Astro.url.search}`,
 })
-const roles: Array<{ value: TourOperatingRole; label: string }> = [
-	{ value: "guide", label: "Guía independiente" },
-	{ value: "operator", label: "Empresa operadora" },
-	{ value: "intermediary", label: "Intermediario" },
-]
-const roleHelp: Record<TourOperatingRole, string> = {
-	guide: "Tú ejecutas la experiencia como guía independiente.",
-	operator: "Tu empresa es responsable de la operación, aunque contrate guías.",
-	intermediary:
-		"Un tercero ejecuta la experiencia. Su identidad y los respaldos de la operación deben revisarse; esta declaración no los acredita.",
-}
-const activityHelp: Record<string, string> = {
-	urban_cultural: "Recorridos culturales, históricos o urbanos.",
-	guided_nature: "Recorridos guiados en entornos naturales.",
-	adventure: "Actividades como escalada o descensos, no solo una caminata.",
-	transport: "Prestas el traslado; no incluye el transporte que el viajero contrata por su cuenta.",
-	water_air: "Actividades acuáticas o aéreas que forman parte de la experiencia.",
-	gastronomic:
-		"Indica si preparas o sirves alimentos al revisar los respaldos; visitar un restaurante no equivale a manipularlos.",
-}
+const legacyTerritory = territories.length !== territoryPlaces.length
+const historicalRole = {
+	guide: "Guía independiente",
+	operator: "Operador",
+	intermediary: "Intermediario",
+}[context?.operatingRole ?? ""]
+const complete = Boolean(operation && territories.length && activities.length && !legacyTerritory)
+const partners = resources.filter((resource) => resource.type === "service_operator")
+const equipment = resources.filter((resource) => resource.type !== "service_operator")
 ---
 
 <Card class="space-y-5" data-tour-operating-context>
-	<div class="max-w-2xl">
-		<h3 id="tour-operating-context" class="text-base font-semibold text-slate-950">
-			Datos de operación
-		</h3>
-		{
-			!operationComplete && (
-				<p class="mt-1 text-sm leading-6 text-slate-600">
-					Indica quién opera, dónde y qué actividades incluye. Guardar no aprueba la experiencia.
-				</p>
-			)
-		}
-	</div>
+	<header class="flex flex-wrap items-start justify-between gap-3">
+		<div>
+			<h3 id="tour-operating-context" tabindex="-1" class="text-base font-semibold text-slate-950">
+				Datos de operación
+			</h3>
+			<p class="mt-1 text-sm text-slate-600">
+				Responsables y servicios incluidos en esta experiencia.
+			</p>
+		</div>
+	</header>
 	{
-		operationComplete && (
-			<dl class="grid gap-3 text-sm sm:grid-cols-3" data-operation-saved-summary>
+		complete && operation && (
+			<dl class="grid gap-4 text-sm sm:grid-cols-3" data-operation-saved-summary>
 				<div>
 					<>
-						<dt class="text-xs text-slate-500">Quién opera</dt>
+						<dt class="text-xs text-slate-500">Quién la realiza</dt>
 						<dd class="mt-1 font-medium text-slate-900">
-							{roles.find((role) => role.value === context?.operatingRole)?.label}
+							{operation.executionMode === "external"
+								? (partners.find((partner) => partner.id === operation.operatorResourceId)?.name ??
+									"Prestador por revisar")
+								: executionLabels[operation.executionMode]}
 						</dd>
 					</>
 				</div>
 				<div>
 					<>
-						<dt class="text-xs text-slate-500">Departamentos</dt>
+						<dt class="text-xs text-slate-500">Dónde se realiza</dt>
 						<dd class="mt-1 font-medium text-slate-900">
-							{selectedTerritories
-								.map((code) => tourOperatingTerritory(code)?.label.replace(", Bolivia", ""))
-								.join(", ")}
+							{territoryPlaces.map((place) => `${place.name} · ${place.country}`).join(", ")}
 						</dd>
 					</>
 				</div>
 				<div>
 					<>
-						<dt class="text-xs text-slate-500">Actividades</dt>
+						<dt class="text-xs text-slate-500">Actividades y servicios</dt>
 						<dd class="mt-1 font-medium text-slate-900">
-							{selectedActivities
-								.map((activity) => tourComplianceActivityLabels[activity])
-								.join(", ")}
+							{[
+								...operation.characteristics.map(
+									(activity) => tourComplianceActivityLabels[activity]
+								),
+								operation.guidingService && "Servicio de guía",
+								operation.waterActivity && "Actividad acuática",
+								operation.airActivity && "Actividad aérea",
+								operation.transportServices.length &&
+									`${operation.transportServices.length} servicios de transporte`,
+								operation.foodHandling !== "none" && "Gastronomía",
+							]
+								.filter(Boolean)
+								.join(" · ") || "Sin servicios adicionales declarados"}
 						</dd>
 					</>
 				</div>
@@ -128,185 +124,429 @@ const activityHelp: Record<string, string> = {
 		)
 	}
 	{
-		legacyTerritory ? (
+		context && !operation && (
+			<Notice variant="info" title="Aclara la operación guardada">
+				Conservamos tu declaración anterior. Confirma quién realiza la experiencia y los servicios
+				incluidos; no se han supuesto responsables ni permisos.{" "}
+				{historicalRole ? `Papel anterior: ${historicalRole}.` : ""}
+			</Notice>
+		)
+	}
+	{
+		legacyTerritory && (
 			<Notice variant="warning" title="Territorio declarado por revisar">
-				La declaración anterior «{storedTerritory}» se conserva. Selecciona el departamento donde
-				operas antes de guardar; no lo cambiaremos automáticamente.
+				La declaración anterior «{context?.jurisdictionCode}» se conserva. Confirma un territorio
+				válido antes de guardar.
 			</Notice>
-		) : null
+		)
 	}
 	{
-		error === "invalid_territory" ? (
-			<Notice variant="warning" title="No se guardó el territorio">
-				Selecciona un departamento de la lista. La declaración anterior permanece intacta.
-			</Notice>
-		) : null
-	}
-	{
-		result === "context_saved" ? (
+		result === "context_saved" && (
 			<Notice variant="success" title="Operación guardada">
-				La declaración quedó guardada. Consulta debajo el estado de sus requisitos.
+				La declaración no sustituye la revisión de sus respaldos.
 			</Notice>
-		) : null
+		)
 	}
 	{
-		error === "invalid_context" ? (
-			<Notice variant="warning" title="Revisa la declaración">
-				Indica quién opera, selecciona un departamento y marca al menos una actividad.
+		error && (
+			<Notice variant="warning" title="No se guardaron los cambios">
+				Revisa la declaración y tus permisos. Los datos anteriores permanecen intactos.
 			</Notice>
-		) : null
+		)
 	}
 	{
-		error === "forbidden" ? (
-			<Notice variant="warning" title="Sin permiso para editar">
-				Pide acceso de edición del perfil al titular de la cuenta.
-			</Notice>
-		) : null
-	}
-	{
-		productId ? (
-			<details open={editorOpen} data-operation-editor class="space-y-4">
+		productId && (
+			<details open={!complete || Boolean(error)} data-operation-editor>
 				<summary
 					class:list={[
-						"fastt-button inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600",
-						!operationComplete && "sr-only",
+						"fastt-button inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50",
+						!complete && "sr-only",
 					]}
 				>
 					<Pencil size={15} aria-hidden="true" />
-					<span data-operation-edit-label>
-						{canEdit ? "Editar operación" : "Consultar operación declarada"}
-					</span>
-					<span data-operation-close-label>{canEdit ? "Cerrar edición" : "Cerrar detalle"}</span>
+					{canEdit ? "Editar operación" : "Consultar operación"}
 				</summary>
 				<form
 					method="post"
 					action={`${submitUrl.pathname}${submitUrl.search}`}
-					class="space-y-6 border-t border-slate-100 pt-5"
+					class="mt-5 space-y-6 border-t border-slate-100 pt-5"
 					data-tour-operating-context-form
+					data-operation-complete={complete ? "true" : "false"}
 				>
 					<input type="hidden" name="productId" value={productId} />
-					{!canEdit && (
-						<p class="text-sm text-slate-600">
-							Puedes consultar esta declaración. Pide acceso de edición al titular para cambiarla.
-						</p>
-					)}
-					<fieldset disabled={!canEdit} class="space-y-5">
-						<div class="space-y-6">
-							<FormField
-								label="Tu papel en esta experiencia"
-								htmlFor="tour-operating-role"
-								required
-							>
-								<Select id="tour-operating-role" name="operatingRole" required class="max-w-sm">
-									<option value="" selected={!context?.operatingRole}>
-										Selecciona quién opera
-									</option>
-									{roles.map((role) => (
-										<option value={role.value} selected={context?.operatingRole === role.value}>
-											{role.label}
+					<input type="hidden" name="revision" value={context?.revision ?? 0} />
+					<fieldset disabled={!canEdit} class="space-y-6">
+						<section class="space-y-4" aria-labelledby="operation-responsibility-title">
+							<h4 id="operation-responsibility-title" class="text-sm font-semibold text-slate-900">
+								Quién la realiza
+							</h4>
+							<FormField label="Responsable de la ejecución" htmlFor="execution-mode" required>
+								<Select id="execution-mode" name="executionMode" required>
+									<option value="">Selecciona una opción</option>
+									{executionModes.map((mode) => (
+										<option value={mode} selected={operation?.executionMode === mode}>
+											{executionLabels[mode]}
 										</option>
 									))}
 								</Select>
-								{roles.map((role) => (
-									<p
-										class="text-xs leading-5 text-slate-500"
-										data-role-help={role.value}
-										hidden={context?.operatingRole !== role.value}
-									>
-										{roleHelp[role.value]}
-									</p>
-								))}
 							</FormField>
-							<FormField
-								label="Departamentos donde se realiza"
-								htmlFor="tour-jurisdiction-code"
-								required
-							>
-								<fieldset
-									id="tour-jurisdiction-code"
-									class="grid grid-cols-2 gap-2 sm:grid-cols-3"
-									aria-describedby="tour-territory-help"
-								>
-									<legend class="sr-only">Selecciona al menos un departamento</legend>
-									{tourOperatingTerritories.map((territory) => (
-										<Checkbox
-											class="fastt-soft-box fastt-check-option min-h-11 rounded-lg border border-slate-200 p-3 has-[:checked]:border-[var(--fastt-color-selection)] has-[:checked]:bg-[var(--fastt-color-selection-soft)]"
-											name="jurisdictionCodes"
-											value={territory.code}
-											checked={selectedTerritories.includes(territory.code)}
-											label={territory.label.replace(", Bolivia", "")}
-										/>
-									))}
-								</fieldset>
-								<p id="tour-territory-help" class="text-xs leading-5 text-slate-500">
-									Marca los departamentos del recorrido; varias ciudades de un mismo departamento
-									requieren una sola selección. Si falta un territorio,{" "}
-									<a
-										class="font-semibold underline"
-										href={`${routes.providerSupport()}?${supportParams}`}
-									>
-										solicita revisión.
-									</a>
-								</p>
-							</FormField>
-						</div>
-						<fieldset
-							class="space-y-3"
-							aria-describedby="tour-activities-help tour-activities-error"
+							<Checkbox
+								name="guidingService"
+								checked={operation?.guidingService ?? context?.operatingRole === "guide"}
+								label="La experiencia incluye un servicio de guía"
+								class="fastt-check-option min-h-11 border border-slate-200 p-3"
+							/>
+							<div data-main-operator hidden={operation?.executionMode !== "external"}>
+								<FormField label="Prestador que ejecuta la experiencia" htmlFor="main-operator">
+									<Select id="main-operator" name="operatorResourceId" data-operator-select>
+										<option value="">Selecciona el prestador</option>
+										{partners.map((partner) => (
+											<option
+												value={partner.id}
+												selected={operation?.operatorResourceId === partner.id}
+											>
+												{partner.name}
+											</option>
+										))}
+									</Select>
+								</FormField>
+							</div>
+							<details class="border-t border-slate-100 pt-3">
+								<>
+									<summary class="cursor-pointer text-sm font-medium text-slate-700">
+										Registrar un prestador externo
+									</summary>
+									<div class="mt-3 grid gap-3 sm:grid-cols-2" data-partner-registration>
+										<FormField label="Nombre legal" htmlFor="partner-name">
+											<Input id="partner-name" data-partner-name maxlength="160" />
+										</FormField>
+										<FormField label="País de registro" htmlFor="partner-country">
+											<Input
+												id="partner-country"
+												data-partner-country
+												maxlength="2"
+												placeholder="BO"
+											/>
+										</FormField>
+										<FormField
+											label="Identificador de registro (opcional)"
+											htmlFor="partner-registration"
+										>
+											<Input id="partner-registration" data-partner-id maxlength="100" />
+										</FormField>
+										<div class="flex items-end">
+											<Button type="button" variant="secondary" data-register-partner>
+												<Plus size={15} aria-hidden="true" />
+												Registrar prestador
+											</Button>
+										</div>
+										<>
+											<p class="text-xs text-slate-500 sm:col-span-2">
+												Registrar identifica al prestador; no verifica sus licencias.
+											</p>
+											<p
+												role="status"
+												class="text-sm text-slate-700 sm:col-span-2"
+												data-partner-status
+											/>
+										</>
+									</div>
+								</>
+							</details>
+						</section>
+						<section
+							class="space-y-4 border-t border-slate-100 pt-5"
+							aria-labelledby="operation-services-title"
 						>
-							<legend class="text-sm font-semibold text-slate-800">
-								Actividades de esta experiencia{" "}
-								<span class="text-red-600" aria-hidden="true">
-									*
-								</span>
-							</legend>
-							<p id="tour-activities-help" class="text-xs leading-5 text-slate-500">
-								Marca al menos una actividad que forme parte del recorrido.
-							</p>
-							<div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-								{tourComplianceActivityClasses.map((activity) => (
+							<h4 id="operation-services-title" class="text-sm font-semibold text-slate-900">
+								Servicios y actividades incluidos
+							</h4>
+							<fieldset class="space-y-3">
+								<>
+									<legend class="mb-3 text-sm text-slate-700">Características del recorrido</legend>
+									<div class="grid gap-2 sm:grid-cols-2">
+										{operationCharacteristics.map((activity) => (
+											<Checkbox
+												name="activityClass"
+												value={activity.value}
+												checked={activities.includes(activity.value as (typeof activities)[number])}
+												label={activity.label}
+												class="fastt-check-option min-h-11 border border-slate-200 p-3"
+											/>
+										))}
+										<div hidden={clarifyWaterAir}>
+											<Checkbox
+												name="waterActivity"
+												checked={operation?.waterActivity ?? false}
+												label="Incluye actividades acuáticas"
+												class="fastt-check-option min-h-11 border border-slate-200 p-3"
+											/>
+										</div>
+										<div hidden={clarifyWaterAir}>
+											<Checkbox
+												name="airActivity"
+												checked={operation?.airActivity ?? false}
+												label="Incluye actividades aéreas"
+												class="fastt-check-option min-h-11 border border-slate-200 p-3"
+											/>
+										</div>
+									</div>
+								</>
+							</fieldset>
+							{clarifyWaterAir && (
+								<div class="grid gap-4 sm:grid-cols-2">
+									{[
+										{ name: "waterDecision", label: "¿Incluye actividades acuáticas?" },
+										{ name: "airDecision", label: "¿Incluye actividades aéreas?" },
+									].map((question) => (
+										<FormField label={question.label} htmlFor={question.name} required>
+											<Select name={question.name} id={question.name} required>
+												<option value="">Confirma la declaración anterior</option>
+												<option value="yes">Sí</option>
+												<option value="no">No</option>
+											</Select>
+										</FormField>
+									))}
+								</div>
+							)}
+							<FormField label="Alimentos y bebidas" htmlFor="food-handling">
+								<Select name="foodHandling" id="food-handling" required>
+									{foodSelection === "" && (
+										<option value="" selected>
+											Confirma cómo participan los alimentos
+										</option>
+									)}
+									{[
+										{ value: "none", label: "No incluye" },
+										{ value: "visit", label: "Visita o degustación sin preparación propia" },
+										{ value: "serve", label: "Servimos alimentos o bebidas" },
+										{ value: "prepare", label: "Preparamos alimentos o bebidas" },
+									].map((choice) => (
+										<option value={choice.value} selected={foodSelection === choice.value}>
+											{choice.label}
+										</option>
+									))}
+								</Select>
+							</FormField>
+							{clarifyTransport && (
+								<FormField
+									label="Transporte declarado anteriormente"
+									htmlFor="legacy-transport"
+									required
+								>
+									<Select id="legacy-transport" name="legacyTransportDecision" required>
+										<option value="">Confirma si está incluido u organizado</option>
+										<option value="yes">Sí, identificaré sus servicios y responsables</option>
+										<option value="no">No incluye transporte organizado</option>
+									</Select>
+								</FormField>
+							)}
+							<div class="space-y-3">
+								<>
+									<div class="flex flex-wrap items-center justify-between gap-2">
+										<>
+											<h5 class="text-sm font-medium text-slate-800">
+												Transporte incluido u organizado
+											</h5>
+											<Button type="button" variant="secondary" data-add-transport>
+												<Plus size={15} aria-hidden="true" />
+												Añadir servicio
+											</Button>
+										</>
+									</div>
+									<p class="text-xs text-slate-500">
+										No incluyas el transporte que el viajero contrata por su cuenta.
+									</p>
+									<div class="space-y-3" data-transport-list>
+										{(operation?.transportServices ?? []).map((service) => (
+											<div
+												class="grid gap-3 border-l-2 border-slate-200 pl-3 sm:grid-cols-2"
+												data-transport-service
+												data-service-id={service.id}
+											>
+												<Input
+													aria-label="Nombre del servicio de transporte"
+													data-service-label
+													value={service.label}
+													placeholder="Ej. traslado al punto de inicio"
+													required
+													maxlength="120"
+												/>
+												<Select aria-label="Quién presta el transporte" data-service-provider>
+													<option value="business" selected={service.providedBy === "business"}>
+														Mi negocio presta el transporte
+													</option>
+													<option value="external" selected={service.providedBy === "external"}>
+														Lo presta un tercero
+													</option>
+												</Select>
+												<Select
+													aria-label="Transportista responsable"
+													data-service-operator
+													data-operator-select
+													hidden={service.providedBy !== "external"}
+												>
+													<option value="">Selecciona el transportista</option>
+													{partners.map((partner) => (
+														<option
+															value={partner.id}
+															selected={service.operatorResourceId === partner.id}
+														>
+															{partner.name}
+														</option>
+													))}
+												</Select>
+												<Button
+													type="button"
+													variant="ghost"
+													data-remove-transport
+													aria-label="Quitar servicio de transporte"
+													title="Quitar servicio"
+												>
+													<Trash2 size={16} aria-hidden="true" />
+												</Button>
+											</div>
+										))}
+									</div>
+								</>
+							</div>
+							<template data-transport-template>
+								<div
+									class="grid gap-3 border-l-2 border-slate-200 pl-3 sm:grid-cols-2"
+									data-transport-service
+								>
+									<Input
+										aria-label="Nombre del servicio de transporte"
+										data-service-label
+										placeholder="Ej. traslado al punto de inicio"
+										required
+										maxlength="120"
+									/>
+									<Select aria-label="Quién presta el transporte" data-service-provider>
+										<>
+											<option value="business">Mi negocio presta el transporte</option>
+											<option value="external">Lo presta un tercero</option>
+										</>
+									</Select>
+									<Select
+										aria-label="Transportista responsable"
+										data-service-operator
+										data-operator-select
+										hidden
+									>
+										<option value="">Selecciona el transportista</option>
+										{partners.map((partner) => (
+											<option value={partner.id}>{partner.name}</option>
+										))}
+									</Select>
+									<Button
+										type="button"
+										variant="ghost"
+										data-remove-transport
+										aria-label="Quitar servicio de transporte"
+										title="Quitar servicio"
+									>
+										<Trash2 size={16} aria-hidden="true" />
+									</Button>
+								</div>
+							</template>
+						</section>
+						<section
+							class="space-y-3 border-t border-slate-100 pt-5"
+							aria-labelledby="operation-resources-title"
+						>
+							<>
+								<h4 id="operation-resources-title" class="text-sm font-semibold text-slate-900">
+									Personas y recursos
+								</h4>
+								<p class="text-xs leading-5 text-slate-500">
+									Vincula los recursos conocidos de esta experiencia. La asignación concreta por
+									salida se mantiene en su operación.
+								</p>
+							</>
+							<div class="grid gap-2 sm:grid-cols-2" data-resource-list>
+								{equipment.map((resource) => (
 									<Checkbox
-										class="fastt-check-option min-h-11 border border-slate-200 p-3 has-[:checked]:border-[var(--fastt-color-selection)] has-[:checked]:bg-[var(--fastt-color-selection-soft)]"
-										name="activityClass"
-										value={activity}
-										checked={selectedActivities.includes(activity)}
-										label={tourComplianceActivityLabels[activity]}
-										data-activity-option={activity}
+										name="resourceId"
+										value={resource.id}
+										checked={operation?.resourceIds.includes(resource.id) ?? false}
+										label={resource.name}
+										class="fastt-check-option min-h-11 border border-slate-200 p-3"
 									/>
 								))}
 							</div>
-							{tourComplianceActivityClasses.map((activity) => (
-								<p
-									class="text-xs leading-5 text-slate-500"
-									data-activity-help={activity}
-									hidden={!selectedActivities.includes(activity)}
+							<template data-resource-template>
+								<Checkbox
+									name="resourceId"
+									class="fastt-check-option min-h-11 border border-slate-200 p-3"
 								>
-									{activityHelp[activity]}
+									<span data-resource-label />
+								</Checkbox>
+							</template>
+							<details class="border-t border-slate-100 pt-3">
+								<>
+									<summary class="cursor-pointer text-sm font-medium text-slate-700">
+										Registrar persona o recurso
+									</summary>
+									<div class="mt-3 grid gap-3 sm:grid-cols-2">
+										<FormField label="Nombre" htmlFor="operation-resource-name">
+											<Input id="operation-resource-name" data-resource-name maxlength="160" />
+										</FormField>
+										<FormField label="Tipo" htmlFor="operation-resource-type">
+											<Select id="operation-resource-type" data-resource-type>
+												<>
+													<option value="guide">Guía</option>
+													<option value="driver">Conductor</option>
+													<option value="vehicle">Vehículo</option>
+													<option value="pickup_coordinator">Coordinador de encuentro</option>
+												</>
+											</Select>
+										</FormField>
+										<>
+											<Button type="button" variant="secondary" data-register-resource>
+												<Plus size={15} aria-hidden="true" />
+												Registrar recurso
+											</Button>
+											<p role="status" class="text-sm text-slate-700" data-resource-status />
+										</>
+									</div>
+								</>
+							</details>
+						</section>
+						<fieldset class="space-y-3 border-t border-slate-100 pt-5">
+							<>
+								<legend class="text-sm font-semibold text-slate-900">
+									Territorios de esta experiencia
+								</legend>
+								<OperatingTerritoryPicker
+									name="jurisdictionCodes"
+									selected={territories}
+									places={territoryPlaces}
+								/>
+								<p class="text-xs leading-5 text-slate-500">
+									Selecciona los territorios del recorrido. Si falta un territorio,{" "}
+									<a class="font-medium underline" href={`/provider/support?${supportParams}`}>
+										solicita revisión
+									</a>
+									.
 								</p>
-							))}
-							<p
-								id="tour-activities-error"
-								class="hidden text-sm text-red-600"
-								role="alert"
-								data-tour-activities-error
-							>
-								Selecciona al menos una actividad.
-							</p>
+							</>
 						</fieldset>
+						<p class="text-xs text-slate-500">
+							Guardar no aprueba la experiencia ni verifica los respaldos.
+						</p>
 						{canEdit && (
 							<div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
-								{operationComplete && (
-									<Button type="button" variant="secondary" data-operation-cancel>
-										Cancelar
-									</Button>
-								)}
+								<Button type="button" variant="secondary" data-operation-cancel>
+									Cancelar
+								</Button>
 								<Button type="submit" variant="selection">
-									{operationComplete ? "Guardar cambios" : "Guardar operación"}
+									{complete ? "Guardar cambios" : "Guardar operación"}
 								</Button>
 							</div>
 						)}
 						<p
-							class="text-sm text-slate-600"
+							class="text-sm text-slate-700"
 							role="status"
 							aria-live="polite"
 							data-operation-status
@@ -314,12 +554,6 @@ const activityHelp: Record<string, string> = {
 					</fieldset>
 				</form>
 			</details>
-		) : (
-			<p class="text-sm text-slate-600">
-				{productId
-					? "Tu rol no permite cambiar estas declaraciones."
-					: "Crea una experiencia para declarar cómo se opera."}
-			</p>
 		)
 	}
 </Card>
@@ -332,106 +566,7 @@ const activityHelp: Record<string, string> = {
 	:global([data-operation-editor] > summary::-webkit-details-marker) {
 		display: none;
 	}
-	:global([data-operation-close-label]),
-	:global([data-operation-editor][open] [data-operation-edit-label]) {
-		display: none;
-	}
-	:global([data-operation-editor][open] [data-operation-close-label]) {
-		display: inline;
-	}
 </style>
-
 <script>
-	function bindOperatingContextValidation() {
-		document
-			.querySelectorAll<HTMLFormElement>("[data-tour-operating-context-form]")
-			.forEach((form) => {
-				if (form.dataset.activitiesReady) return
-				form.dataset.activitiesReady = "true"
-				const activities = Array.from(
-					form.querySelectorAll<HTMLInputElement>('input[name="activityClass"]')
-				)
-				const first = activities[0]
-				const error = form.querySelector<HTMLElement>("[data-tour-activities-error]")
-				if (!first || first.matches(":disabled")) return
-				const role = form.querySelector<HTMLSelectElement>('[name="operatingRole"]')!
-				const territories = Array.from(
-					form.querySelectorAll<HTMLInputElement>('[name="jurisdictionCodes"]')
-				)
-				const save = form.querySelector<HTMLButtonElement>('button[type="submit"]')!
-				const status = form.querySelector<HTMLElement>("[data-operation-status]")!
-				const snapshot = () =>
-					JSON.stringify([
-						role.value,
-						territories.filter((item) => item.checked).map((item) => item.value),
-						activities.filter((item) => item.checked).map((item) => item.value),
-					])
-				const initial = snapshot()
-				const editor = form.closest<HTMLDetailsElement>("[data-operation-editor]")
-				const updateDirty = () => {
-					form.dataset.dirty = snapshot() !== initial ? "true" : "false"
-				}
-				let pending = false
-				const validate = () => {
-					updateDirty()
-					const valid = activities.some((activity) => activity.checked)
-					first.setCustomValidity(valid ? "" : "Selecciona al menos una actividad.")
-					if (valid) error?.classList.add("hidden")
-					const hasTerritory = territories.some((item) => item.checked)
-					territories[0]?.setCustomValidity(
-						hasTerritory ? "" : "Selecciona al menos un departamento."
-					)
-					form.querySelectorAll<HTMLElement>("[data-role-help]").forEach((help) => {
-						help.hidden = help.dataset.roleHelp !== role.value
-					})
-					form.querySelectorAll<HTMLElement>("[data-activity-help]").forEach((help) => {
-						help.hidden = !activities.some(
-							(item) => item.value === help.dataset.activityHelp && item.checked
-						)
-					})
-					save.disabled =
-						pending || snapshot() === initial || !valid || !role.value || !hasTerritory
-				}
-				form.addEventListener("change", validate)
-				form.querySelector("[data-operation-cancel]")?.addEventListener("click", () => {
-					form.reset()
-					validate()
-					status.textContent = ""
-					if (editor) {
-						editor.open = false
-						editor.querySelector("summary")?.focus()
-					}
-				})
-				form.addEventListener("submit", async (event) => {
-					event.preventDefault()
-					if (pending || !form.reportValidity()) return
-					pending = true
-					validate()
-					status.textContent = "Guardando operación…"
-					form.setAttribute("aria-busy", "true")
-					try {
-						const response = await fetch(form.action, {
-							method: "POST",
-							body: new FormData(form),
-							credentials: "same-origin",
-						})
-						const target = new URL(response.url)
-						if (!response.ok || target.searchParams.get("result") !== "context_saved")
-							throw new Error("save_failed")
-						form.dataset.dirty = "false"
-						window.location.assign(target.href)
-					} catch {
-						status.textContent =
-							"No se pudo guardar. Tus cambios siguen aquí; revisa tu conexión o permisos e inténtalo de nuevo."
-						pending = false
-						form.removeAttribute("aria-busy")
-						validate()
-					}
-				})
-				first.addEventListener("invalid", () => error?.classList.remove("hidden"))
-				validate()
-			})
-	}
-	bindOperatingContextValidation()
-	document.addEventListener("astro:page-load", bindOperatingContextValidation)
+	import "@/lib/ui/tour-operation-editor"
 </script>

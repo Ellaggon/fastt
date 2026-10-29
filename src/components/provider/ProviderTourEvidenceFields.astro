@@ -1,14 +1,15 @@
 ---
+import OperatingTerritoryPicker from "@/components/provider/OperatingTerritoryPicker.astro"
 import Button from "@/components/ui/Button.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
-import { tourOperatingTerritories } from "@/lib/tours/tour-operating-territories"
 import {
 	tourComplianceActivityClasses,
 	tourComplianceActivityLabels,
 } from "@/lib/tours/tour-compliance-context"
 type ProductChoice = { id: string; name: string | null; kind?: "tour" | "lodging" }
 type Props = {
+	documentDefinitions?: Array<{ id: string; label: string; family: string }>
 	selectedType: string | null | undefined
 	scopeProductId: string | null
 	scopeProducts: ProductChoice[]
@@ -17,6 +18,7 @@ type Props = {
 	resourceChoices: Array<{ id: string; name: string; type: string }>
 }
 const {
+	documentDefinitions = [],
 	selectedType,
 	scopeProductId,
 	scopeProducts,
@@ -34,6 +36,7 @@ const subjectOptions = guideCredential
 		? [
 				{ value: "provider", label: "Titular del negocio" },
 				{ value: "legal_entity", label: "Entidad legal" },
+				{ value: "third_party", label: "Prestador externo registrado" },
 			]
 		: [
 				{ value: "provider", label: "Titular del negocio" },
@@ -100,6 +103,26 @@ const subjectOptions = guideCredential
 		) : null
 	}
 	<div class="mt-4 grid gap-4 sm:grid-cols-2">
+		{
+			documentDefinitions.length > 0 && (
+				<label class="grid gap-2 text-sm font-medium text-slate-700">
+					Documento que presentas
+					<Select name="definitionVersionId" data-document-definition>
+						<option value="">Selecciona el documento específico, si corresponde</option>
+						{documentDefinitions.map((definition) => (
+							<option
+								value={definition.id}
+								data-definition-family={definition.family}
+								hidden={definition.family !== selectedType?.split("::")[0]}
+								disabled={definition.family !== selectedType?.split("::")[0]}
+							>
+								{definition.label}
+							</option>
+						))}
+					</Select>
+				</label>
+			)
+		}
 		<label class="grid gap-2 text-sm font-medium text-slate-700">
 			Emisor
 			<Input name="issuer" placeholder="Autoridad o aseguradora" />
@@ -198,96 +221,27 @@ const subjectOptions = guideCredential
 				</label>
 			)
 		}
-		<label class="grid gap-2 text-sm font-medium text-slate-700">
-			Departamento cubierto por el documento
-			<Select name="territoryCode">
-				<option value="" selected> Sin cobertura departamental declarada </option>
-				{
-					tourOperatingTerritories.map((territory) => (
-						<option value={territory.code}>{territory.label}</option>
-					))
-				}
-			</Select>
-		</label>
-		<label class="grid gap-2 text-sm font-medium text-slate-700">
-			Detalle de cobertura territorial (opcional)
-			<Input
-				name="territoryLabel"
-				placeholder="Ruta, municipio o área que figura en el documento"
-			/>
-		</label>
+		<fieldset class="grid gap-2 text-sm font-medium text-slate-700">
+			<legend>Territorios cubiertos por el documento</legend>
+			<OperatingTerritoryPicker name="territoryCode" />
+		</fieldset>
 	</div>
 	<fieldset class="mt-4 grid gap-2 text-sm text-slate-700">
 		<legend class="font-medium">Actividad cubierta (si corresponde)</legend>
 		<div class="flex flex-wrap gap-x-4 gap-y-2">
 			{
-				tourComplianceActivityClasses.map((value) => (
-					<label class="inline-flex items-center gap-2">
-						<input type="checkbox" name="activityClass" value={value} />
-						{tourComplianceActivityLabels[value]}
-					</label>
-				))
+				tourComplianceActivityClasses
+					.filter((value) => value !== "water_air")
+					.map((value) => (
+						<label class="inline-flex items-center gap-2">
+							<input type="checkbox" name="activityClass" value={value} />
+							{tourComplianceActivityLabels[value]}
+						</label>
+					))
 			}
 		</div>
 	</fieldset>
 </details>
 <script>
-	document.addEventListener("change", (event) => {
-		const target = event.target
-		if (!(target instanceof HTMLSelectElement) || !target.matches("[data-evidence-subject]")) return
-		const form = target.closest("form")
-		const text = form?.querySelector<HTMLInputElement>("[data-evidence-subject-text]")
-		const resource = form?.querySelector<HTMLSelectElement>("[data-evidence-subject-resource]")
-		if (!text || !resource) return
-		const resourceSubject = target.value === "person" || target.value === "resource"
-		text.disabled = resourceSubject
-		text.hidden = resourceSubject
-		for (const option of resource.options) {
-			if (option.value)
-				option.hidden = target.value === "person" && option.dataset.resourceType !== "guide"
-		}
-		resource.value = ""
-		resource.disabled = !resourceSubject
-		resource.hidden = !resourceSubject
-	})
-	document.addEventListener("click", async (event) => {
-		const target =
-			event.target instanceof Element
-				? event.target.closest<HTMLButtonElement>("[data-register-evidence-guide]")
-				: null
-		if (!target || target.disabled) return
-		const form = target.closest("form")
-		const input = form?.querySelector<HTMLInputElement>("[data-guide-name]")
-		const select = form?.querySelector<HTMLSelectElement>("[data-evidence-guide]")
-		const status = form?.querySelector<HTMLElement>("[data-guide-registration-status]")
-		if (!input || !select || !status) return
-		if (input.value.trim().length < 2) {
-			status.textContent = "Escribe el nombre completo del guía."
-			input.focus()
-			return
-		}
-		target.disabled = true
-		status.textContent = "Registrando guía…"
-		try {
-			const response = await fetch("/api/tours/resources", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					intent: "create_resource",
-					type: "guide",
-					name: input.value.trim(),
-				}),
-			})
-			const data = await response.json()
-			if (!response.ok || !data.resource?.id) throw new Error("registration_failed")
-			select.add(new Option(data.resource.name, data.resource.id, true, true))
-			status.textContent =
-				"Guía registrado. Comprueba que coincide con la credencial antes de enviarla."
-			select.focus()
-		} catch {
-			status.textContent = "No se pudo registrar. Revisa tu sesión e inténtalo nuevamente."
-		} finally {
-			target.disabled = false
-		}
-	})
+	import "@/lib/ui/tour-evidence-fields"
 </script>

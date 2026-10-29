@@ -10,6 +10,12 @@ import {
 	saveTourComplianceContext,
 } from "@/lib/tours/tour-compliance-context"
 import { and, db, eq, first, Product } from "@/shared/infrastructure/db/compat"
+import {
+	tourOperationSchema,
+	operationRole,
+	operationActivityClasses,
+} from "@/shared/domain/tour-operation"
+import { ZodError } from "zod"
 
 export function tourOperatingContextRedirect(request: Request, productId: string, result: string) {
 	const target = copyVerificationNavigationQuery(
@@ -42,9 +48,12 @@ export const POST: APIRoute = async ({ request }) => {
 		.then(first)
 	if (!owned || owned.type !== "tour") return new Response("Tour no encontrado", { status: 404 })
 	try {
+		const operation = tourOperationSchema.parse(JSON.parse(String(form.get("operation") ?? "null")))
+		const revision = Number(form.get("revision"))
+		if (!Number.isSafeInteger(revision) || revision < 0) throw new Error("invalid_tour_revision")
 		const input = parseTourComplianceContext({
-			operatingRole: form.get("operatingRole"),
-			activityClasses: form.getAll("activityClass"),
+			operatingRole: operationRole(operation),
+			activityClasses: operationActivityClasses(operation),
 			jurisdictionCode: form.get("jurisdictionCode"),
 			jurisdictionCodes: form.getAll("jurisdictionCodes").length
 				? form.getAll("jurisdictionCodes")
@@ -53,13 +62,58 @@ export const POST: APIRoute = async ({ request }) => {
 		if (!input.operatingRole || !input.jurisdictionCode || input.activityClasses.length === 0) {
 			return tourOperatingContextRedirect(request, productId, "invalid_context")
 		}
-		await saveTourComplianceContext({ productId, providerId: session.provider.providerId, input })
+		const saved = await saveTourComplianceContext({
+			productId,
+			providerId: session.provider.providerId,
+			input,
+			operation,
+			expectedRevision: revision,
+			actorUserId: session.user.id,
+		})
 		await Promise.all([
 			invalidateProduct(productId),
 			invalidateProvider(session.provider.providerId),
 		])
+		if (request.headers.get("accept")?.includes("application/json"))
+			return Response.json({ ok: true, context: saved })
 		return tourOperatingContextRedirect(request, productId, "context_saved")
 	} catch (error) {
+		if (error instanceof Error && error.message === "tour_context_forbidden")
+			return request.headers.get("accept")?.includes("application/json")
+				? Response.json({ error: "forbidden" }, { status: 403 })
+				: tourOperatingContextRedirect(request, productId, "forbidden")
+		if (
+			!request.headers.get("accept")?.includes("application/json") &&
+			(error instanceof ZodError || error instanceof SyntaxError)
+		)
+			return tourOperatingContextRedirect(request, productId, "invalid_context")
+		if (request.headers.get("accept")?.includes("application/json")) {
+			const code =
+				(error as { code?: string; cause?: { code?: string } })?.code ??
+				(error as { cause?: { code?: string } })?.cause?.code
+			const conflict =
+				(error instanceof Error && error.message === "tour_context_conflict") ||
+				code === "40001" ||
+				code === "40P01"
+			const validation =
+				error instanceof ZodError ||
+				error instanceof SyntaxError ||
+				String(error).includes("invalid_tour_")
+			if (conflict || validation)
+				return Response.json(
+					{
+						error: conflict ? "conflict" : "invalid_context",
+						issues:
+							error instanceof ZodError
+								? error.issues.map((issue) => ({
+										path: issue.path.join("."),
+										message: issue.message,
+									}))
+								: [],
+					},
+					{ status: conflict ? 409 : 422 }
+				)
+		}
 		if (error instanceof Error && error.message === "invalid_tour_jurisdiction")
 			return tourOperatingContextRedirect(request, productId, "invalid_territory")
 		if (String(error).includes("invalid_tour_"))

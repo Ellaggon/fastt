@@ -11,8 +11,8 @@ describe("experience territories", () => {
 		})
 		expect(result.jurisdictionCodes).toEqual(["BO-LP", "BO-OR"])
 	})
-	it("rejects invented territories instead of approximating", () => {
-		expect(() => parseTourComplianceContext({ jurisdictionCodes: ["BO-LP", "all"] })).toThrow(
+	it("rejects oversized identifiers before database validation", () => {
+		expect(() => parseTourComplianceContext({ jurisdictionCodes: ["x".repeat(201)] })).toThrow(
 			"invalid_tour_jurisdiction"
 		)
 	})

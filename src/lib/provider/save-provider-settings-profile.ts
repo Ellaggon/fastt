@@ -7,6 +7,8 @@ import {
 import { mapZodError } from "@/lib/validation/mapZodError"
 import { type ProviderV2RepositoryPort, updateProviderIdentityV2 } from "@/modules/catalog/public"
 import { providerIdentitySchema, providerProfileSchema } from "@/schemas/provider"
+import { legalFormForCountry } from "@/shared/domain/legal-forms"
+import { withPostgresTransaction } from "@/shared/infrastructure/db/client"
 
 export function formIncludesIdentityFields(form: FormData) {
 	return form.has("displayName") || form.has("legalName")
@@ -18,6 +20,7 @@ export function readProviderSettingsFormValues(form: FormData) {
 		legalName: String(form.get("legalName") ?? "").trim(),
 		holderType: String(form.get("holderType") ?? "").trim(),
 		holderCountry: String(form.get("holderCountry") ?? "").trim(),
+		legalFormCode: String(form.get("legalFormCode") ?? "").trim(),
 		taxResidenceCountry: String(form.get("taxResidenceCountry") ?? "").trim(),
 		payoutCountry: String(form.get("payoutCountry") ?? "").trim(),
 		timezone: String(form.get("timezone") ?? "").trim(),
@@ -44,8 +47,16 @@ export function validateProviderSettingsForm(
 			try {
 				parseHolderDeclaration(form)
 			} catch {
-				errors.holderType ??= "Selecciona quién operará el negocio."
-				errors.holderCountry ??= "Usa un código de país de dos letras, por ejemplo BO."
+				if (
+					values.legalFormCode &&
+					legalFormForCountry(values.legalFormCode, values.holderCountry.toUpperCase())
+						?.holderType !== values.holderType
+				)
+					errors.legalFormCode = "Selecciona una forma jurídica compatible con el país y titular."
+				else {
+					errors.holderType ??= "Selecciona quién operará el negocio."
+					errors.holderCountry ??= "Usa un código de país de dos letras, por ejemplo BO."
+				}
 			}
 		}
 	}
@@ -66,24 +77,26 @@ export async function persistProviderIdentityFromForm(params: {
 	userId: string
 	form: FormData
 }) {
-	const values = readProviderSettingsFormValues(params.form)
-	await updateProviderIdentityV2(
-		{ repo: params.repo },
-		{
+	return withPostgresTransaction(async () => {
+		const values = readProviderSettingsFormValues(params.form)
+		await updateProviderIdentityV2(
+			{ repo: params.repo },
+			{
+				providerId: params.providerId,
+				displayName: values.displayName,
+				legalName: values.legalName,
+			}
+		)
+		const holderDeclaration = parseHolderDeclaration(params.form)
+		if (!holderDeclaration) return
+		const existingHolder = await readProviderHolderProfile(params.providerId)
+		await saveProviderHolderProfile({
 			providerId: params.providerId,
-			displayName: values.displayName,
-			legalName: values.legalName,
-		}
-	)
-	const holderDeclaration = parseHolderDeclaration(params.form)
-	if (!holderDeclaration) return
-	const existingHolder = await readProviderHolderProfile(params.providerId)
-	await saveProviderHolderProfile({
-		providerId: params.providerId,
-		userId: params.userId,
-		declaration: {
-			...holderDeclaration,
-			collectionModel: collectionModelForIdentitySave(existingHolder),
-		},
+			userId: params.userId,
+			declaration: {
+				...holderDeclaration,
+				collectionModel: collectionModelForIdentitySave(existingHolder),
+			},
+		})
 	})
 }

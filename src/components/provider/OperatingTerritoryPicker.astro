@@ -1,0 +1,64 @@
+---
+import Input from "@/components/ui/Input.astro"
+import Checkbox from "@/components/ui/Checkbox.astro"
+import Button from "@/components/ui/Button.astro"
+import { readOperatingPlaces } from "@/lib/tours/operating-geography"
+type Props = {
+	name: string
+	selected?: string[]
+	single?: boolean
+	places?: Array<{ id: string; name: string; country: string }>
+}
+const { name, selected = [], single = false } = Astro.props
+const places = Astro.props.places ?? (await readOperatingPlaces(selected))
+---
+
+<div
+	class="space-y-3"
+	data-territory-picker
+	data-field-name={name}
+	data-single={single ? "true" : "false"}
+>
+	<div class="flex flex-wrap gap-2" data-territory-selected>
+		{
+			places.map((place) => (
+				<Checkbox
+					name={name}
+					value={place.id}
+					checked
+					label={`${place.name} · ${place.country}`}
+					class="fastt-check-option border border-slate-200 p-2"
+				/>
+			))
+		}
+	</div>
+	<Input
+		type="search"
+		aria-label="Buscar territorio"
+		placeholder="Buscar país, región o ciudad"
+		data-territory-search
+		autocomplete="off"
+	/>
+	<p class="text-xs text-slate-500" role="status" data-territory-status></p>
+	<div class="grid max-h-60 gap-1 overflow-y-auto" data-territory-results></div>
+	<template data-territory-result-template>
+		<Button
+			type="button"
+			variant="ghost"
+			class="h-auto min-h-10 justify-start whitespace-normal py-2 text-left"
+			><span data-territory-label></span></Button
+		>
+	</template>
+	<template data-territory-choice-template>
+		<Checkbox class="border border-slate-200 p-2"
+			><span data-territory-choice-label></span></Checkbox
+		>
+	</template>
+	<Button type="button" variant="secondary" hidden data-territory-more>Ver más</Button>
+</div>
+<script>
+	import { initTerritoryPickers } from "@/lib/ui/territory-picker"
+	initTerritoryPickers()
+	document.addEventListener("astro:page-load", () => initTerritoryPickers())
+	document.addEventListener("fastt:content-updated", () => initTerritoryPickers())
+</script>

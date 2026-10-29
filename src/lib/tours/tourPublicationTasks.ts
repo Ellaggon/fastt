@@ -59,7 +59,10 @@ export function projectTourPublicationTasks(diagnosis: TourDiagnostic) {
 			continue
 		}
 		const target = new URL(href, "http://fastt.local")
-		const key = `${result.responsible}:${target.pathname}:${target.searchParams.get("vista") ?? ""}`
+		const key =
+			definition.axis === "authorization"
+				? `${result.responsible}:${id}`
+				: `${result.responsible}:${target.pathname}:${target.searchParams.get("vista") ?? ""}`
 		const existing = tasks.get(key)
 		if (existing) {
 			existing.ids.push(id)
