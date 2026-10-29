@@ -95,6 +95,7 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 				legalName: raw.legalName,
 				holderType: String(form.get("holderType") ?? "").trim(),
 				holderCountry: String(form.get("holderCountry") ?? "").trim(),
+				legalFormCode: String(form.get("legalFormCode") ?? "").trim(),
 				taxResidenceCountry: String(form.get("taxResidenceCountry") ?? "").trim(),
 				payoutCountry: String(form.get("payoutCountry") ?? "").trim(),
 			},

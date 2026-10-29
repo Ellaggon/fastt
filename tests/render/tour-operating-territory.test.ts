@@ -1,5 +1,11 @@
 import { experimental_AstroContainer as AstroContainer } from "astro/container"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+vi.mock("@/lib/tours/operating-geography", () => ({
+	readOperatingPlaces: async (ids: string[]) =>
+		ids
+			.filter((id) => id === "geo:bo:la-paz-department")
+			.map((id) => ({ id, name: "La Paz", country: "BO" })),
+}))
 import Context from "@/components/provider/ProviderTourOperatingContext.astro"
 
 async function render(
@@ -24,8 +30,13 @@ async function render(
 
 describe("tour territory declaration", () => {
 	it("restores a recognized code behind a readable selected label", async () => {
-		const html = await render({ jurisdictionCode: "BO-LP", jurisdictionCodes: ["BO-LP"] })
-		expect(html).toMatch(/name="jurisdictionCodes"[^>]*value="BO-LP"[^>]*checked/)
+		const html = await render({
+			jurisdictionCode: "geo:bo:la-paz-department",
+			jurisdictionCodes: ["geo:bo:la-paz-department"],
+		})
+		expect(html).toMatch(
+			/name="jurisdictionCodes"[^>]*value="geo:bo:la-paz-department"[^>]*checked/
+		)
 		expect(html).toContain("La Paz")
 		expect(html).not.toContain("Territorio declarado por revisar")
 	})
@@ -33,7 +44,9 @@ describe("tour territory declaration", () => {
 		const html = await render({ jurisdictionCode: "LP-legacy" })
 		expect(html).toContain("Territorio declarado por revisar")
 		expect(html).toContain("LP-legacy")
-		expect(html).not.toMatch(/name="jurisdictionCodes"[^>]*value="BO-LP"[^>]*checked/)
+		expect(html).not.toMatch(
+			/name="jurisdictionCodes"[^>]*value="geo:bo:la-paz-department"[^>]*checked/
+		)
 	})
 	it("starts empty rather than defaulting a new declaration to La Paz", async () => {
 		const html = await render(null)
@@ -73,14 +86,17 @@ it.each(["guide", "operator", "intermediary"])(
 				canEdit: true,
 				context: {
 					operatingRole: role,
-					jurisdictionCode: "BO-LP",
-					jurisdictionCodes: ["BO-LP"],
+					jurisdictionCode: "geo:bo:la-paz-department",
+					jurisdictionCodes: ["geo:bo:la-paz-department"],
 					activityClassesJson: ["urban_cultural"],
 				},
 			},
 		})
-		expect(html).toMatch(new RegExp(`value="${role}"[^>]*selected`))
-		expect(html).toMatch(/name="jurisdictionCodes"[^>]*value="BO-LP"[^>]*checked/)
+		expect(html).toContain("Papel anterior:")
+		expect(html).not.toMatch(/value="(?:self|team|external)"[^>]*selected/)
+		expect(html).toMatch(
+			/name="jurisdictionCodes"[^>]*value="geo:bo:la-paz-department"[^>]*checked/
+		)
 		expect(html).toMatch(/value="urban_cultural"[^>]*checked/)
 	}
 )

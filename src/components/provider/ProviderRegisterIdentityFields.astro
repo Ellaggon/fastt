@@ -3,6 +3,7 @@ import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 import { providerFormErrorMessage } from "@/lib/provider-form-flash"
+import { legalForms } from "@/shared/domain/legal-forms"
 
 const {
 	provider,
@@ -139,6 +140,31 @@ const fieldError = (field: string) =>
 		holderStorageReady ? (
 			<>
 				<FormField
+					label="Forma jurídica"
+					htmlFor="legalFormCode"
+					error={fieldError("legalFormCode")}
+					description="Si no aparece tu forma jurídica, déjala por clasificar. No elijas otra por aproximación."
+				>
+					<Select
+						id="legalFormCode"
+						name="legalFormCode"
+						data-legal-form
+						hasError={Boolean(fieldError("legalFormCode"))}
+					>
+						<option value="">Por clasificar</option>
+						{legalForms.map((form) => (
+							<option
+								value={form.code}
+								data-country={form.country}
+								data-holder-type={form.holderType}
+								selected={value("legalFormCode", holderProfile?.legalFormCode ?? "") === form.code}
+							>
+								{form.label}
+							</option>
+						))}
+					</Select>
+				</FormField>
+				<FormField
 					label="País de residencia fiscal (ISO 2 letras)"
 					htmlFor="taxResidenceCountry"
 					description={
@@ -187,3 +213,32 @@ const fieldError = (field: string) =>
 		) : null
 	}
 </div>
+
+<script>
+	function bindLegalForms() {
+		document.querySelectorAll<HTMLSelectElement>("[data-legal-form]").forEach((select) => {
+			if (select.dataset.bound) return
+			select.dataset.bound = "true"
+			const form = select.closest("form")
+			const country = form?.querySelector<HTMLInputElement>('[name="holderCountry"]')
+			const holder = form?.querySelector<HTMLSelectElement>('[name="holderType"]')
+			if (!country || !holder) return
+			const update = () => {
+				for (const option of select.options) {
+					if (!option.value) continue
+					option.hidden =
+						option.dataset.country !== country.value.trim().toUpperCase() ||
+						option.dataset.holderType !== holder.value
+					option.disabled = option.hidden
+					if (option.hidden && option.selected) select.value = ""
+				}
+				select.dispatchEvent(new Event("fastt:options-updated"))
+			}
+			country.addEventListener("input", update)
+			holder.addEventListener("change", update)
+			update()
+		})
+	}
+	bindLegalForms()
+	document.addEventListener("astro:page-load", bindLegalForms)
+</script>

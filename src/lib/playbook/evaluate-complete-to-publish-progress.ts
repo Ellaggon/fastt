@@ -6,7 +6,6 @@ import { getTourLaunchStepById } from "./launch-tour"
 import { tourContextSelectionHint } from "@/lib/tours/resolveTourCommercialContext"
 import {
 	presentTourDiagnostic,
-	TOUR_REQUIREMENT_PRESENTATION,
 	tourRequirementPresentation,
 } from "@/lib/tours/tourDiagnosticPresentation"
 import {
@@ -687,6 +686,9 @@ async function evaluateCompleteToPublishState(
 			}
 		}
 
+		if (authorization && "decisions" in authorization) {
+			tourDiagnostic.publicationDecisions = authorization.decisions
+		}
 		const tourRequirementCompleteDetail = (
 			requirementId: TourRequirementId,
 			sectionKey: string

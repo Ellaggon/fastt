@@ -1,5 +1,7 @@
 ---
+import DocumentDefinitionCatalog from "@/components/admin/DocumentDefinitionCatalog.astro"
 import ProviderPublicationPolicyBlockers from "@/components/admin/ProviderPublicationPolicyBlockers.astro"
+import OperatingTerritoryPicker from "@/components/provider/OperatingTerritoryPicker.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -19,8 +21,9 @@ import {
 	tourComplianceActivityLabels,
 	tourOperatingRoles,
 } from "@/lib/tours/tour-compliance-context"
-import { tourOperatingTerritories } from "@/lib/tours/tour-operating-territories"
 import { EXPERIENCE_FORMATS } from "@/shared/domain/experience-format"
+import { legalForms } from "@/shared/domain/legal-forms"
+import { executionLabels, executionModes } from "@/shared/domain/tour-operation"
 import {
 	and,
 	CommercialPolicyApproval,
@@ -166,14 +169,40 @@ const areas = [
 											</>
 										</Select>
 									</FormField>
-									<FormField label="Vigencia desde" htmlFor="policy-from" required>
-										<Input id="policy-from" type="date" name="effectiveFrom" required />
+									<FormField
+										label="Aplicar esta política desde"
+										htmlFor="policy-start-mode"
+										required
+									>
+										<Select id="policy-start-mode" name="startMode" data-policy-start-mode>
+											<>
+												<option value="now">Ahora, cuando se apruebe y publique</option>
+												<option value="scheduled">Programar fecha</option>
+											</>
+										</Select>
 									</FormField>
-									<FormField label="Vigencia hasta" htmlFor="policy-to" required>
-										<Input id="policy-to" type="date" name="effectiveTo" required />
-									</FormField>
+									<div data-policy-start-date hidden>
+										<FormField label="Fecha de aplicación" htmlFor="policy-from">
+											<Input id="policy-from" type="date" name="effectiveFrom" disabled />
+										</FormField>
+									</div>
 								</>
 							</div>
+							<details class="border-t border-slate-200 pt-3">
+								<>
+									<summary class="cursor-pointer text-sm font-medium">Opciones avanzadas</summary>
+									<div class="mt-3 max-w-sm">
+										<>
+											<FormField label="Dejar de aplicar el" htmlFor="policy-to">
+												<Input id="policy-to" type="date" name="effectiveTo" />
+											</FormField>
+											<p class="mt-1 text-xs text-slate-500">
+												Opcional. Sin fecha, seguirá vigente hasta que se retire o sustituya.
+											</p>
+										</>
+									</div>
+								</>
+							</details>
 							<fieldset class="space-y-2">
 								<legend class="mb-2 font-medium">Papeles operativos</legend>
 								{tourOperatingRoles.map((role) => (
@@ -192,23 +221,19 @@ const areas = [
 							</fieldset>
 							<fieldset class="grid gap-2 sm:grid-cols-3">
 								<legend class="mb-2 font-medium">Actividades</legend>
-								{tourComplianceActivityClasses.map((activity) => (
-									<Checkbox
-										name="activityClasses"
-										value={activity}
-										label={tourComplianceActivityLabels[activity]}
-									/>
-								))}
+								{tourComplianceActivityClasses
+									.filter((activity) => activity !== "water_air")
+									.map((activity) => (
+										<Checkbox
+											name="activityClasses"
+											value={activity}
+											label={tourComplianceActivityLabels[activity]}
+										/>
+									))}
 							</fieldset>
 							<fieldset class="grid gap-2 sm:grid-cols-3">
-								<legend class="mb-2 font-medium">Departamentos cubiertos</legend>
-								{tourOperatingTerritories.map((territory) => (
-									<Checkbox
-										name="jurisdictionCodes"
-										value={territory.code}
-										label={territory.label}
-									/>
-								))}
+								<legend class="mb-2 font-medium">Territorios cubiertos</legend>
+								<OperatingTerritoryPicker name="jurisdictionCodes" />
 							</fieldset>
 							<fieldset class="grid gap-2 sm:grid-cols-2">
 								<legend class="mb-2 font-medium">Formatos</legend>
@@ -227,6 +252,69 @@ const areas = [
 									/>
 								))}
 							</fieldset>
+							<details class="border-t border-slate-200 pt-3">
+								<>
+									<summary class="cursor-pointer text-sm font-medium">
+										Limitar por declaración operativa
+									</summary>
+									<div class="mt-4 grid gap-4 sm:grid-cols-2">
+										<fieldset class="space-y-2">
+											<legend class="mb-2 font-medium">Formas jurídicas</legend>
+											{legalForms.map((form) => (
+												<Checkbox
+													name="legalFormCodes"
+													value={form.code}
+													label={`${form.country} · ${form.label}`}
+												/>
+											))}
+										</fieldset>
+										<fieldset class="space-y-2">
+											<legend class="mb-2 font-medium">Quién realiza la experiencia</legend>
+											{executionModes.map((mode) => (
+												<Checkbox
+													name="executionModes"
+													value={mode}
+													label={executionLabels[mode]}
+												/>
+											))}
+										</fieldset>
+										<fieldset class="space-y-2">
+											<>
+												<legend class="mb-2 font-medium">Prestación del transporte</legend>
+												<Checkbox
+													name="transportProviders"
+													value="business"
+													label="Por el negocio"
+												/>
+												<Checkbox
+													name="transportProviders"
+													value="external"
+													label="Por un tercero"
+												/>
+											</>
+										</fieldset>
+										<fieldset class="space-y-2">
+											<legend class="mb-2 font-medium">Alimentos y bebidas</legend>
+											{[
+												{ value: "none", label: "No incluye" },
+												{ value: "visit", label: "Visita o degustación" },
+												{ value: "serve", label: "Servicio" },
+												{ value: "prepare", label: "Preparación" },
+											].map((choice) => (
+												<Checkbox
+													name="foodHandlingModes"
+													value={choice.value}
+													label={choice.label}
+												/>
+											))}
+										</fieldset>
+										<p class="text-xs text-slate-500 sm:col-span-2">
+											Sin selección, esa dimensión no limita la cobertura. Esto no sustituye los
+											requisitos ni sus aprobaciones.
+										</p>
+									</div>
+								</>
+							</details>
 							<>
 								<Button type="submit" variant="selection">
 									Guardar borrador
@@ -478,10 +566,34 @@ const areas = [
 				)
 			})
 		}
+		<DocumentDefinitionCatalog
+			canEdit={canEdit}
+			canPublish={principalHasPermission(principal, "policy.publish")}
+		/>
 	</div></InternalAdminLayout
 >
 <script>
 	import { bindAgreementForms } from "@/lib/commercial-policy/agreement-forms"
 	bindAgreementForms()
+	function bindPolicyDates() {
+		document.querySelectorAll<HTMLSelectElement>("[data-policy-start-mode]").forEach((mode) => {
+			if (mode.dataset.bound) return
+			mode.dataset.bound = "true"
+			const field = mode.form?.querySelector<HTMLInputElement>('[name="effectiveFrom"]')
+			const wrapper = mode.form?.querySelector<HTMLElement>("[data-policy-start-date]")
+			const sync = () => {
+				const scheduled = mode.value === "scheduled"
+				if (field) {
+					field.disabled = !scheduled
+					field.required = scheduled
+				}
+				if (wrapper) wrapper.hidden = !scheduled
+			}
+			mode.addEventListener("change", sync)
+			sync()
+		})
+	}
+	bindPolicyDates()
+	document.addEventListener("astro:page-load", bindPolicyDates)
 	document.addEventListener("astro:page-load", bindAgreementForms)
 </script>

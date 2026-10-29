@@ -1,5 +1,6 @@
 ---
 import ProviderSettingsProfileReadonlyField from "@/components/provider/ProviderSettingsProfileReadonlyField.astro"
+import { legalFormForCountry } from "@/shared/domain/legal-forms"
 
 const { provider, holderProfile, holderStorageReady = true } = Astro.props
 
@@ -26,6 +27,11 @@ const holderTypeLabel =
 	<ProviderSettingsProfileReadonlyField
 		label="Nombre legal del titular o razón social"
 		value={provider?.legalName}
+	/>
+	<ProviderSettingsProfileReadonlyField
+		label="Forma jurídica"
+		value={legalFormForCountry(holderProfile?.legalFormCode, holderProfile?.holderCountry ?? "")
+			?.label ?? "Por clasificar"}
 	/>
 	{
 		holderStorageReady ? (
