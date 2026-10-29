@@ -383,7 +383,10 @@ describe("provider compliance documents", () => {
 				expect.arrayContaining([
 					expect.objectContaining({ scopeType: "product", productId: productIds[0] }),
 					expect.objectContaining({ scopeType: "product", productId: productIds[1] }),
-					expect.objectContaining({ scopeType: "territory", territoryCode: "BO-LP" }),
+					expect.objectContaining({
+						scopeType: "territory",
+						territoryCode: "geo:bo:la-paz-department",
+					}),
 				])
 			)
 			expect(document?.scopes.filter((scope: any) => scope.scopeType === "product")).toHaveLength(2)
