@@ -58,6 +58,13 @@ suite("operating geography persistence", () => {
 		await expect(
 			sql`insert into "TourComplianceContext" ("productId", "providerId", "jurisdictionCode", "jurisdictionCodes") values (${product}, ${provider}, 'geo:bo', '["geo:bo:oruro"]')`
 		).rejects.toThrow("territory_projection_mismatch")
+		const rollback = new Error("qa_rollback")
+		await expect(
+			sql.begin(async (tx) => {
+				await tx`insert into "TourComplianceContext" ("productId", "providerId", "jurisdictionCode", "jurisdictionCodes") values (${product}, ${provider}, 'geo:bo:oruro', '["geo:bo:oruro"]')`
+				throw rollback
+			})
+		).rejects.toBe(rollback)
 	})
 	it("keeps all nine historical department correspondences without authorizing new markets", async () => {
 		const map = await readHistoricalTerritoryMap()

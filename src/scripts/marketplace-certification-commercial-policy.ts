@@ -186,6 +186,7 @@ export async function seedMarketplaceCertificationCommercialPolicy(params: {
 			providerId: params.providerId,
 			operatingRole: "guide",
 			jurisdictionCode: "geo:bo:la-paz-department",
+			jurisdictionCodes: ["geo:bo:la-paz-department"],
 			activityClassesJson: ["urban_cultural"],
 			updatedAt: params.now,
 		})
@@ -194,6 +195,7 @@ export async function seedMarketplaceCertificationCommercialPolicy(params: {
 			set: {
 				operatingRole: "guide",
 				jurisdictionCode: "geo:bo:la-paz-department",
+				jurisdictionCodes: ["geo:bo:la-paz-department"],
 				activityClassesJson: ["urban_cultural"],
 				updatedAt: params.now,
 			},
