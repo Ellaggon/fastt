@@ -90,6 +90,30 @@ suite("operating geography persistence", () => {
 			})
 		).rejects.toThrow("invalid_policy_territory")
 	})
+	it("accepts mapped historical policy IDs only for the mapped country", async () => {
+		const rollback = new Error("qa_rollback")
+		const externalId = `qa-${provider}`
+		await expect(
+			sql.begin(async (tx) => {
+				const setId = randomUUID()
+				const versionId = randomUUID()
+				await tx`insert into "GeoPlaceExternalId" (id, "placeId", source, "externalId") values (${randomUUID()}, 'geo:bo:la-paz-department', 'fastt_legacy_jurisdiction', ${externalId})`
+				await tx`insert into "CompliancePolicySet" (id, key, label, country, vertical, "collectionModel") values (${setId}, ${setId}, 'QA historical alias', 'BO', 'tour', 'property_collect')`
+				await tx`insert into "CompliancePolicyVersion" (id, "policySetId", version, "effectiveFrom", "contextJson") values (${versionId}, ${setId}, 1, now(), ${tx.json({ jurisdictionCodes: [externalId] })})`
+				await tx`insert into "ComplianceRequirementRule" (id, "policyVersionId", domain, "requirementKey", "conditionJson") values (${randomUUID()}, ${versionId}, 'documents', 'territory', ${tx.json({ jurisdictionCodes: [externalId] })})`
+				throw rollback
+			})
+		).rejects.toBe(rollback)
+
+		const setId = randomUUID()
+		await expect(
+			sql.begin(async (tx) => {
+				await tx`insert into "GeoPlaceExternalId" (id, "placeId", source, "externalId") values (${randomUUID()}, 'geo:bo:la-paz-department', 'fastt_legacy_jurisdiction', ${externalId})`
+				await tx`insert into "CompliancePolicySet" (id, key, label, country, vertical, "collectionModel") values (${setId}, ${setId}, 'QA foreign alias', 'MX', 'tour', 'property_collect')`
+				await tx`insert into "CompliancePolicyVersion" (id, "policySetId", version, "effectiveFrom", "contextJson") values (${randomUUID()}, ${setId}, 1, now(), ${tx.json({ jurisdictionCodes: [externalId] })})`
+			})
+		).rejects.toThrow("invalid_policy_territory")
+	})
 	it("migrates legacy declarations transactionally and rejects unknown codes", async () => {
 		const source = await readFile("db/migrations/2026-10-29_operating_geography.sql", "utf8")
 		const rolledBack = new Error("qa_rollback")

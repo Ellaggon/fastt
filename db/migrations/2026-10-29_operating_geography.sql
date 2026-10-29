@@ -101,7 +101,19 @@ BEGIN
   IF ids IS NULL THEN RETURN NEW; END IF;
   IF jsonb_typeof(ids) <> 'array' OR jsonb_array_length(ids) > 100 THEN RAISE EXCEPTION 'invalid_policy_territories'; END IF;
   FOR place_id IN SELECT jsonb_array_elements_text(ids) LOOP
-    SELECT id INTO matched FROM "GeoPlace" WHERE id = place_id AND "countryCode" = country AND status = 'active' FOR KEY SHARE;
+    SELECT g.id INTO matched
+    FROM "GeoPlace" g
+    WHERE g."countryCode" = country AND g.status = 'active'
+      AND (
+        g.id = place_id
+        OR EXISTS (
+          SELECT 1 FROM "GeoPlaceExternalId" e
+          WHERE e."placeId" = g.id
+            AND e.source = 'fastt_legacy_jurisdiction'
+            AND e."externalId" = place_id
+        )
+      )
+    FOR KEY SHARE OF g;
     IF matched IS NULL THEN RAISE EXCEPTION 'invalid_policy_territory: %', place_id; END IF;
   END LOOP;
   RETURN NEW;
