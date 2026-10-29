@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import type { TourOperation } from "@/shared/domain/tour-operation"
 import {
 	evaluateCommercialPolicy,
 	tourPolicyPublicationErrors,
@@ -70,6 +71,104 @@ function version(
 	}
 }
 describe("commercial policy diagnosis", () => {
+	it("evaluates a complete versioned package for every declared subject without changing legacy policies", () => {
+		const policies = [version("holder", "CL"), version("product", "BO"), version("tax", "CL")]
+		policies[1].requirements[0].acceptedEvidence = []
+		policies[1].requirements[0].documentAcceptance = {
+			version: 1,
+			alternatives: [
+				{
+					id: "credential-and-cover",
+					allOf: [{ definitionVersionId: "credential:1" }, { definitionVersionId: "cover:1" }],
+				},
+			],
+		}
+		policies[1].requirements[0].requiredSubjectReferences = ["ana", "luis"]
+		const evidence = [
+			{ id: "holder", type: "holder-verified", status: "verified" as const },
+			{ id: "tax", type: "tax-verified", status: "verified" as const },
+			...["ana", "luis"].flatMap((subjectReference) =>
+				["credential:1", "cover:1"].map((definitionVersionId) => ({
+					id: `${subjectReference}-${definitionVersionId}`,
+					type: "specific",
+					definitionVersionId,
+					subjectReference,
+					status: "verified" as const,
+				}))
+			),
+		]
+		const input = {
+			context: { ...context, subjectReferences: ["ana", "luis"] },
+			versions: policies,
+			evidence,
+		}
+		expect(evaluateCommercialPolicy(input).capabilities.publish).toBe(true)
+		expect(
+			evaluateCommercialPolicy({
+				...input,
+				evidence: evidence.filter((item) => item.id !== "luis-cover:1"),
+			}).capabilities.publish
+		).toBe(false)
+	})
+	it("does not let a benign activity grant coverage to new water or air operations", () => {
+		const operation: TourOperation = {
+			version: 2,
+			executionMode: "self",
+			guidingService: true,
+			characteristics: ["guided_nature"],
+			operatorResourceId: null,
+			waterActivity: true,
+			airActivity: false,
+			foodHandling: "none",
+			transportServices: [],
+			resourceIds: [],
+		}
+		const result = evaluateCommercialPolicy({
+			context: { ...context, operation, activityClasses: ["guided_nature", "water"] },
+			versions: [version("product", "BO")],
+			verifiedEvidence: [],
+		})
+		expect(result.policyVersionIds).not.toContain("product-1")
+		expect(result.capabilities.publish).toBe(false)
+	})
+	it("uses an explicitly approved legal-form selector without guessing missing declarations", () => {
+		const candidate = version("product", "BO")
+		candidate.context!.legalFormCodes = ["BO:sole_trader"]
+		expect(tourPolicyPublicationErrors(candidate)).toEqual([])
+		const missing = evaluateCommercialPolicy({
+			context,
+			versions: [candidate],
+			verifiedEvidence: [],
+		})
+		expect(missing.policyVersionIds).not.toContain(candidate.id)
+		const matching = evaluateCommercialPolicy({
+			context: { ...context, legalFormCode: "BO:sole_trader" },
+			versions: [candidate],
+			verifiedEvidence: [],
+		})
+		expect(matching.policyVersionIds).toContain(candidate.id)
+	})
+	it.each(["draft", "expired", "future", "approval_missing", "retired"] as const)(
+		"explains %s configuration without authorizing publication",
+		(reason) => {
+			const candidate = version("product", "BO")
+			if (reason === "draft" || reason === "retired") candidate.status = reason
+			if (reason === "expired") candidate.effectiveTo = new Date("2026-02-01")
+			if (reason === "future") candidate.effectiveFrom = new Date("2027-01-01")
+			if (reason === "approval_missing") candidate.approvedBy = null
+			const result = evaluateCommercialPolicy({
+				context,
+				versions: [candidate],
+				verifiedEvidence: [],
+				now: new Date("2026-10-28"),
+			})
+			expect(
+				result.blockers.find((row) => row.id === "policy_context_unsupported_product")
+					?.configurationReason
+			).toBe(reason)
+			expect(result.capabilities.publish).toBe(false)
+		}
+	)
 	it("blocks every capability when the jurisdiction has no approved annex", () => {
 		const result = evaluateCommercialPolicy({ context, versions: [], verifiedEvidence: [] })
 		expect(result.policyStatus).toBe("unsupported")

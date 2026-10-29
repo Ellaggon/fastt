@@ -8,6 +8,7 @@
  */
 
 import { resolveCommercialPolicyRollout } from "@/lib/commercial-policy/rollout"
+import { readTourOperation } from "@/shared/domain/tour-operation"
 import { listProviderDocuments, type ProviderDocumentActivityClass } from "@/lib/provider-documents"
 import { evaluateProviderGovernance } from "@/lib/provider-governance"
 import { readProviderHolderProfile } from "@/lib/provider-holder-profile"
@@ -57,6 +58,7 @@ export type LineGateDepartureResource = {
 }
 
 export type LineGateInput = {
+	territoryAncestors?: import("@/shared/domain/territorial-coverage").TerritoryAncestors
 	capability: LineGateCapability
 	line: CommercialLine | null
 	productId: string
@@ -73,6 +75,7 @@ export type LineGateInput = {
 	jurisdictionCodes?: string[]
 	activityClasses?: readonly string[]
 	departure?: readonly LineGateDepartureResource[]
+	operatorResourceId?: string | null
 	/** When set, expiry is judged on this civil date. Booking passes the departure date. */
 	evaluatedAt?: Date
 }
@@ -100,7 +103,9 @@ function covers(
 	context: {
 		productId: string
 		resourceId?: string | null
+		operatorResourceId?: string | null
 		territoryCodes?: string[]
+		territoryAncestors?: import("@/shared/domain/territorial-coverage").TerritoryAncestors
 		activityClasses?: string[]
 		at?: Date
 	}
@@ -112,8 +117,12 @@ function covers(
 			operation: {
 				productId: context.productId,
 				resourceId: context.resourceId,
-				subjectReferences: context.resourceId ? [context.resourceId] : undefined,
+				operatorResourceId: context.operatorResourceId,
+				subjectReferences: [context.resourceId, context.operatorResourceId].filter(
+					(id): id is string => Boolean(id)
+				),
 				territoryCodes: context.territoryCodes,
+				territoryAncestors: context.territoryAncestors,
 				activityClasses: (context.activityClasses ?? []) as ProviderDocumentActivityClass[],
 				at: context.at,
 			},
@@ -124,7 +133,9 @@ function covers(
 function operationContext(input: LineGateInput, resourceId?: string) {
 	return {
 		productId: input.productId,
+		territoryAncestors: input.territoryAncestors,
 		resourceId,
+		operatorResourceId: input.operatorResourceId,
 		territoryCodes:
 			input.jurisdictionCodes ?? (input.jurisdictionCode ? [input.jurisdictionCode] : []),
 		activityClasses: [...(input.activityClasses ?? [])],
@@ -459,6 +470,9 @@ export async function loadProductLineGate(params: {
 				: [],
 	})
 	const decision = evaluateProductLineGate({
+		territoryAncestors: await (
+			await import("@/lib/tours/operating-geography")
+		).readTerritoryAncestors(tourContext?.jurisdictionCodes ?? []),
 		capability: params.capability,
 		line,
 		productId: params.productId,
@@ -475,6 +489,7 @@ export async function loadProductLineGate(params: {
 		jurisdictionCodes: tourContext?.jurisdictionCodes ?? undefined,
 		activityClasses,
 		departure: params.departure,
+		operatorResourceId: readTourOperation(tourContext?.operationJson)?.operatorResourceId,
 		evaluatedAt: params.evaluatedAt,
 	})
 	return { ...decision, enforced: true }

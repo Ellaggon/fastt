@@ -18,26 +18,104 @@ const operation: VerificationEvidenceOperation = {
 }
 
 describe("tour verification evidence diagnosis", () => {
+	it("requires the declared external executor rather than a different subcontractor", () => {
+		const operatorRequirement = {
+			id: "tour.operator_license",
+			layer: "tour" as const,
+			documentType: "operating_license" as const,
+		}
+		const document = {
+			id: "operator-license",
+			type: "operating_license" as const,
+			status: "verified" as const,
+			expiresAt: null,
+			subjectType: "third_party" as const,
+			subjectReference: "executor-a",
+			scopes: [
+				{
+					id: "scope",
+					scopeType: "product" as const,
+					productId: "tour-la-paz",
+					resourceId: null,
+					territoryCode: null,
+					territoryLabel: null,
+					activityClass: null,
+				},
+			],
+		}
+		const context = {
+			...operation,
+			operatorResourceId: "executor-a",
+			subjectReferences: ["executor-a", "transport-b"],
+		}
+		expect(
+			diagnoseVerificationEvidence({
+				requirement: operatorRequirement,
+				operation: context,
+				evidence: [document],
+			}).state
+		).toBe("ready")
+		expect(
+			diagnoseVerificationEvidence({
+				requirement: operatorRequirement,
+				operation: context,
+				evidence: [{ ...document, subjectReference: "transport-b" }],
+			}).state
+		).toBe("action_needed")
+		expect(
+			diagnoseVerificationEvidence({
+				requirement: operatorRequirement,
+				operation: context,
+				evidence: [{ ...document, subjectType: "provider", subjectReference: null }],
+			}).state
+		).toBe("action_needed")
+	})
 	it("requires a named guide subject and a concrete property scope", () => {
 		const anonymousGuide = diagnoseVerificationEvidence({
 			requirement,
 			operation: { ...operation, resourceId: "guide-ana", subjectReferences: ["guide-ana"] },
-			evidence: [{
-				id: "anonymous-guide",
-				type: "operating_license",
-				status: "verified",
-				expiresAt: null,
-				subjectType: "person",
-				subjectReference: null,
-				scopes: [{ id: "tour", scopeType: "product", productId: "tour-la-paz", resourceId: null, territoryCode: null, territoryLabel: null, activityClass: null }],
-			}],
+			evidence: [
+				{
+					id: "anonymous-guide",
+					type: "operating_license",
+					status: "verified",
+					expiresAt: null,
+					subjectType: "person",
+					subjectReference: null,
+					scopes: [
+						{
+							id: "tour",
+							scopeType: "product",
+							productId: "tour-la-paz",
+							resourceId: null,
+							territoryCode: null,
+							territoryLabel: null,
+							activityClass: null,
+						},
+					],
+				},
+			],
 		})
 		expect(anonymousGuide).toMatchObject({ state: "action_needed", reason: "out_of_scope" })
 
 		const ownership = diagnoseVerificationEvidence({
-			requirement: { id: "lodging.ownership_proof", layer: "lodging", documentType: "ownership_proof" },
+			requirement: {
+				id: "lodging.ownership_proof",
+				layer: "lodging",
+				documentType: "ownership_proof",
+			},
 			operation: { productId: "hotel-1" },
-			evidence: [{ id: "unscoped-deed", type: "ownership_proof", status: "verified", expiresAt: null, subjectType: "provider", subjectReference: null, scopes: [] }],
+			evidence: [
+				{
+					id: "unscoped-deed",
+					type: "ownership_proof",
+					status: "verified",
+					expiresAt: null,
+					subjectType: "provider",
+					subjectReference: null,
+					scopes: [],
+				},
+			],
 		})
 		expect(ownership).toMatchObject({ state: "action_needed", reason: "out_of_scope" })
 	})

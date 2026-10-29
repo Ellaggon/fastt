@@ -5,6 +5,7 @@
  */
 
 import { readProviderHolderProfile } from "@/lib/provider-holder-profile"
+import { projectOperationContext } from "@/shared/domain/tour-operation"
 import {
 	commercialLinesForProductTypes,
 	collectionModelForCommercialLine,
@@ -79,6 +80,7 @@ async function loadTourVerificationContexts(
 				productId: TourComplianceContext.productId,
 				operatingRole: TourComplianceContext.operatingRole,
 				activityClassesJson: TourComplianceContext.activityClassesJson,
+				operationJson: TourComplianceContext.operationJson,
 				jurisdictionCode: TourComplianceContext.jurisdictionCode,
 				jurisdictionCodes: TourComplianceContext.jurisdictionCodes,
 			})
@@ -107,7 +109,9 @@ async function loadTourVerificationContexts(
 			}),
 	])
 
-	const contextByProduct = new Map(contexts.map((row) => [row.productId, row]))
+	const contextByProduct = new Map(
+		contexts.map((row) => [row.productId, projectOperationContext(row)])
+	)
 	const resourcesByProduct = new Map<string, string[]>()
 	for (const row of resources) {
 		const productId = String(row.productId ?? "").trim()

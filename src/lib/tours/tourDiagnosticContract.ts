@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { EXPERIENCE_FORMATS } from "@/shared/domain/experience-format"
+import { publicationDecisionSchema } from "./tourPublicationDecisions"
 
 /** B1 defines observations, not a second evaluator of pricing or eligibility rules. */
 export const TOUR_REQUIREMENTS = {
@@ -92,6 +93,7 @@ const resultSchema = z.discriminatedUnion("state", [
 export const tourDiagnosticSchema = z
 	.object({
 		version: z.literal(1),
+		publicationDecisions: z.array(publicationDecisionSchema).optional(),
 		context: z
 			.object({
 				providerId: z.string().min(1),

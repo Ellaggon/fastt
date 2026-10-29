@@ -22,6 +22,7 @@ describe("provider holder declaration", () => {
 		expect(parseHolderDeclaration(form)).toEqual({
 			holderType: "persona_natural",
 			holderCountry: "CL",
+			legalFormCode: null,
 			taxResidenceCountry: "BO",
 			payoutCountry: null,
 			collectionModel: "undecided",

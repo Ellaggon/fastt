@@ -16,6 +16,11 @@ import { resolveCommercialPolicyRollout } from "@/lib/commercial-policy/rollout"
 import { commercialAgreementStatus } from "@/modules/financial/commercial-agreements"
 import { commercialAgreementRollout } from "@/modules/financial/commercial-agreement-rollout"
 import {
+	readTourOperation,
+	operationSubjects,
+	operationResourceIssue,
+} from "@/shared/domain/tour-operation"
+import {
 	collectionModelForCommercialLine,
 	commercialLineForProductType,
 	readProviderCommercialLineState,
@@ -29,6 +34,8 @@ import {
 	Product,
 	ProductGeoPlace,
 	Tour,
+	TourOperationalResource,
+	inArray,
 } from "@/shared/infrastructure/db/compat"
 
 export class CommercialPolicyBlockedError extends Error {
@@ -211,6 +218,7 @@ export async function resolveProductCommercialDiagnosis(params: {
 		commercialLineForProductType(product.productType)
 	)
 	const evidence: CommercialEvidence[] = documents.map((document) => ({
+		definitionVersionId: document.definitionVersionId,
 		id: document.id,
 		type: document.type,
 		status: document.status,
@@ -226,10 +234,46 @@ export async function resolveProductCommercialDiagnosis(params: {
 		})),
 	}))
 	const activityClasses = storedTourActivityClasses(tourContext?.activityClassesJson)
+	const operation = readTourOperation(tourContext?.operationJson)
+	if (tourContext?.operationJson != null && !operation)
+		return {
+			productId: params.productId,
+			providerId: params.providerId,
+			vertical: "tour",
+			diagnosis: blockedDiagnosis(
+				"policy_context_invalid_operation",
+				"Revisa la declaración operativa de esta experiencia."
+			),
+		}
+	const declaredIds = operation ? operationSubjects(operation) : []
+	if (declaredIds.length) {
+		const resources = await db
+			.select({ id: TourOperationalResource.id, type: TourOperationalResource.type })
+			.from(TourOperationalResource)
+			.where(
+				and(
+					eq(TourOperationalResource.providerId, params.providerId),
+					eq(TourOperationalResource.status, "active"),
+					inArray(TourOperationalResource.id, declaredIds)
+				)
+			)
+		if (operation && operationResourceIssue(operation, resources))
+			return {
+				productId: params.productId,
+				providerId: params.providerId,
+				vertical: "tour",
+				diagnosis: blockedDiagnosis(
+					"policy_context_invalid_resources",
+					"Revisa las personas y prestadores vinculados a la experiencia."
+				),
+			}
+	}
 	const diagnosis = await diagnoseCommercialPolicy({
 		context: {
 			holderType: holder.holderType as "persona_natural" | "entidad",
 			holderCountry: holder.holderCountry,
+			legalFormCode: holder.legalFormCode ?? null,
+			operation,
 			taxCountry: holder.taxResidenceCountry,
 			payoutCountry: holder.payoutCountry,
 			productCountry: place.countryCode,
@@ -243,8 +287,13 @@ export async function resolveProductCommercialDiagnosis(params: {
 			operatingRole:
 				(tourContext?.operatingRole as "operator" | "guide" | "intermediary" | null) ?? null,
 			activityClasses,
-			resourceIds: params.resourceIds ?? [],
-			subjectReferences: params.subjectReferences ?? params.resourceIds ?? [],
+			resourceIds: [...new Set([...(params.resourceIds ?? []), ...(operation?.resourceIds ?? [])])],
+			subjectReferences: [
+				...new Set([
+					...(params.subjectReferences ?? params.resourceIds ?? []),
+					...(operation ? operationSubjects(operation) : []),
+				]),
+			],
 		},
 		evidence,
 	})

@@ -11,6 +11,7 @@ import type { CommercialLine } from "@/lib/verification/commercial-lines"
 import { mayEnforceRequirement } from "@/lib/verification/policy-annex"
 import type { ProviderDocumentType, RequiredKycDocumentType } from "@/lib/provider-documents"
 import { requiredKycDocumentTypes } from "@/lib/provider-documents"
+import { tourComplianceActivityClasses } from "@/shared/domain/tour-operation"
 
 export const verificationRequirementLayers = ["shared", "lodging", "tour"] as const
 export type VerificationRequirementLayer = (typeof verificationRequirementLayers)[number]
@@ -18,17 +19,10 @@ export type VerificationRequirementLayer = (typeof verificationRequirementLayers
 export const tourCredentialRoles = ["operator", "guide", "intermediary"] as const
 export type TourCredentialRole = (typeof tourCredentialRoles)[number]
 
-/** Activities that need a liability policy. Urban, nature and food tours do not. */
+/** Historical annex candidates only; mayEnforceRequirement controls actual enforcement. */
 export const tourInsuranceActivityClasses = ["adventure", "transport", "water_air"] as const
 
-const knownActivityClasses = [
-	"urban_cultural",
-	"guided_nature",
-	"adventure",
-	"transport",
-	"water_air",
-	"gastronomic",
-] as const
+const knownActivityClasses = tourComplianceActivityClasses
 
 export type VerificationRequirementScopes = {
 	productIds: string[]

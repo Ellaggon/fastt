@@ -4,23 +4,38 @@ import { loadProductLineGate } from "@/lib/verification/line-gate"
 import { resolveProductCommercialDiagnosis } from "@/lib/commercial-policy/enforcement"
 import { commercialBlockerIsWaiting, tourCommercialAction } from "./tourCommercialNavigation"
 import { experienceRequirementsHref } from "@/lib/verification/experience-requirements-navigation"
+import { commercialAgreementStatus } from "@/modules/financial/commercial-agreements"
+import { projectAuthorizationDecisions } from "./tourPublicationDecisions"
 
 /** Uses the same product-scoped evidence and signed policy used by publication. */
 export async function loadTourAuthorization(input: { providerId: string; productId: string }) {
-	const [line, commercial, provider, publication] = await Promise.all([
-		loadProductLineGate({ ...input, capability: "publish" }),
-		resolveProductCommercialDiagnosis(input),
-		evaluateProviderGovernance(input.providerId, { persist: false }),
-		productRepository.getProductPublicationEligibility(input.productId),
-	])
+	const [lineRead, commercialRead, providerRead, publicationRead, agreementRead] =
+		await Promise.allSettled([
+			loadProductLineGate({ ...input, capability: "publish" }),
+			resolveProductCommercialDiagnosis(input),
+			evaluateProviderGovernance(input.providerId, { persist: false }),
+			productRepository.getProductPublicationEligibility(input.productId),
+			commercialAgreementStatus(input.providerId),
+		])
+	const line = lineRead.status === "fulfilled" ? lineRead.value : { allowed: false, blockers: [] }
+	const commercial = commercialRead.status === "fulfilled" ? commercialRead.value : null
+	const provider =
+		providerRead.status === "fulfilled"
+			? providerRead.value
+			: { capabilities: { publish: false }, blockers: [] }
+	const publication =
+		publicationRead.status === "fulfilled"
+			? publicationRead.value
+			: { eligible: false, reason: "read_failed" }
+	const agreement = agreementRead.status === "fulfilled" ? agreementRead.value : null
 	const shared = [
 		...line.blockers.filter((blocker) => blocker.layer === "shared"),
 		...provider.blockers.filter((blocker) => blocker.capabilities.includes("publish")),
 	]
 	const specific = line.blockers.filter((blocker) => blocker.layer !== "shared")
-	const policy = commercial.diagnosis.blockers.filter((blocker) =>
-		blocker.capabilities.includes("publish")
-	)
+	const policy =
+		commercial?.diagnosis.blockers.filter((blocker) => blocker.capabilities.includes("publish")) ??
+		[]
 	const verificationHref = `/provider/settings/verification?${new URLSearchParams({ line: "tour", experience: input.productId })}`
 	const firstShared = provider.blockers.find((blocker) => blocker.capabilities.includes("publish"))
 	const firstPolicy =
@@ -30,9 +45,53 @@ export async function loadTourAuthorization(input: { providerId: string; product
 		? tourCommercialAction(firstPolicy.id, input.productId)
 		: null
 	const fasttDecision = Boolean(firstPolicy && commercialBlockerIsWaiting(firstPolicy.id))
+	const decisions = projectAuthorizationDecisions({
+		productId: input.productId,
+		policy: commercial?.diagnosis ?? null,
+		verification:
+			lineRead.status === "fulfilled" && providerRead.status === "fulfilled"
+				? {
+						ready:
+							shared.length === 0 &&
+							specific.length === 0 &&
+							provider.capabilities.publish &&
+							line.allowed,
+						businessReady: shared.length === 0 && provider.capabilities.publish,
+						labels: [...shared, ...specific].map((b) => b.label),
+					}
+				: null,
+		agreement: agreement
+			? { state: agreement.state, hasProposal: agreement.agreement !== null }
+			: null,
+	})
+	if (!publication.eligible) {
+		decisions[0] = {
+			...decisions[0],
+			tone: "neutral",
+			status:
+				publicationRead.status === "rejected"
+					? "No se pudo comprobar"
+					: "Publicación no habilitada",
+			message:
+				publicationRead.status === "rejected"
+					? "No se pudo comprobar si esta ficha es apta para publicación. Vuelve a intentar."
+					: publication.reason === "provider_not_commercial"
+						? "El negocio no está habilitado para uso comercial."
+						: "Esta ficha pertenece a datos no aptos para publicación pública.",
+			actions: [],
+		}
+	}
 	return {
+		decisions,
 		provider_authorization: {
-			ready: shared.length === 0 && provider.capabilities.publish,
+			...(providerRead.status === "rejected" || lineRead.status === "rejected"
+				? { code: "read_failed" }
+				: {}),
+			ready:
+				lineRead.status === "fulfilled" &&
+				providerRead.status === "fulfilled" &&
+				shared.length === 0 &&
+				provider.capabilities.publish,
 			action: {
 				label: "Revisar verificación",
 				href:
@@ -45,13 +104,23 @@ export async function loadTourAuthorization(input: { providerId: string; product
 				: "Revisa la habilitación de la cuenta.",
 		},
 		experience_authorization: {
+			...(commercialRead.status === "rejected" ||
+			lineRead.status === "rejected" ||
+			publicationRead.status === "rejected"
+				? { code: "read_failed" }
+				: {}),
 			ready:
 				specific.length === 0 &&
-				commercial.diagnosis.capabilities.publish &&
+				Boolean(commercial?.diagnosis.capabilities.publish) &&
 				line.allowed &&
 				publication.eligible,
 			responsible: fasttDecision ? ("fastt" as const) : ("provider" as const),
-			code: firstPolicy?.id ?? specific[0]?.id,
+			code:
+				commercialRead.status === "rejected" ||
+				lineRead.status === "rejected" ||
+				publicationRead.status === "rejected"
+					? "read_failed"
+					: (firstPolicy?.id ?? specific[0]?.id),
 			action: commercialAction ?? {
 				label: fasttDecision ? "Consultar evaluación" : "Revisar experiencia",
 				href: experienceRequirementsHref(input.productId),
