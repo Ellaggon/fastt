@@ -42,6 +42,22 @@ export async function assertOperatingPlaces(ids: readonly string[], country?: st
 	return places
 }
 
+export async function resolveOperatingPlaceAliases(ids: readonly string[]) {
+	if (!ids.length) return []
+	const uniqueIds = [...new Set(ids)]
+	const aliases = await db
+		.select({ externalId: GeoPlaceExternalId.externalId, placeId: GeoPlaceExternalId.placeId })
+		.from(GeoPlaceExternalId)
+		.where(
+			and(
+				eq(GeoPlaceExternalId.source, "fastt_legacy_jurisdiction"),
+				inArray(GeoPlaceExternalId.externalId, uniqueIds)
+			)
+		)
+	const canonicalByAlias = new Map(aliases.map((alias) => [alias.externalId, alias.placeId]))
+	return ids.map((id) => canonicalByAlias.get(id) ?? id)
+}
+
 export async function readTerritoryAncestors(ids: readonly string[]): Promise<TerritoryAncestors> {
 	if (!ids.length) return {}
 	const rows = await db

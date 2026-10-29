@@ -206,7 +206,7 @@ describe("provider compliance documents", () => {
 		)
 	})
 
-	it("keeps separate tour licences and returns only their recorded scopes", async () => {
+	it("canonicalizes historical territory IDs while keeping licence scopes separate", async () => {
 		const providerId = "provider_documents_scoped_evidence"
 		const token = "t_documents_scoped_evidence"
 		const ownerEmail = "documents.scoped@example.com"
@@ -241,7 +241,7 @@ describe("provider compliance documents", () => {
 			second.set("type", "operating_license")
 			second.set("fileUrl", "https://cdn.example.com/licencia-uyuni.pdf")
 			second.set("fileName", "licencia-uyuni.pdf")
-			second.set("territoryCode", "BO-PO")
+		second.set("territoryCode", "BO-PT")
 			second.set("territoryLabel", "Potosí")
 			second.append("activityClass", "adventure")
 
@@ -266,7 +266,10 @@ describe("provider compliance documents", () => {
 				licences.find((document: any) => document.id === firstDocument.document.id).scopes
 			).toEqual(
 				expect.arrayContaining([
-					expect.objectContaining({ scopeType: "territory", territoryCode: "BO-LP" }),
+					expect.objectContaining({
+						scopeType: "territory",
+						territoryCode: "geo:bo:la-paz-department",
+					}),
 					expect.objectContaining({ scopeType: "activity", activityClass: "guided_nature" }),
 				])
 			)
@@ -274,7 +277,7 @@ describe("provider compliance documents", () => {
 				licences.find((document: any) => document.id === secondDocument.document.id).scopes
 			).toEqual(
 				expect.arrayContaining([
-					expect.objectContaining({ scopeType: "territory", territoryCode: "BO-PO" }),
+				expect.objectContaining({ scopeType: "territory", territoryCode: "geo:bo:potosi" }),
 					expect.objectContaining({ scopeType: "activity", activityClass: "adventure" }),
 				])
 			)
@@ -309,7 +312,8 @@ describe("provider compliance documents", () => {
 				providerId,
 				operatingRole: "operator",
 				activityClassesJson: ["urban_cultural"],
-				jurisdictionCode: "BO-LP",
+				jurisdictionCode: "geo:bo:la-paz-department",
+				jurisdictionCodes: ["geo:bo:la-paz-department"],
 			}))
 		)
 

@@ -2,7 +2,10 @@ import { tourComplianceActivityClasses } from "@/shared/domain/tour-operation"
 import { readPublishedDocumentDefinition } from "@/lib/documents/document-definitions"
 import { validateDocumentCapture } from "@/shared/domain/document-definition"
 import { withPostgresTransaction } from "@/shared/infrastructure/db/client"
-import { assertOperatingPlaces } from "@/lib/tours/operating-geography"
+import {
+	assertOperatingPlaces,
+	resolveOperatingPlaceAliases,
+} from "@/lib/tours/operating-geography"
 import {
 	allTerritoriesCovered,
 	type TerritoryAncestors,
@@ -1330,6 +1333,15 @@ export async function submitProviderDocument(params: {
 			allowedSubjectTypes: params.allowedSubjectTypes,
 		}
 	)
+	if (evidence.territories.length) {
+		const canonicalIds = await resolveOperatingPlaceAliases(
+			evidence.territories.map((territory) => territory.code)
+		)
+		evidence.territories = evidence.territories.map((territory, index) => ({
+			...territory,
+			code: canonicalIds[index],
+		}))
+	}
 	await assertEvidenceScopeBelongsToProvider(params.providerId, evidence, params.scopeProductType)
 	const definitionVersionId = String(params.definitionVersionId ?? "").trim() || null
 	if (definitionVersionId) {
