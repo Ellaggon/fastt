@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import type { APIContext } from "astro"
 import * as providerAuth from "@/lib/auth/requireProvider"
 import * as internalAuth from "@/lib/auth/internal-authorization"
@@ -36,8 +36,10 @@ import {
 	addCommercialPolicyDraftRule,
 } from "@/lib/commercial-policy/policy-drafts"
 import { ratifyCommercialTourPolicy } from "@/lib/commercial-policy/ratification"
+import { ensureOperatingGeographyFixtures } from "../test-support/operating-geography"
 
 let providerId: string, signer: string, manager: string, reviewer: string
+beforeAll(ensureOperatingGeographyFixtures)
 afterEach(() => {
 	vi.restoreAllMocks()
 	vi.unstubAllEnvs()
@@ -218,7 +220,7 @@ describe("provider commercial agreement lifecycle", () => {
 			operatingRoles: "guide",
 			activityClasses: "urban_cultural",
 			experienceFormats: "guided_tour",
-			jurisdictionCodes: "BO-LP",
+			jurisdictionCodes: "geo:bo:la-paz-department",
 		}))
 			draft.append(key, value)
 		const row = await createCommercialPolicyDraft(draft)

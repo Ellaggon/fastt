@@ -2,7 +2,6 @@ import { beforeAll, describe, expect, it } from "vitest"
 import {
 	db,
 	eq,
-	GeoPlaceExternalId,
 	ProviderAuditLog,
 	ProviderDocument,
 	ProviderUser,
@@ -15,7 +14,7 @@ import { POST as adminDocumentsPost } from "@/pages/api/admin/providers/document
 import { GET as settingsSummaryGet } from "@/pages/api/provider/settings/summary"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 import { elevateInternalTestSession } from "../test-support/internal-mfa"
-import { upsertGeoPlace } from "@/shared/infrastructure/test-support/db-test-data"
+import { ensureOperatingGeographyFixtures } from "../test-support/operating-geography"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -78,35 +77,7 @@ function makeAuthedRequest(path: string, token: string, body?: FormData | string
 }
 
 describe("provider compliance documents", () => {
-	beforeAll(async () => {
-		for (const place of [
-			{
-				id: "geo:bo:la-paz-department",
-				canonicalName: "La Paz",
-				slug: "la-paz-department",
-			},
-			{ id: "geo:bo:potosi", canonicalName: "Potosí", slug: "potosi" },
-		]) {
-			await upsertGeoPlace({ ...place, countryCode: "BO", placeType: "admin_area_1" })
-		}
-		for (const [code, placeId] of [
-			["BO-LP", "geo:bo:la-paz-department"],
-			["BO-PT", "geo:bo:potosi"],
-		]) {
-			await db
-				.insert(GeoPlaceExternalId)
-				.values({
-					id: `qa:legacy-territory:${code}`,
-					placeId,
-					source: "fastt_legacy_jurisdiction",
-					externalId: code,
-				})
-				.onConflictDoUpdate({
-					target: [GeoPlaceExternalId.source, GeoPlaceExternalId.externalId],
-					set: { placeId, updatedAt: new Date() },
-				})
-		}
-	})
+	beforeAll(ensureOperatingGeographyFixtures)
 
 	it("lets an owner submit documents and only an internal admin review them", async () => {
 		const providerId = "provider_documents_flow"
