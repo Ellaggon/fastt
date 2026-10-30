@@ -915,17 +915,17 @@ BEGIN
   IF TG_OP = 'UPDATE' AND OLD."status" IN ('published', 'retired') AND NEW."status" NOT IN ('published', 'retired') THEN
     RAISE EXCEPTION 'approved_policy_status_downgrade_forbidden';
   END IF;
-  IF NEW."contextJson" ? 'experienceFormats' AND (NEW."contextJson"->>'contextVersion') IS DISTINCT FROM '2' THEN
+  IF NEW."contextJson" ? 'experienceFormats' AND COALESCE(NEW."contextJson"->>'contextVersion', '') NOT IN ('2', '3') THEN
     RAISE EXCEPTION 'experience_policy_context_version_required';
   END IF;
   IF NEW."contextJson" ? 'contextVersion' THEN
-    IF (NEW."contextJson"->>'contextVersion') IS NULL OR (NEW."contextJson"->>'contextVersion') NOT IN ('1', '2') THEN
+    IF (NEW."contextJson"->>'contextVersion') IS NULL OR (NEW."contextJson"->>'contextVersion') NOT IN ('1', '2', '3') THEN
       RAISE EXCEPTION 'experience_policy_context_version_invalid';
     END IF;
   ELSIF NEW."contextJson" ? 'experienceFormats' THEN
     RAISE EXCEPTION 'experience_policy_context_version_required';
   END IF;
-  IF NEW."contextJson"->>'contextVersion' = '2' THEN
+  IF NEW."contextJson"->>'contextVersion' IN ('2', '3') THEN
     IF jsonb_typeof(NEW."contextJson"->'experienceFormats') IS DISTINCT FROM 'array' THEN
       RAISE EXCEPTION 'experience_policy_formats_missing';
     END IF;
