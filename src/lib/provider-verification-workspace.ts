@@ -100,6 +100,7 @@ type SlaAssignment = {
 }
 
 export type ProviderVerificationWorkspaceModel = {
+	policyDiagnosis?: import("@/lib/commercial-policy/evaluate").CommercialPolicyDiagnosis | null
 	documentDefinitions?: Array<{ id: string; label: string; family: string }>
 	businessProfile?: {
 		displayName: string | null
@@ -653,6 +654,7 @@ export async function loadProviderVerificationWorkspace(params: {
 
 	return {
 		activeSectionId,
+		policyDiagnosis: selectedDiagnosis,
 		businessProfile: trustSnapshot?.businessProfile
 			? {
 					...trustSnapshot.businessProfile,

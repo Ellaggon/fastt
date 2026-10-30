@@ -1,0 +1,134 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Checkbox from "@/components/ui/Checkbox.astro"
+import Select from "@/components/ui/Select.astro"
+import { Plus, Trash2 } from "@lucide/astro"
+const {
+	definitions,
+	versionId,
+	allowLegacy = true,
+} = Astro.props as {
+	definitions: Array<{ id: string; label: string; family: string }>
+	versionId: string
+	allowLegacy?: boolean
+}
+---
+
+<div data-policy-alternatives class="space-y-3">
+	{
+		!allowLegacy && !definitions.length && (
+			<p class="text-sm text-slate-600">
+				No hay definiciones publicadas.{" "}
+				<a class="font-semibold underline" href="#document-catalog-title">
+					Revisar catálogo documental
+				</a>
+			</p>
+		)
+	}
+	<label class="grid gap-2 text-sm font-medium"
+		>Evidencia admitida<Select name="evidenceMode" data-evidence-mode
+			><option value="legacy" disabled={!allowLegacy} selected={allowLegacy}
+				>Categoría documental histórica</option
+			><option value="versioned" disabled={!definitions.length} selected={!allowLegacy}
+				>Definiciones del catálogo</option
+			></Select
+		></label
+	>
+	<fieldset data-versioned-evidence disabled class="hidden space-y-4">
+		<label class="grid gap-2 text-sm font-medium"
+			>Quién debe acreditar el requisito<Select name="evidenceSubjectSelector"
+				><option value="holder">Titular del negocio</option><option value="guides"
+					>Cada guía declarado</option
+				><option value="operator">Operador efectivo</option><option value="resources"
+					>Cada recurso declarado</option
+				></Select
+			></label
+		>
+		<div data-alternative-list class="divide-y divide-slate-200">
+			<fieldset data-evidence-alternative class="space-y-3 py-3">
+				<legend class="flex w-full items-center justify-between gap-3 text-sm font-semibold"
+					><span data-alternative-label>Opción 1 · Todos estos documentos</span><Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						data-remove-alternative
+						aria-label="Eliminar alternativa"
+						title="Eliminar alternativa"
+						disabled><Trash2 size={16} /></Button
+					></legend
+				>
+				<div class="grid gap-3 sm:grid-cols-2">
+					{
+						definitions.map((definition) => (
+							<Checkbox
+								id={`${versionId}-alternative-0-${definition.id}`}
+								name="alternative.0"
+								value={definition.id}
+								label={definition.label}
+							/>
+						))
+					}
+				</div>
+			</fieldset>
+		</div>
+		<Button type="button" variant="secondary" data-add-alternative
+			><Plus size={16} />Añadir alternativa</Button
+		>
+	</fieldset>
+</div>
+<script>
+	function bind() {
+		document.querySelectorAll<HTMLElement>("[data-policy-alternatives]").forEach((root) => {
+			if (root.dataset.bound) return
+			root.dataset.bound = "true"
+			const mode = root.querySelector<HTMLSelectElement>("[data-evidence-mode]")!
+			const fields = root.querySelector<HTMLFieldSetElement>("[data-versioned-evidence]")!
+			const list = root.querySelector<HTMLElement>("[data-alternative-list]")!
+			const add = root.querySelector<HTMLButtonElement>("[data-add-alternative]")!
+			let nextIndex = 1
+			const sync = () => {
+				fields.disabled = mode.value !== "versioned"
+				fields.classList.toggle("hidden", fields.disabled)
+				const legacy = mode.form?.querySelector<HTMLFieldSetElement>(
+					"[data-policy-legacy-evidence]"
+				)
+				if (legacy) {
+					legacy.disabled = !fields.disabled
+					legacy.classList.toggle("hidden", legacy.disabled)
+				}
+			}
+			mode.addEventListener("change", sync)
+			sync()
+			add.addEventListener("click", () => {
+				if (list.children.length >= 20) return
+				const copy = list.firstElementChild!.cloneNode(true) as HTMLFieldSetElement
+				const index = nextIndex++
+				copy.querySelector<HTMLElement>("[data-alternative-label]")!.textContent =
+					`Opción ${index + 1} · Todos estos documentos`
+				copy.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach((input) => {
+					const oldId = input.id
+					input.id = `${oldId}-copy-${index}`
+					input.name = `alternative.${index}`
+					input.checked = false
+					const label = copy.querySelector<HTMLLabelElement>(`label[for="${CSS.escape(oldId)}"]`)
+					if (label) label.htmlFor = input.id
+				})
+				copy.querySelector<HTMLButtonElement>("[data-remove-alternative]")!.disabled = false
+				list.append(copy)
+				add.disabled = list.children.length >= 20
+			})
+			list.addEventListener("click", (event) => {
+				const button =
+					event.target instanceof Element
+						? event.target.closest<HTMLButtonElement>("[data-remove-alternative]")
+						: null
+				if (button && !button.disabled) {
+					button.closest("[data-evidence-alternative]")?.remove()
+					add.disabled = false
+				}
+			})
+		})
+	}
+	bind()
+	document.addEventListener("astro:page-load", bind)
+</script>

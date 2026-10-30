@@ -1,5 +1,7 @@
 ---
 import DocumentDefinitionCatalog from "@/components/admin/DocumentDefinitionCatalog.astro"
+import PolicyCompositionSimulation from "@/components/admin/PolicyCompositionSimulation.astro"
+import PolicyEvidenceAlternatives from "@/components/admin/PolicyEvidenceAlternatives.astro"
 import ProviderPublicationPolicyBlockers from "@/components/admin/ProviderPublicationPolicyBlockers.astro"
 import OperatingTerritoryPicker from "@/components/provider/OperatingTerritoryPicker.astro"
 import Badge from "@/components/ui/Badge.astro"
@@ -16,6 +18,12 @@ import {
 	requireInternalPermission,
 } from "@/lib/auth/internal-authorization"
 import { loadAdminPolicyBlockers } from "@/lib/commercial-policy/admin-publication-blockers"
+import {
+	compositionSchema,
+	policyFamilies,
+	policyFamilyLabels,
+} from "@/lib/commercial-policy/composition"
+import { listPublishedDocumentDefinitions } from "@/lib/documents/document-definitions"
 import {
 	tourComplianceActivityClasses,
 	tourComplianceActivityLabels,
@@ -69,6 +77,13 @@ const rows = await db
 	)
 	.orderBy(desc(CompliancePolicyVersion.createdAt))
 	.limit(50)
+const replacementOptions = rows.filter(
+	(row) =>
+		row.version.status === "published" &&
+		compositionSchema.safeParse(
+			(row.version.contextJson as Record<string, unknown> | null)?.composition
+		).success
+)
 const ids = rows.map((row) => row.version.id)
 const [rules, signatures] = ids.length
 	? await Promise.all([
@@ -83,6 +98,19 @@ const [rules, signatures] = ids.length
 		])
 	: [[], []]
 const canEdit = principalHasPermission(principal, "policy.edit")
+const documentDefinitions = canEdit ? await listPublishedDocumentDefinitions() : []
+function getComposition(context: unknown) {
+	if (!context || typeof context !== "object") return null
+	const parsed = compositionSchema.safeParse((context as Record<string, unknown>).composition)
+	return parsed.success ? parsed.data : null
+}
+function policyLifecycle(version: (typeof rows)[number]["version"]) {
+	if (version.status === "draft") return "Borrador"
+	if (version.status === "retired") return "Retirada"
+	if (version.effectiveFrom.getTime() > Date.now()) return "Programada"
+	if (version.effectiveTo && version.effectiveTo.getTime() <= Date.now()) return "Finalizada"
+	return "Vigente"
+}
 const areas = [
 	{ id: "policy", label: "Políticas", permission: "commercial_policy.policy.approve" as const },
 	{ id: "finance", label: "Finanzas", permission: "commercial_policy.finance.approve" as const },
@@ -141,6 +169,79 @@ const areas = [
 							data-agreement-form
 						>
 							<input type="hidden" name="action" value="create" />
+							<fieldset class="grid gap-4 border-b border-slate-200 pb-4 sm:grid-cols-3">
+								<legend class="mb-3 text-sm font-semibold">Contrato y composición</legend>
+								<FormField label="Modelo" htmlFor="policy-contract-mode">
+									<Select name="contractMode" id="policy-contract-mode">
+										<>
+											<option value="legacy">Política integral existente</option>
+											<option value="composable">Familias componibles</option>
+										</>
+									</Select>
+								</FormField>
+								<fieldset
+									data-policy-composition-fields
+									disabled
+									class="hidden gap-4 sm:col-span-3 sm:grid-cols-3"
+								>
+									<FormField label="Clave del conjunto" htmlFor="policy-code" required>
+										<Input
+											name="policyCode"
+											id="policy-code"
+											value="base"
+											pattern="[a-z][a-z0-9_-]{0,80}"
+											required
+										/>
+									</FormField>
+									<FormField label="Función" htmlFor="policy-kind">
+										<Select name="policyKind" id="policy-kind">
+											<>
+												<option value="admission">Admisión de la operación</option>
+												<option value="requirements">Requisitos de una familia</option>
+											</>
+										</Select>
+									</FormField>
+									<FormField label="Familia" htmlFor="policy-family">
+										<Select name="policyFamily" id="policy-family">
+											{policyFamilies.map((family) => (
+												<option value={family}>{policyFamilyLabels[family]}</option>
+											))}
+										</Select>
+									</FormField>
+									<fieldset class="space-y-2 sm:col-span-3">
+										<>
+											<legend class="text-sm font-medium">
+												Familias requeridas por la admisión
+											</legend>
+											<div class="flex flex-wrap gap-4">
+												{policyFamilies.map((family) => (
+													<Checkbox
+														name="requiredFamilies"
+														value={family}
+														label={policyFamilyLabels[family]}
+													/>
+												))}
+											</div>
+										</>
+									</fieldset>
+									<details class="sm:col-span-3">
+										<>
+											<summary class="cursor-pointer text-sm font-medium">
+												Sustituir versiones aprobadas
+											</summary>
+											<div class="mt-3 grid gap-2">
+												{replacementOptions.map((row) => (
+													<Checkbox
+														name="replacesVersionIds"
+														value={row.version.id}
+														label={`${row.set.label} · v${row.version.version}`}
+													/>
+												))}
+											</div>
+										</>
+									</details>
+								</fieldset>
+							</fieldset>
 							<div class="grid gap-4 sm:grid-cols-3">
 								<>
 									<FormField label="País (código)" htmlFor="policy-country" required>
@@ -340,6 +441,8 @@ const areas = [
 			rows.map(({ version, set }) => {
 				const approved = signatures.filter((s) => s.policyVersionId === version.id)
 				const included = rules.filter((r) => r.policyVersionId === version.id)
+				const composition = getComposition(version.contextJson)
+				const lifecycle = policyLifecycle(version)
 				return (
 					<Card class="space-y-4">
 						<>
@@ -349,17 +452,48 @@ const areas = [
 										{set.label} · Versión {version.version}
 									</h2>
 									<Badge variant={version.status === "published" ? "success" : "neutral"}>
-										{version.status === "published"
-											? "Publicada"
-											: version.status === "retired"
-												? "Retirada"
-												: "Borrador"}
+										{lifecycle}
 									</Badge>
 								</>
 							</div>
 							<p class="text-sm text-slate-600">
 								{included.length} requisitos · {approved.length}/3 aprobaciones
 							</p>
+							{composition && (
+								<div class="space-y-2 text-sm text-slate-600">
+									<p class="font-medium text-slate-800">
+										{composition.kind === "admission" ? "Admisión" : "Requisitos"} ·{" "}
+										{policyFamilyLabels[composition.family]}
+									</p>
+									{composition.requiredFamilies.length > 0 && (
+										<p>
+											Cobertura exigida:{" "}
+											{composition.requiredFamilies
+												.map((family) => policyFamilyLabels[family])
+												.join(" · ")}
+										</p>
+									)}
+									{composition.replacesVersionIds.length > 0 && (
+										<details>
+											<summary class="cursor-pointer font-medium">
+												{composition.replacesVersionIds.length} sustituciones declaradas
+											</summary>
+											<ul class="mt-2 space-y-1">
+												{composition.replacesVersionIds.map((id) => {
+													const target = rows.find((row) => row.version.id === id)
+													return (
+														<li>
+															{target
+																? `${target.set.label} · v${target.version.version}`
+																: "Versión histórica fuera de esta lista"}
+														</li>
+													)
+												})}
+											</ul>
+										</details>
+									)}
+								</div>
+							)}
 						</>
 						<ul class="divide-y divide-slate-100">
 							{included.map((rule) => (
@@ -425,6 +559,11 @@ const areas = [
 								>
 									<input type="hidden" name="action" value="rule" />
 									<input type="hidden" name="versionId" value={version.id} />
+									<PolicyEvidenceAlternatives
+										definitions={documentDefinitions}
+										versionId={version.id}
+										allowLegacy={!composition}
+									/>
 									<div class="grid gap-4 sm:grid-cols-2">
 										<FormField
 											label="Clave estable del requisito"
@@ -445,19 +584,21 @@ const areas = [
 												<option value="documents">Documentos</option>
 											</Select>
 										</FormField>
-										<FormField
-											label="Evidencia admitida"
-											htmlFor={`${version.id}-evidence`}
-											required
-										>
-											<Select id={`${version.id}-evidence`} name="evidence">
-												<option value="government_id">Identidad</option>
-												<option value="business_registration">Registro mercantil</option>
-												<option value="tax_document">Documento fiscal</option>
-												<option value="operating_license">Licencia</option>
-												<option value="insurance">Seguro</option>
-											</Select>
-										</FormField>
+										<fieldset data-policy-legacy-evidence>
+											<FormField
+												label="Categoría histórica"
+												htmlFor={`${version.id}-evidence`}
+												required
+											>
+												<Select id={`${version.id}-evidence`} name="evidence">
+													<option value="government_id">Identidad</option>
+													<option value="business_registration">Registro mercantil</option>
+													<option value="tax_document">Documento fiscal</option>
+													<option value="operating_license">Licencia</option>
+													<option value="insurance">Seguro</option>
+												</Select>
+											</FormField>
+										</fieldset>
 										<FormField label="Alcance" htmlFor={`${version.id}-scope`} required>
 											<Select id={`${version.id}-scope`} name="evidenceScope">
 												<option value="product">Experiencia</option>
@@ -566,6 +707,7 @@ const areas = [
 				)
 			})
 		}
+		{providerId && <PolicyCompositionSimulation providerId={providerId} />}
 		<DocumentDefinitionCatalog
 			canEdit={canEdit}
 			canPublish={principalHasPermission(principal, "policy.publish")}
@@ -575,6 +717,30 @@ const areas = [
 <script>
 	import { bindAgreementForms } from "@/lib/commercial-policy/agreement-forms"
 	bindAgreementForms()
+	function bindCompositionFields() {
+		document.querySelectorAll<HTMLSelectElement>('[name="contractMode"]').forEach((mode) => {
+			if (mode.dataset.compositionBound) return
+			mode.dataset.compositionBound = "true"
+			const fields = mode.form?.querySelector<HTMLFieldSetElement>(
+				"[data-policy-composition-fields]"
+			)
+			const kind = mode.form?.querySelector<HTMLSelectElement>('[name="policyKind"]')
+			const sync = () => {
+				if (!fields) return
+				fields.disabled = mode.value !== "composable"
+				fields.classList.toggle("hidden", fields.disabled)
+				fields.classList.toggle("grid", !fields.disabled)
+				fields.querySelectorAll<HTMLInputElement>('[name="requiredFamilies"]').forEach((input) => {
+					input.disabled = fields.disabled || kind?.value !== "admission"
+				})
+			}
+			mode.addEventListener("change", sync)
+			kind?.addEventListener("change", sync)
+			sync()
+		})
+	}
+	bindCompositionFields()
+	document.addEventListener("astro:page-load", bindCompositionFields)
 	function bindPolicyDates() {
 		document.querySelectorAll<HTMLSelectElement>("[data-policy-start-mode]").forEach((mode) => {
 			if (mode.dataset.bound) return
