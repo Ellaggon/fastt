@@ -19,6 +19,15 @@ const context: CommercialPolicyContext = {
 	jurisdictionCode: "BO-LP",
 	activityClasses: ["guided_nature"],
 }
+
+it("preserves deterministic evaluation provenance without granting missing coverage", () => {
+	const now = new Date("2026-10-29T12:00:00Z")
+	const result = evaluateCommercialPolicy({ context, versions: [], now })
+	expect(result.evaluation).toMatchObject({ contractVersion: 1, evaluatedAt: now.toISOString(), requirements: [], coverage: { state: "unknown" } })
+	expect(result.capabilities.publish).toBe(false)
+	expect(result.capabilityStates.collect_payment).toBe("not_applicable")
+	expect(result.policyStatus).toBe("unsupported")
+})
 function version(
 	role: CommercialPolicyVersion["jurisdictionRole"],
 	country: string,
@@ -71,6 +80,43 @@ function version(
 	}
 }
 describe("commercial policy diagnosis", () => {
+	it("waits for review only after an entire package has been presented", () => {
+		const policies = [version("holder", "CL"), version("product", "BO"), version("tax", "CL")]
+		const requirement = policies[1].requirements[0]
+		requirement.acceptedEvidence = []
+		requirement.requiredSubjectReferences = ["ana"]
+		requirement.documentAcceptance = {
+			version: 1,
+			alternatives: [
+				{ id: "complete", allOf: [{ definitionVersionId: "a:1" }, { definitionVersionId: "b:1" }] },
+			],
+		}
+		const shared = [
+			{ id: "holder", type: "holder-verified", status: "verified" as const },
+			{ id: "tax", type: "tax-verified", status: "verified" as const },
+		]
+		const a = {
+			id: "a",
+			type: "specific",
+			definitionVersionId: "a:1",
+			subjectReference: "ana",
+			status: "pending" as const,
+		}
+		const input = { context: { ...context, subjectReferences: ["ana"] }, versions: policies }
+		const partial = evaluateCommercialPolicy({ ...input, evidence: [...shared, a] })
+		expect(
+			partial.blockers.find((blocker) => blocker.id === "requirement_product-identity")
+				?.evidenceState
+		).toBe("missing")
+		const complete = evaluateCommercialPolicy({
+			...input,
+			evidence: [...shared, a, { ...a, id: "b", definitionVersionId: "b:1" }],
+		})
+		expect(
+			complete.blockers.find((blocker) => blocker.id === "requirement_product-identity")
+				?.evidenceState
+		).toBe("pending_review")
+	})
 	it("evaluates a complete versioned package for every declared subject without changing legacy policies", () => {
 		const policies = [version("holder", "CL"), version("product", "BO"), version("tax", "CL")]
 		policies[1].requirements[0].acceptedEvidence = []

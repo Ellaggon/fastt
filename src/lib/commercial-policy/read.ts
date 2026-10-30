@@ -1,5 +1,5 @@
-import { type ExperienceFormat } from "@/shared/domain/experience-format"
-import { documentAcceptanceSchema } from "@/shared/domain/document-acceptance"
+import { normalizeContextSelector, parsePolicyRequirement } from "./contract-parser"
+import { commercialReadOnce } from "./read-scope"
 import { readHistoricalTerritoryMap, readTerritoryAncestors } from "@/lib/tours/operating-geography"
 import {
 	and,
@@ -14,140 +14,110 @@ import {
 import {
 	evaluateCommercialPolicy,
 	type CommercialPolicyContext,
-	type CommercialPolicyRequirement,
 	type CommercialPolicyVersion,
-	type CommercialCapability,
 	type CommercialEvidence,
-	type CommercialPolicyContextSelector,
 	type CommercialPolicyApproval as CommercialPolicyApprovalRecord,
 } from "./evaluate"
 
-const capabilityValues: CommercialCapability[] = [
-	"publish",
-	"booking",
-	"collect_payment",
-	"payout",
-	"integrations",
-]
-
-function stringArray(value: unknown): string[] {
-	return Array.isArray(value)
-		? value.filter((item): item is string => typeof item === "string")
-		: []
-}
-
-function normalizeRequirementCondition(value: unknown): CommercialPolicyRequirement["condition"] {
-	if (!value || typeof value !== "object" || Array.isArray(value)) return null
-	const raw = value as Record<string, unknown>
-	const list = (key: string) => stringArray(raw[key]).slice(0, 50)
-	const condition = {
-		legalFormCodes: list("legalFormCodes"),
-		executionModes: list("executionModes"),
-		foodHandlingModes: list("foodHandlingModes"),
-		transportProviders: list("transportProviders"),
-		operatingRoles: list("operatingRoles"),
-		activityClasses: list("activityClasses"),
-		jurisdictionCodes: stringArray(raw.jurisdictionCodes),
-		resourceIds: list("resourceIds"),
-		subjectReferences: list("subjectReferences"),
-		evidenceScope: ["provider", "product", "operation"].includes(String(raw.evidenceScope))
-			? (String(raw.evidenceScope) as "provider" | "product" | "operation")
-			: undefined,
-	}
-	return Object.values(condition).some((value) =>
-		Array.isArray(value) ? value.length > 0 : Boolean(value)
-	)
-		? condition
-		: null
-}
-
-function normalizeContextSelector(value: unknown): CommercialPolicyContextSelector | null {
-	if (!value || typeof value !== "object" || Array.isArray(value)) return null
-	const raw = value as Record<string, unknown>
-	const selector = {
-		legalFormCodes: stringArray(raw.legalFormCodes),
-		executionModes: stringArray(raw.executionModes),
-		foodHandlingModes: stringArray(raw.foodHandlingModes),
-		transportProviders: stringArray(raw.transportProviders),
-		contextVersion: raw.contextVersion === undefined ? undefined : Number(raw.contextVersion),
-		experienceFormats: stringArray(raw.experienceFormats) as ExperienceFormat[],
-		operatingRoles: stringArray(raw.operatingRoles).slice(0, 12),
-		activityClasses: stringArray(raw.activityClasses).slice(0, 12),
-		jurisdictionCodes: stringArray(raw.jurisdictionCodes),
-	}
-	return selector.operatingRoles.length &&
-		selector.activityClasses.length &&
-		selector.jurisdictionCodes.length
-		? selector
-		: null
-}
-
 /** Reads only explicitly commercial policies. Legacy casework seeds cannot grant permissions. */
 export async function diagnoseCommercialPolicy(params: {
+	now?: Date
 	context: CommercialPolicyContext
 	verifiedEvidence?: string[]
 	evidence?: CommercialEvidence[]
 }) {
-	const rows = await db
-		.select({
-			id: CompliancePolicyVersion.id,
-			status: CompliancePolicyVersion.status,
-			effectiveFrom: CompliancePolicyVersion.effectiveFrom,
-			effectiveTo: CompliancePolicyVersion.effectiveTo,
-			approvedBy: CompliancePolicyVersion.approvedBy,
-			approvedAt: CompliancePolicyVersion.approvedAt,
-			approvalReference: CompliancePolicyVersion.approvalReference,
-			contextJson: CompliancePolicyVersion.contextJson,
-			country: CompliancePolicySet.country,
-			vertical: CompliancePolicySet.vertical,
-			collectionModel: CompliancePolicySet.collectionModel,
-			holderType: CompliancePolicySet.holderType,
-			jurisdictionRole: CompliancePolicySet.jurisdictionRole,
-		})
-		.from(CompliancePolicyVersion)
-		.innerJoin(CompliancePolicySet, eq(CompliancePolicyVersion.policySetId, CompliancePolicySet.id))
-		.where(
-			and(
-				eq(CompliancePolicySet.policyScope, "commercial"),
-				eq(CompliancePolicySet.status, "active"),
-				eq(CompliancePolicySet.vertical, params.context.vertical),
-				eq(CompliancePolicySet.holderType, params.context.holderType),
-				eq(CompliancePolicySet.collectionModel, params.context.collectionModel)
+	const key = JSON.stringify([
+		params.context.vertical,
+		params.context.holderType,
+		params.context.collectionModel,
+		[
+			params.context.holderCountry,
+			params.context.productCountry,
+			params.context.taxCountry,
+			params.context.payoutCountry,
+		]
+			.filter(Boolean)
+			.sort(),
+	])
+	const rows = await commercialReadOnce(`policies:${key}`, async () =>
+		db
+			.select({
+				id: CompliancePolicyVersion.id,
+				policySetId: CompliancePolicyVersion.policySetId,
+				status: CompliancePolicyVersion.status,
+				effectiveFrom: CompliancePolicyVersion.effectiveFrom,
+				effectiveTo: CompliancePolicyVersion.effectiveTo,
+				approvedBy: CompliancePolicyVersion.approvedBy,
+				approvedAt: CompliancePolicyVersion.approvedAt,
+				approvalReference: CompliancePolicyVersion.approvalReference,
+				contextJson: CompliancePolicyVersion.contextJson,
+				country: CompliancePolicySet.country,
+				vertical: CompliancePolicySet.vertical,
+				collectionModel: CompliancePolicySet.collectionModel,
+				holderType: CompliancePolicySet.holderType,
+				jurisdictionRole: CompliancePolicySet.jurisdictionRole,
+			})
+			.from(CompliancePolicyVersion)
+			.innerJoin(
+				CompliancePolicySet,
+				eq(CompliancePolicyVersion.policySetId, CompliancePolicySet.id)
 			)
-		)
+			.where(
+				and(
+					inArray(CompliancePolicySet.country, [
+						...new Set(
+							[
+								params.context.holderCountry,
+								params.context.productCountry,
+								params.context.taxCountry,
+								params.context.payoutCountry,
+							].filter((country): country is string => Boolean(country))
+						),
+					]),
+					eq(CompliancePolicySet.policyScope, "commercial"),
+					eq(CompliancePolicySet.status, "active"),
+					eq(CompliancePolicySet.vertical, params.context.vertical),
+					eq(CompliancePolicySet.holderType, params.context.holderType),
+					eq(CompliancePolicySet.collectionModel, params.context.collectionModel)
+				)
+			)
+	)
 	const ids = rows.map((row) => row.id)
 	const [rules, approvals] = ids.length
-		? await Promise.all([
-				db
-					.select({
-						policyVersionId: ComplianceRequirementRule.policyVersionId,
-						requirementKey: ComplianceRequirementRule.requirementKey,
-						required: ComplianceRequirementRule.required,
-						capabilitiesJson: ComplianceRequirementRule.capabilitiesJson,
-						acceptedEvidenceJson: ComplianceRequirementRule.acceptedEvidenceJson,
-						conditionJson: ComplianceRequirementRule.conditionJson,
-						blockingAction: ComplianceRequirementRule.blockingAction,
-						reviewOwner: ComplianceRequirementRule.reviewOwner,
-						sourceKind: ComplianceRequirementRule.sourceKind,
-						sourceReference: ComplianceRequirementRule.sourceReference,
-						sourceCheckedAt: ComplianceRequirementRule.sourceCheckedAt,
-					})
-					.from(ComplianceRequirementRule)
-					.where(inArray(ComplianceRequirementRule.policyVersionId, ids)),
-				db
-					.select({
-						policyVersionId: CommercialPolicyApproval.policyVersionId,
-						approvalArea: CommercialPolicyApproval.approvalArea,
-						approverUserId: CommercialPolicyApproval.approverUserId,
-						approvalReference: CommercialPolicyApproval.approvalReference,
-						approvedAt: CommercialPolicyApproval.approvedAt,
-					})
-					.from(CommercialPolicyApproval)
-					.where(inArray(CommercialPolicyApproval.policyVersionId, ids)),
-			])
+		? await commercialReadOnce(`policy-details:${JSON.stringify([...ids].sort())}`, () =>
+				Promise.all([
+					db
+						.select({
+							policyVersionId: ComplianceRequirementRule.policyVersionId,
+							requirementKey: ComplianceRequirementRule.requirementKey,
+							required: ComplianceRequirementRule.required,
+							capabilitiesJson: ComplianceRequirementRule.capabilitiesJson,
+							acceptedEvidenceJson: ComplianceRequirementRule.acceptedEvidenceJson,
+							conditionJson: ComplianceRequirementRule.conditionJson,
+							blockingAction: ComplianceRequirementRule.blockingAction,
+							reviewOwner: ComplianceRequirementRule.reviewOwner,
+							sourceKind: ComplianceRequirementRule.sourceKind,
+							sourceReference: ComplianceRequirementRule.sourceReference,
+							sourceCheckedAt: ComplianceRequirementRule.sourceCheckedAt,
+						})
+						.from(ComplianceRequirementRule)
+						.where(inArray(ComplianceRequirementRule.policyVersionId, ids)),
+					db
+						.select({
+							policyVersionId: CommercialPolicyApproval.policyVersionId,
+							approvalArea: CommercialPolicyApproval.approvalArea,
+							approverUserId: CommercialPolicyApproval.approverUserId,
+							approvalReference: CommercialPolicyApproval.approvalReference,
+							approvedAt: CommercialPolicyApproval.approvedAt,
+						})
+						.from(CommercialPolicyApproval)
+						.where(inArray(CommercialPolicyApproval.policyVersionId, ids)),
+				])
+			)
 		: [[], []]
 	const versions: CommercialPolicyVersion[] = rows.map((row) => ({
 		id: row.id,
+		policySetId: row.policySetId,
 		status: row.status as CommercialPolicyVersion["status"],
 		effectiveFrom: row.effectiveFrom,
 		effectiveTo: row.effectiveTo,
@@ -172,37 +142,17 @@ export async function diagnoseCommercialPolicy(params: {
 		jurisdictionRole: row.jurisdictionRole as CommercialPolicyVersion["jurisdictionRole"],
 		requirements: rules
 			.filter((rule) => rule.policyVersionId === row.id)
-			.map((rule): CommercialPolicyRequirement => {
-				const capabilities = stringArray(rule.capabilitiesJson).filter(
-					(value): value is CommercialCapability =>
-						capabilityValues.includes(value as CommercialCapability)
-				)
-				return {
-					key: rule.requirementKey,
-					required: rule.required,
-					capabilities: capabilities.length ? capabilities : capabilityValues,
-					acceptedEvidence: stringArray(rule.acceptedEvidenceJson),
-					documentAcceptance:
-						Array.isArray(rule.acceptedEvidenceJson) || rule.acceptedEvidenceJson === null
-							? null
-							: documentAcceptanceSchema.parse(rule.acceptedEvidenceJson),
-					requiredSubjectReferences: params.context.subjectReferences,
-					blockingAction: rule.blockingAction || "Solicita revisión de este requisito.",
-					reviewOwner: rule.reviewOwner || "policies",
-					sourceKind: ["legal", "contract", "fastt_policy"].includes(String(rule.sourceKind))
-						? (rule.sourceKind as CommercialPolicyRequirement["sourceKind"])
-						: null,
-					sourceReference: rule.sourceReference,
-					sourceCheckedAt: rule.sourceCheckedAt,
-					condition: normalizeRequirementCondition(rule.conditionJson),
-				}
-			}),
+			.map(parsePolicyRequirement),
 	}))
 	const [historical, territoryAncestors] = await Promise.all([
-		readHistoricalTerritoryMap(),
-		readTerritoryAncestors(
-			params.context.jurisdictionCodes ??
-				(params.context.jurisdictionCode ? [params.context.jurisdictionCode] : [])
+		commercialReadOnce("historical-territories", () => readHistoricalTerritoryMap()),
+		commercialReadOnce(
+			`ancestors:${JSON.stringify(params.context.jurisdictionCodes ?? params.context.jurisdictionCode)}`,
+			() =>
+				readTerritoryAncestors(
+					params.context.jurisdictionCodes ??
+						(params.context.jurisdictionCode ? [params.context.jurisdictionCode] : [])
+				)
 		),
 	])
 	for (const version of versions) {
@@ -218,6 +168,7 @@ export async function diagnoseCommercialPolicy(params: {
 		}
 	}
 	return evaluateCommercialPolicy({
+		now: params.now,
 		context: { ...params.context, territoryAncestors },
 		versions,
 		verifiedEvidence: params.verifiedEvidence,

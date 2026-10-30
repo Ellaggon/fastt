@@ -1,4 +1,5 @@
 import { resolveProductCommercialDiagnosis } from "@/lib/commercial-policy/enforcement"
+import { withCommercialReadScope } from "./read-scope"
 import {
 	liveMoneyExecutionInfrastructure,
 	liveMoneyMovementRelease,
@@ -92,6 +93,13 @@ function unavailableOffering(params: {
 export async function loadProviderContractSurface(
 	providerId: string,
 	options: { productIds?: readonly string[] | null; returnTo?: string } = {}
+): Promise<ProviderContractSurface> {
+	return withCommercialReadScope(() => loadContractSurface(providerId, options))
+}
+
+async function loadContractSurface(
+	providerId: string,
+	options: { productIds?: readonly string[] | null; returnTo?: string }
 ): Promise<ProviderContractSurface> {
 	const returnTo = options.returnTo ?? "/financial?scope=all"
 	const holder = await readProviderHolderProfile(providerId)

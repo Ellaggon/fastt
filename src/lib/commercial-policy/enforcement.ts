@@ -1,4 +1,5 @@
 import { experienceFormatReady, type ExperienceFormat } from "@/shared/domain/experience-format"
+import { commercialReadOnce } from "./read-scope"
 import { diagnoseCommercialPolicy } from "@/lib/commercial-policy/read"
 import type {
 	CommercialCapability,
@@ -113,6 +114,8 @@ export type ProductCommercialDiagnosis = {
  * inference: `evaluateCommercialPolicy` checks every declared scope.
  */
 export async function resolveProductCommercialDiagnosis(params: {
+	/** Internal policy simulation only; does not execute a publication command. */
+	policyEvaluationAt?: Date
 	providerId: string
 	productId: string
 	resourceIds?: string[]
@@ -162,7 +165,11 @@ export async function resolveProductCommercialDiagnosis(params: {
 			),
 		}
 	const holder =
-		params.holder === undefined ? await readProviderHolderProfile(params.providerId) : params.holder
+		params.holder === undefined
+			? await commercialReadOnce(`holder:${params.providerId}`, () =>
+					readProviderHolderProfile(params.providerId)
+				)
+			: params.holder
 	if (!holder) {
 		return {
 			productId: params.productId,
@@ -206,12 +213,16 @@ export async function resolveProductCommercialDiagnosis(params: {
 	}
 	const [documents, tourContext, commercialLines] = await Promise.all([
 		params.documents === undefined
-			? listProviderDocuments(params.providerId)
+			? commercialReadOnce(`documents:${params.providerId}`, () =>
+					listProviderDocuments(params.providerId)
+				)
 			: Promise.resolve(params.documents),
 		vertical === "tour"
 			? readTourComplianceContext(params.productId, params.providerId)
 			: Promise.resolve(null),
-		readProviderCommercialLineState(params.providerId),
+		commercialReadOnce(`lines:${params.providerId}`, () =>
+			readProviderCommercialLineState(params.providerId)
+		),
 	])
 	const collectionModel = collectionModelForCommercialLine(
 		commercialLines.lines,
@@ -246,6 +257,7 @@ export async function resolveProductCommercialDiagnosis(params: {
 			),
 		}
 	const declaredIds = operation ? operationSubjects(operation) : []
+	let declaredResources: Array<{ id: string; type: string }> = []
 	if (declaredIds.length) {
 		const resources = await db
 			.select({ id: TourOperationalResource.id, type: TourOperationalResource.type })
@@ -257,6 +269,7 @@ export async function resolveProductCommercialDiagnosis(params: {
 					inArray(TourOperationalResource.id, declaredIds)
 				)
 			)
+		declaredResources = resources
 		if (operation && operationResourceIssue(operation, resources))
 			return {
 				productId: params.productId,
@@ -269,7 +282,19 @@ export async function resolveProductCommercialDiagnosis(params: {
 			}
 	}
 	const diagnosis = await diagnoseCommercialPolicy({
+		now: params.policyEvaluationAt,
 		context: {
+			providerId: params.providerId,
+			evidenceSubjects: {
+				holder: [params.providerId],
+				guides: declaredResources
+					.filter((resource) => resource.type === "guide")
+					.map((resource) => resource.id),
+				operator: operation?.operatorResourceId
+					? [operation.operatorResourceId]
+					: [params.providerId],
+				resources: declaredResources.map((resource) => resource.id),
+			},
 			holderType: holder.holderType as "persona_natural" | "entidad",
 			holderCountry: holder.holderCountry,
 			legalFormCode: holder.legalFormCode ?? null,
@@ -302,7 +327,11 @@ export async function resolveProductCommercialDiagnosis(params: {
 		collectionModel === "property_collect" &&
 		commercialAgreementRollout(params.providerId).enforce
 	) {
-		const agreement = params.agreementStatus ?? (await commercialAgreementStatus(params.providerId))
+		const agreement =
+			params.agreementStatus ??
+			(await commercialReadOnce(`agreement:${params.providerId}`, () =>
+				commercialAgreementStatus(params.providerId)
+			))
 		if (agreement.state !== "active") {
 			diagnosis.blockers.push({
 				id: `agreement_${agreement.state === "acceptance_required" && !agreement.agreement ? "proposal_required" : agreement.state}`,

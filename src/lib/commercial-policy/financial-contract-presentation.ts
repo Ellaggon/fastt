@@ -1,4 +1,5 @@
 import type { CommercialPolicyDiagnosis } from "./evaluate"
+import { classifyCommercialFinding } from "./findings"
 import type {
 	CommercialLine,
 	CommercialLineCollectionModel,
@@ -101,10 +102,7 @@ export function presentFinancialContract(input: {
 			(item) =>
 				`requirement_${item.key}` === blocker.id && item.policyVersionId === blocker.policyVersionId
 		)
-		const unsupported =
-			blocker.id.startsWith("policy_context_unsupported") ||
-			blocker.id.startsWith("policy_context_conflict") ||
-			blocker.id.startsWith("policy_contract_")
+		const unsupported = classifyCommercialFinding(blocker).category === "configuration"
 		const review =
 			blocker.id === "holder_declaration_in_review" ||
 			blocker.id === "agreement_proposal_requested" ||
@@ -135,6 +133,11 @@ export function presentFinancialContract(input: {
 			action = {
 				label: "Completar ubicación",
 				href: `/product/${encodeURIComponent(productId)}/location?returnTo=${encodeURIComponent(returnTo)}`,
+			}
+		else if (requirement?.documentAcceptance && line === "tour")
+			action = {
+				label: review ? "Consultar revisión" : "Revisar respaldos",
+				href: experienceRequirementsHref(productId),
 			}
 		else if (type)
 			action = {

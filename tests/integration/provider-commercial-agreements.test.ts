@@ -37,6 +37,10 @@ import {
 } from "@/lib/commercial-policy/policy-drafts"
 import { ratifyCommercialTourPolicy } from "@/lib/commercial-policy/ratification"
 import { ensureOperatingGeographyFixtures } from "../test-support/operating-geography"
+import {
+	createDocumentDefinitionDraft,
+	transitionDocumentDefinition,
+} from "@/lib/documents/document-definitions"
 
 let providerId: string, signer: string, manager: string, reviewer: string
 beforeAll(ensureOperatingGeographyFixtures)
@@ -268,6 +272,79 @@ describe("provider commercial agreement lifecycle", () => {
 			approvalReference: "fixture-operations-review",
 		})
 		expect(result.status).toBe("published")
+	})
+	it("ratifies a composable family without losing its versioned evidence contract", async () => {
+		const definition = await createDocumentDefinitionDraft({
+			key: `fixture.${crypto.randomUUID().replaceAll("-", "")}`,
+			label: "Credencial de prueba",
+			description: "Documento sintético para probar la firma, sin valor legal.",
+			family: "operating_license",
+			capture: {
+				version: 1,
+				issuer: "optional",
+				issuedAt: "optional",
+				expiresAt: "optional",
+				allowedSubjectTypes: ["person"],
+				issuerCountries: [],
+				requiredScopes: ["product"],
+			},
+		})
+		await transitionDocumentDefinition(definition.id, "publish")
+		const form = new FormData()
+		for (const [key, value] of Object.entries({
+			country: "BO",
+			jurisdictionRole: "product",
+			holderType: "persona_natural",
+			effectiveFrom: "2026-01-01",
+			effectiveTo: "2030-12-31",
+			operatingRoles: "guide",
+			activityClasses: "urban_cultural",
+			experienceFormats: "guided_tour",
+			jurisdictionCodes: "geo:bo:la-paz-department",
+			contractMode: "composable",
+			policyKind: "requirements",
+			policyFamily: "tourism",
+			policyCode: `test-${crypto.randomUUID()}`,
+		}))
+			form.append(key, value)
+		const draft = await createCommercialPolicyDraft(form)
+		const rule = new FormData()
+		for (const [key, value] of Object.entries({
+			"versionId": draft.id,
+			"requirementKey": "fixture.versioned.guide",
+			"domain": "documents",
+			"evidenceMode": "versioned",
+			"alternative.0": definition.id,
+			"evidenceSubjectSelector": "guides",
+			"evidenceScope": "product",
+			"reviewOwner": "Fixture operations",
+			"blockingAction": "Presenta la credencial sintética del guía.",
+			"sourceKind": "fastt_policy",
+			"sourceReference": "https://fixture.fastt.test/versioned-policy",
+			"sourceCheckedAt": "2026-01-01",
+			"capabilities": "publish",
+		}))
+			rule.append(key, value)
+		await addCommercialPolicyDraftRule(rule)
+		const hashes: string[] = []
+		for (const [approvalArea, approverUserId] of [
+			["policy", reviewer],
+			["finance", manager],
+			["tour_operations", signer],
+		] as const) {
+			const result = await ratifyCommercialTourPolicy({
+				policyVersionId: draft.id,
+				approvalArea,
+				approverUserId,
+				approvalReference: `fixture-${approvalArea}`,
+			})
+			hashes.push(result.contractHash)
+			if (approvalArea === "tour_operations") expect(result.status).toBe("published")
+		}
+		expect(new Set(hashes).size).toBe(1)
+		await expect(transitionDocumentDefinition(definition.id, "retire")).rejects.toThrow(
+			"document_definition_used_by_policy"
+		)
 	})
 	it("declaration is independent of approval and concurrent requests create one case", async () => {
 		await expect(requestCommercialAgreement(providerId, signer)).rejects.toThrow(
