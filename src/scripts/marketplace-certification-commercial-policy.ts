@@ -6,6 +6,7 @@ import {
 	ProviderDocument,
 	TourComplianceContext,
 	User,
+	and,
 	db,
 	eq,
 } from "@/shared/infrastructure/db/compat"
@@ -74,20 +75,33 @@ async function seedVerticalPolicies(params: {
 				id: versionId,
 				policySetId: setId,
 				version: 1,
-				// A tour version cannot be published until its rule and three approval
-				// records exist; publish it after those rows have been seeded below.
-				status: params.vertical === "tour" ? "draft" : "published",
+				// Seed every version as a draft; signed versions cannot gain rules later.
+				status: "draft",
 				effectiveFrom: new Date("2026-01-01T00:00:00Z"),
-				approvedBy: params.vertical === "tour" ? null : params.userId,
-				approvedAt: params.vertical === "tour" ? null : new Date("2026-01-01T00:00:00Z"),
-				approvalReference: params.vertical === "tour" ? null : "marketplace-certification-fixture",
+				approvedBy: null,
+				approvedAt: null,
+				approvalReference: null,
 				contextJson: params.vertical === "tour" ? tourContextJson : null,
 				createdAt: params.now,
 			})
 			.onConflictDoNothing()
-		await params.db
-			.insert(ComplianceRequirementRule)
-			.values({
+		const [existingRule] = await params.db
+			.select({ id: ComplianceRequirementRule.id })
+			.from(ComplianceRequirementRule)
+			.where(
+				and(
+					eq(ComplianceRequirementRule.policyVersionId, versionId),
+					eq(ComplianceRequirementRule.requirementKey, "certification_ready")
+				)
+			)
+		if (!existingRule) {
+			const [version] = await params.db
+				.select({ status: CompliancePolicyVersion.status })
+				.from(CompliancePolicyVersion)
+				.where(eq(CompliancePolicyVersion.id, versionId))
+			if (version?.status !== "draft")
+				throw new Error("marketplace_certification_signed_policy_rule_missing")
+			await params.db.insert(ComplianceRequirementRule).values({
 				id: `crr_marketplace_cert_${params.vertical}_${role}`,
 				policyVersionId: versionId,
 				domain: "documents",
@@ -103,7 +117,7 @@ async function seedVerticalPolicies(params: {
 				conditionJson: { evidenceScope: "provider" },
 				createdAt: params.now,
 			})
-			.onConflictDoNothing()
+		}
 		if (params.vertical === "tour") {
 			for (const area of tourApprovalAreas) {
 				await params.db
@@ -137,6 +151,16 @@ async function seedVerticalPolicies(params: {
 					approvedAt: new Date("2026-01-01T00:00:00Z"),
 					approvalReference: "marketplace-certification-fixture",
 					contextJson: tourContextJson,
+				})
+				.where(eq(CompliancePolicyVersion.id, versionId))
+		} else {
+			await params.db
+				.update(CompliancePolicyVersion)
+				.set({
+					status: "published",
+					approvedBy: params.userId,
+					approvedAt: new Date("2026-01-01T00:00:00Z"),
+					approvalReference: "marketplace-certification-fixture",
 				})
 				.where(eq(CompliancePolicyVersion.id, versionId))
 		}
