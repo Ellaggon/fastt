@@ -1,9 +1,8 @@
 import { routes } from "@/lib/routes"
+import { classifyCommercialFinding } from "@/lib/commercial-policy/findings"
 
 export function commercialBlockerIsWaiting(id: string): boolean {
-	return /^(policy_context_(unsupported|conflict)|policy_contract_|agreement_proposal_requested$|agreement_not_started$)/.test(
-		id
-	)
+	return classifyCommercialFinding({ id }).waiting
 }
 
 /** Contract tasks are not evidence or safety tasks. Pending Fastt decisions have no provider CTA. */

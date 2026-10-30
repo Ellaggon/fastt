@@ -1,4 +1,5 @@
 import type { ProviderContractOffering } from "./provider-contract-surface"
+import { classifyCommercialFinding } from "./findings"
 
 const scopes: Record<string, string> = {
 	holder: "Titular del negocio",
@@ -15,7 +16,7 @@ export function projectAdminPolicyBlockers(offerings: ProviderContractOffering[]
 	for (const offer of offerings) {
 		if (offer.commercialLine !== "tour") continue
 		for (const reason of offer.reasons) {
-			if (!/^policy_context_(unsupported|conflict)|^policy_contract_/.test(reason.code)) continue
+			if (classifyCommercialFinding({ id: reason.code }).category !== "configuration") continue
 			const scope = Object.keys(scopes).find((key) => reason.code.endsWith(`_${key}`))
 			const label = scope ? scopes[scope] : "Política comercial"
 			const group = groups.get(reason.code) ?? { code: reason.code, label, products: [] }

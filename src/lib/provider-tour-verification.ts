@@ -2,6 +2,7 @@ import type {
 	CommercialPolicyBlocker,
 	CommercialPolicyDiagnosis,
 } from "@/lib/commercial-policy/evaluate"
+import { classifyCommercialFinding } from "@/lib/commercial-policy/findings"
 import { routes } from "@/lib/routes"
 import {
 	commercialBlockerIsWaiting,
@@ -142,17 +143,17 @@ export function buildTourVerificationReadiness(params: {
 }): TourVerificationReadiness {
 	const { product, diagnosis } = params
 	const publishAndBookingReady = diagnosis.capabilities.publish && diagnosis.capabilities.booking
-	const firstBlocker = diagnosis.blockers.find((blocker) =>
+	const relevant = diagnosis.blockers.filter((blocker) =>
 		blocker.capabilities.some((capability) => capability === "publish" || capability === "booking")
 	)
+	const firstBlocker =
+		relevant.find((blocker) => !classifyCommercialFinding(blocker).waiting) ?? relevant[0]
 	const pendingReview = Boolean(
 		firstBlocker?.evidenceState === "pending_review" ||
 		firstBlocker?.id === "holder_declaration_in_review"
 	)
 	const policyWaiting = Boolean(
-		firstBlocker &&
-		firstBlocker.id.startsWith("policy_") &&
-		commercialBlockerIsWaiting(firstBlocker.id)
+		firstBlocker && classifyCommercialFinding(firstBlocker).category === "configuration"
 	)
 	const agreementWaiting = Boolean(firstBlocker && commercialBlockerIsWaiting(firstBlocker.id))
 	const state = publishAndBookingReady
@@ -213,7 +214,7 @@ export function buildTourVerificationReadiness(params: {
 		paymentBody,
 		action: firstBlocker ? actionForBlocker(product, firstBlocker) : null,
 		policyEvaluationPending: diagnosis.blockers.some(
-			(blocker) => blocker.id.startsWith("policy_") && commercialBlockerIsWaiting(blocker.id)
+			(blocker) => classifyCommercialFinding(blocker).category === "configuration"
 		),
 		blockers: visibleBlockers.slice(0, 3).map((blocker) => ({
 			id: blocker.id,

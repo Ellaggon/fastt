@@ -1,4 +1,5 @@
 ---
+import ProviderPolicyEvidence from "@/components/provider/ProviderPolicyEvidence.astro"
 import ProviderTourOperatingContext from "@/components/provider/ProviderTourOperatingContext.astro"
 import ProviderVerificationLineSections from "@/components/provider/ProviderVerificationLineSections.astro"
 import ProviderVerificationOptionals from "@/components/provider/ProviderVerificationOptionals.astro"
@@ -21,12 +22,21 @@ const operationComplete = Boolean(
 	storedTourActivityClasses(model.tourContext?.activityClassesJson).length
 )
 const areas = ["activity", "safety"] as const
-const pending = areas.some(
-	(area) => model.tourPlaybook.find((tab) => tab.id === area)?.uiState === "not_evaluable"
+const hasVersionedRequirements = Boolean(
+	model.policyDiagnosis?.applicableRequirements?.some(
+		(requirement) => requirement.documentAcceptance
+	)
 )
-const noAdditionalRequirements = areas.every(
-	(area) => model.tourPlaybook.find((tab) => tab.id === area)?.uiState === "not_applicable"
-)
+const pending = model.policyDiagnosis
+	? model.policyDiagnosis.policyStatus !== "supported"
+	: areas.some(
+			(area) => model.tourPlaybook.find((tab) => tab.id === area)?.uiState === "not_evaluable"
+		)
+const noAdditionalRequirements =
+	!hasVersionedRequirements &&
+	areas.every(
+		(area) => model.tourPlaybook.find((tab) => tab.id === area)?.uiState === "not_applicable"
+	)
 const states = Object.fromEntries(
 	(model.screen?.sections.find((section) => section.id === "tour")?.items ?? []).map((item) => [
 		item.id,
@@ -114,6 +124,7 @@ const returnTo = safeVerificationReturn(Astro.url.searchParams.get("returnTo"))
 			!noAdditionalRequirements &&
 			model.screen &&
 			areas.map((area) => {
+				if (hasVersionedRequirements && !model.tourEvidenceOptions[area].length) return null
 				const presentation = model.tourPlaybook.find((tab) => tab.id === area)
 				if (!presentation || presentation.uiState === "not_evaluable") return null
 				const types = new Set(
@@ -167,6 +178,7 @@ const returnTo = safeVerificationReturn(Astro.url.searchParams.get("returnTo"))
 				)
 			})
 	}
+	<ProviderPolicyEvidence model={model} productId={productId} />
 	{
 		returnTo && (
 			<Button href={returnTo} variant="secondary">

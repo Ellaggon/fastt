@@ -6,16 +6,24 @@ import { commercialBlockerIsWaiting, tourCommercialAction } from "./tourCommerci
 import { experienceRequirementsHref } from "@/lib/verification/experience-requirements-navigation"
 import { commercialAgreementStatus } from "@/modules/financial/commercial-agreements"
 import { projectAuthorizationDecisions } from "./tourPublicationDecisions"
+import { classifyCommercialFinding } from "@/lib/commercial-policy/findings"
+import { commercialReadOnce, withCommercialReadScope } from "@/lib/commercial-policy/read-scope"
 
 /** Uses the same product-scoped evidence and signed policy used by publication. */
 export async function loadTourAuthorization(input: { providerId: string; productId: string }) {
+	return withCommercialReadScope(() => loadAuthorization(input))
+}
+
+async function loadAuthorization(input: { providerId: string; productId: string }) {
 	const [lineRead, commercialRead, providerRead, publicationRead, agreementRead] =
 		await Promise.allSettled([
 			loadProductLineGate({ ...input, capability: "publish" }),
 			resolveProductCommercialDiagnosis(input),
 			evaluateProviderGovernance(input.providerId, { persist: false }),
 			productRepository.getProductPublicationEligibility(input.productId),
-			commercialAgreementStatus(input.providerId),
+			commercialReadOnce(`agreement:${input.providerId}`, () =>
+				commercialAgreementStatus(input.providerId)
+			),
 		])
 	const line = lineRead.status === "fulfilled" ? lineRead.value : { allowed: false, blockers: [] }
 	const commercial = commercialRead.status === "fulfilled" ? commercialRead.value : null
@@ -39,8 +47,7 @@ export async function loadTourAuthorization(input: { providerId: string; product
 	const verificationHref = `/provider/settings/verification?${new URLSearchParams({ line: "tour", experience: input.productId })}`
 	const firstShared = provider.blockers.find((blocker) => blocker.capabilities.includes("publish"))
 	const firstPolicy =
-		policy.find((blocker) => tourCommercialAction(blocker.id, input.productId) !== null) ??
-		policy[0]
+		policy.find((blocker) => !classifyCommercialFinding(blocker).waiting) ?? policy[0]
 	const commercialAction = firstPolicy
 		? tourCommercialAction(firstPolicy.id, input.productId)
 		: null

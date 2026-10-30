@@ -32,6 +32,11 @@ function json(payload: unknown, status = 200) {
  * signature or a legal source from the selected vertical.
  */
 export const POST: APIRoute = async ({ request, params }) => {
+	if (
+		request.headers.get("sec-fetch-site") === "cross-site" ||
+		(request.headers.get("origin") && request.headers.get("origin") !== new URL(request.url).origin)
+	)
+		return json({ error: "invalid_origin" }, 403)
 	const body = schema.safeParse(await request.json().catch(() => null))
 	if (!body.success) return json({ error: "validation_error", details: body.error.flatten() }, 400)
 	let principal: Awaited<ReturnType<typeof requireInternalPermission>>

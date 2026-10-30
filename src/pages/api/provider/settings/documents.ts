@@ -19,6 +19,8 @@ import { routes } from "@/lib/routes"
 import { loadProviderVerificationResolution } from "@/lib/verification/requirement-context"
 import { matchUpload, type VerificationRequirement } from "@/lib/verification/requirement-resolver"
 import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
+import { resolveProductCommercialDiagnosis } from "@/lib/commercial-policy/enforcement"
+import { readPublishedDocumentDefinition } from "@/lib/documents/document-definitions"
 
 const submitSchema = z.object({
 	type: z.enum([
@@ -264,7 +266,49 @@ export const POST: APIRoute = async ({ request }) => {
 		const loadedResolution = await loadProviderVerificationResolution(providerId)
 		const postedType = String(form.get("type") ?? "").trim()
 		let matchedRequirement: VerificationRequirement | null = null
-		if (loadedResolution.enforced && loadedResolution.resolution) {
+		const definitionId = String(form.get("definitionVersionId") ?? "").trim()
+		const policyKey = String(form.get("policyRequirementKey") ?? "").trim()
+		if (definitionId && policyKey && scopeProductIdHint) {
+			const { diagnosis } = await resolveProductCommercialDiagnosis({
+				providerId,
+				productId: scopeProductIdHint,
+			})
+			const requirement = diagnosis.applicableRequirements?.find(
+				(item) => item.key === policyKey && item.policyVersionId === form.get("policyVersionId")
+			)
+			if (
+				diagnosis.policyStatus !== "supported" ||
+				!requirement?.documentAcceptance?.alternatives.some((alternative) =>
+					alternative.allOf.some((part) => part.definitionVersionId === definitionId)
+				)
+			)
+				return json({ error: "document_not_applicable" }, 422)
+			const definition = await readPublishedDocumentDefinition(definitionId)
+			const family = providerDocumentTypes.find((type) => type.value === definition.family)?.value
+			if (!family) return json({ error: "document_not_applicable" }, 422)
+			const selector = requirement.condition?.evidenceSubjectSelector
+			matchedRequirement = {
+				id:
+					selector === "guides"
+						? "tour.guide_credential"
+						: selector === "operator"
+							? "tour.operator_license"
+							: `policy.${policyKey}`,
+				label: definition.label,
+				layer: "tour",
+				presentationArea: "activity",
+				documentType: family,
+				uploadValue: postedType,
+				accountDocuments: false,
+				appliesBecause: requirement.blockingAction,
+				scopes: {
+					productIds: [scopeProductIdHint],
+					territoryCodes: [],
+					resourceIds: [],
+					activityClasses: [],
+				},
+			}
+		} else if (loadedResolution.enforced && loadedResolution.resolution) {
 			matchedRequirement = matchUpload(loadedResolution.resolution, postedType)
 			if (!matchedRequirement?.documentType) {
 				if (preferRedirect) {

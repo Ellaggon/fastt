@@ -1,4 +1,5 @@
 import { isProviderDocumentExpired } from "@/lib/provider-document-validity"
+import { composePolicyVersions, compositionSchema, type PolicyComposition } from "./composition"
 import {
 	evaluateDocumentAcceptance,
 	type DocumentAcceptance,
@@ -24,6 +25,8 @@ export type CommercialCapability =
 	| "integrations"
 export type JurisdictionRole = "holder" | "tax" | "payout" | "product"
 export type CommercialPolicyContext = {
+	providerId?: string
+	evidenceSubjects?: Partial<Record<"holder" | "guides" | "operator" | "resources", string[]>>
 	experienceFormat?: ExperienceFormat | null
 	formatContractVersion?: number
 	holderType: "persona_natural" | "entidad"
@@ -62,6 +65,7 @@ export type CommercialEvidence = {
 	scopes?: CommercialEvidenceScope[]
 }
 export type CommercialRequirementCondition = {
+	evidenceSubjectSelector?: "holder" | "guides" | "operator" | "resources"
 	legalFormCodes?: string[]
 	executionModes?: string[]
 	foodHandlingModes?: string[]
@@ -98,7 +102,11 @@ export type CommercialPolicyContextSelector = Pick<
 	| "executionModes"
 	| "foodHandlingModes"
 	| "transportProviders"
-> & { contextVersion?: number; experienceFormats?: ExperienceFormat[] }
+> & {
+	contextVersion?: number
+	experienceFormats?: ExperienceFormat[]
+	composition?: PolicyComposition
+}
 export type CommercialPolicyApprovalArea = "policy" | "finance" | "tour_operations"
 export type CommercialPolicyApproval = {
 	approvalArea: CommercialPolicyApprovalArea
@@ -108,6 +116,7 @@ export type CommercialPolicyApproval = {
 }
 export type CommercialPolicyVersion = {
 	id: string
+	policySetId?: string
 	jurisdictionRole: JurisdictionRole
 	country: string
 	vertical: CommercialPolicyContext["vertical"]
@@ -142,6 +151,23 @@ export type CommercialPolicyBlocker = {
 	evidenceState?: "missing" | "pending_review" | "rejected" | "expired" | "out_of_scope"
 }
 export type CommercialPolicyDiagnosis = {
+	/** Explanatory data only; commands must reevaluate current facts. */
+	evaluation?: {
+		contractVersion: 1
+		evaluatedAt: string
+		coverage?: {
+			state: "covered" | "partial" | "unknown"
+			coveredTerritoryIds: string[]
+			pendingTerritoryIds: string[]
+		}
+		requirements: Array<{
+			identity: string
+			policyVersionId: string
+			key: string
+			territoryIds: string[]
+			package: ReturnType<typeof evaluateDocumentAcceptance> | null
+		}>
+	}
 	policyStatus: "supported" | "unsupported"
 	capabilities: Record<CommercialCapability, boolean>
 	blockers: CommercialPolicyBlocker[]
@@ -155,6 +181,11 @@ export type CommercialPolicyDiagnosis = {
 		evidenceScope?: "provider" | "product" | "operation"
 	}>
 	policyVersionIds: string[]
+	compositionTrace?: Array<
+		{ jurisdictionRole: JurisdictionRole; territoryId?: string } & ReturnType<
+			typeof composePolicyVersions
+		>
+	>
 	/** Presentation consumes the same required evidence selected by this evaluation. */
 	applicableRequirements?: Array<CommercialPolicyRequirement & { policyVersionId: string }>
 	capabilityStates: Record<CommercialCapability, "allowed" | "blocked" | "not_applicable">
@@ -243,8 +274,14 @@ function versionMatchesContext(
 ) {
 	if (version.vertical !== "tour") return true
 	const selector = version.context
-	if (selector?.experienceFormats?.length && selector.contextVersion !== 2) return false
-	if (selector?.contextVersion === 2) {
+	if (
+		selector?.experienceFormats?.length &&
+		selector.contextVersion !== 2 &&
+		selector.contextVersion !== 3
+	)
+		return false
+	if (selector?.contextVersion === 2 || selector?.contextVersion === 3) {
+		if (selector.contextVersion === 3 && !selector.composition) return false
 		if (
 			!isExperienceFormat(context.experienceFormat) ||
 			!selector.experienceFormats?.includes(context.experienceFormat)
@@ -263,6 +300,7 @@ function versionMatchesContext(
 	)
 		return false
 	if (
+		selector.contextVersion !== 3 &&
 		context.jurisdictionCodes?.length &&
 		!allTerritoriesCovered(
 			context.jurisdictionCodes,
@@ -274,6 +312,7 @@ function versionMatchesContext(
 	// A normalized declaration must not gain coverage through just one benign activity.
 	if (
 		context.operation &&
+		!(selector.contextVersion === 3 && selector.composition?.kind === "requirements") &&
 		context.activityClasses?.some((activity) => !selector.activityClasses?.includes(activity))
 	)
 		return false
@@ -312,7 +351,12 @@ export function tourPolicyPublicationErrors(version: CommercialPolicyVersion): s
 	if (version.vertical !== "tour") return []
 	const errors: string[] = []
 	if (
-		version.context?.contextVersion === 2 &&
+		version.context?.contextVersion === 3 &&
+		!compositionSchema.safeParse(version.context.composition).success
+	)
+		errors.push("policy_composition_invalid")
+	if (
+		(version.context?.contextVersion === 2 || version.context?.contextVersion === 3) &&
 		(!version.context.experienceFormats?.length ||
 			!version.context.experienceFormats.every(isExperienceFormat))
 	)
@@ -492,7 +536,26 @@ export function evaluateCommercialPolicy(input: {
 			: ["holder", "product", "tax"]
 	const blockers: CommercialPolicyBlocker[] = []
 	const satisfiedRequirements: CommercialPolicyDiagnosis["satisfiedRequirements"] = []
+	const requirementResults: NonNullable<CommercialPolicyDiagnosis["evaluation"]>["requirements"] =
+		[]
 	const selected: CommercialPolicyVersion[] = []
+	const selectedTerritories = new Map<string, Set<string>>()
+	const versionContext = (version: CommercialPolicyVersion): CommercialPolicyContext => {
+		const territories = selectedTerritories.get(version.id)
+		if (!territories?.size) return input.context
+		return {
+			...input.context,
+			jurisdictionCodes: [...territories],
+			jurisdictionCode: [...territories][0],
+			activityClasses:
+				version.context?.composition?.kind === "requirements"
+					? input.context.activityClasses?.filter((activity) =>
+							version.context?.activityClasses?.includes(activity)
+						)
+					: input.context.activityClasses,
+		}
+	}
+	const compositionTrace: NonNullable<CommercialPolicyDiagnosis["compositionTrace"]> = []
 	for (const role of roles) {
 		const country = countries[role]
 		if (!country) {
@@ -518,6 +581,97 @@ export function evaluateCommercialPolicy(input: {
 				row.effectiveFrom <= now &&
 				(!row.effectiveTo || row.effectiveTo > now)
 		)
+		if (matching.some((row) => row.context?.contextVersion === 3)) {
+			if (matching.some((row) => row.context?.contextVersion !== 3)) {
+				blockers.push({
+					id: `policy_context_conflict_${role}`,
+					capabilities: allCapabilities,
+					action: "Fastt debe resolver la coexistencia de contratos históricos y componibles.",
+					policyVersionId: null,
+					configurationReason: "conflict",
+				})
+				continue
+			}
+			const referenceVersions = input.versions.filter(
+				(row) =>
+					row.jurisdictionRole === role &&
+					row.country === country &&
+					row.vertical === input.context.vertical &&
+					row.holderType === input.context.holderType &&
+					row.collectionModel === input.context.collectionModel &&
+					row.context?.contextVersion === 3 &&
+					row.status !== "draft" &&
+					tourPolicyPublicationErrors(row).length === 0
+			)
+			const territories = input.context.jurisdictionCodes?.length
+				? input.context.jurisdictionCodes
+				: [input.context.jurisdictionCode ?? ""]
+			for (const territoryId of territories) {
+				const scoped = matching.filter((row) =>
+					versionMatchesContext(row, {
+						...input.context,
+						jurisdictionCodes: [territoryId],
+						jurisdictionCode: territoryId,
+					})
+				)
+				const composition = composePolicyVersions(
+					scoped.map((row) => ({
+						id: row.id,
+						policySetId: row.policySetId,
+						composition: row.context!.composition!,
+					})),
+					referenceVersions.map((row) => ({
+						id: row.id,
+						policySetId: row.policySetId,
+						composition: row.context!.composition!,
+					})),
+					referenceVersions
+						.filter(
+							(row) =>
+								row.effectiveFrom <= now &&
+								versionMatchesContext(row, {
+									...input.context,
+									jurisdictionCodes: [territoryId],
+									jurisdictionCode: territoryId,
+								})
+						)
+						.map((row) => ({
+							id: row.id,
+							policySetId: row.policySetId,
+							composition: row.context!.composition!,
+						}))
+				)
+				compositionTrace.push({ jurisdictionRole: role, territoryId, ...composition })
+				if (composition.conflicts.length || composition.missingFamilies.length) {
+					blockers.push({
+						id: `policy_context_${composition.conflicts.length ? "conflict" : "unsupported"}_${role}`,
+						capabilities: allCapabilities,
+						action: composition.conflicts.length
+							? "Fastt debe resolver un conflicto entre políticas aplicables."
+							: "Fastt debe completar las familias de políticas aplicables.",
+						policyVersionId: null,
+						configurationReason: composition.conflicts.length ? "conflict" : "missing",
+					})
+					continue
+				}
+				for (const row of scoped.filter((candidate) =>
+					composition.selectedIds.includes(candidate.id)
+				)) {
+					if (row.context?.composition?.kind === "requirements" && !row.requirements.length)
+						blockers.push({
+							id: `policy_contract_empty_${role}`,
+							capabilities: allCapabilities,
+							action: "La familia no define requisitos aprobados.",
+							policyVersionId: row.id,
+						})
+					if (!selected.some((candidate) => candidate.id === row.id)) selected.push(row)
+					const scope = selectedTerritories.get(row.id) ?? new Set<string>()
+					scope.add(territoryId)
+					selectedTerritories.set(row.id, scope)
+				}
+			}
+			continue
+		}
 		if (matching.length !== 1) {
 			const candidates = input.versions.filter(
 				(row) =>
@@ -588,47 +742,116 @@ export function evaluateCommercialPolicy(input: {
 			})
 		)
 	for (const version of selected) {
+		const effectiveContext = versionContext(version)
 		for (const requirement of version.requirements) {
-			if (!requirement.required || !requirementApplies(requirement.condition, input.context))
+			if (!requirement.required || !requirementApplies(requirement.condition, effectiveContext))
 				continue
 			const definitionIds =
 				requirement.documentAcceptance?.alternatives.flatMap((alternative) =>
 					alternative.allOf.map((part) => part.definitionVersionId)
 				) ?? []
-			const accepted = evidence.filter((item) =>
-				requirement.documentAcceptance
-					? Boolean(item.definitionVersionId && definitionIds.includes(item.definitionVersionId))
-					: requirement.acceptedEvidence.includes(item.type)
-			)
+			const accepted = evidence
+				.filter((item) =>
+					requirement.documentAcceptance
+						? Boolean(item.definitionVersionId && definitionIds.includes(item.definitionVersionId))
+						: requirement.acceptedEvidence.includes(item.type)
+				)
+				.map((item) =>
+					requirement.documentAcceptance &&
+					["holder", "operator"].includes(requirement.condition?.evidenceSubjectSelector ?? "") &&
+					(item.subjectType === "provider" || item.subjectType === "legal_entity") &&
+					effectiveContext.providerId
+						? { ...item, subjectReference: effectiveContext.providerId }
+						: item
+				)
 			const evidenceScope = requirement.condition?.evidenceScope ?? "product"
+			const evidenceContext =
+				requirement.documentAcceptance && effectiveContext.providerId
+					? {
+							...effectiveContext,
+							subjectReferences: [
+								...new Set([
+									...(effectiveContext.subjectReferences ?? []),
+									effectiveContext.providerId,
+								]),
+							],
+						}
+					: effectiveContext
 			const eligible = accepted.filter(
 				(item) =>
 					item.status === "verified" &&
-					!evidenceAppliesToContext(item, input.context, now, evidenceScope)
+					!evidenceAppliesToContext(item, evidenceContext, now, evidenceScope)
 			)
 			const packageResult = requirement.documentAcceptance
 				? evaluateDocumentAcceptance(
 						requirement.documentAcceptance,
-						requirement.requiredSubjectReferences ?? [],
+						requirement.requiredSubjectReferences ??
+							(requirement.condition?.evidenceSubjectSelector
+								? (effectiveContext.evidenceSubjects?.[
+										requirement.condition.evidenceSubjectSelector
+									] ?? [])
+								: (effectiveContext.subjectReferences ?? [])),
 						eligible.map((item) => ({
 							id: item.id,
 							definitionVersionId: item.definitionVersionId ?? null,
-							subjectId: item.subjectReference ?? "",
+							subjectId:
+								(item.subjectType === "provider" || item.subjectType === "legal_entity") &&
+								["holder", "operator"].includes(
+									requirement.condition?.evidenceSubjectSelector ?? ""
+								)
+									? (effectiveContext.providerId ?? "")
+									: (item.subjectReference ?? ""),
 						}))
 					)
 				: null
+			requirementResults.push({
+				identity: JSON.stringify([
+					version.id,
+					requirement.key,
+					effectiveContext.jurisdictionCodes ?? [],
+				]),
+				policyVersionId: version.id,
+				key: requirement.key,
+				territoryIds: effectiveContext.jurisdictionCodes ?? [],
+				package: packageResult,
+			})
 			const applicable = packageResult
 				? packageResult.satisfied
 					? eligible[0]
 					: undefined
 				: eligible[0]
 			if (!applicable) {
+				const failure = evidenceFailureState(accepted, evidenceContext, now, evidenceScope)
+				const submitted =
+					requirement.documentAcceptance && packageResult
+						? evaluateDocumentAcceptance(
+								requirement.documentAcceptance,
+								packageResult.subjects.map((subject) => subject.subjectId),
+								accepted
+									.filter(
+										(item) =>
+											(item.status === "verified" || item.status === "pending") &&
+											!evidenceAppliesToContext(item, evidenceContext, now, evidenceScope)
+									)
+									.map((item) => ({
+										id: item.id,
+										definitionVersionId: item.definitionVersionId ?? null,
+										subjectId: item.subjectReference ?? "",
+									}))
+							)
+						: null
 				blockers.push({
 					id: `requirement_${requirement.key}`,
 					capabilities: requirement.capabilities,
 					action: requirement.blockingAction,
 					policyVersionId: version.id,
-					evidenceState: evidenceFailureState(accepted, input.context, now, evidenceScope),
+					evidenceState: packageResult
+						? submitted?.satisfied
+							? "pending_review"
+							: failure === "pending_review" || failure === "out_of_scope"
+								? "missing"
+								: failure
+						: failure,
 				})
 			} else {
 				satisfiedRequirements.push({
@@ -662,7 +885,31 @@ export function evaluateCommercialPolicy(input: {
 			]
 		})
 	) as CommercialPolicyDiagnosis["capabilityStates"]
+	const productTraces = compositionTrace.filter((trace) => trace.jurisdictionRole === "product")
+	const coveredTerritoryIds = productTraces
+		.filter((trace) => !trace.conflicts.length && !trace.missingFamilies.length)
+		.flatMap((trace) => (trace.territoryId ? [trace.territoryId] : []))
+	const pendingTerritoryIds = productTraces
+		.filter((trace) => trace.conflicts.length || trace.missingFamilies.length)
+		.flatMap((trace) => (trace.territoryId ? [trace.territoryId] : []))
+	const configurationUnknown = blockers.some(
+		(row) => row.id.startsWith("policy_context_") || row.id.startsWith("policy_contract_")
+	)
 	return {
+		evaluation: {
+			contractVersion: 1,
+			evaluatedAt: now.toISOString(),
+			requirements: requirementResults,
+			coverage: {
+				state: configurationUnknown
+					? coveredTerritoryIds.length
+						? "partial"
+						: "unknown"
+					: "covered",
+				coveredTerritoryIds,
+				pendingTerritoryIds,
+			},
+		},
 		policyStatus: blockers.some(
 			(row) => row.id.startsWith("policy_context_") || row.id.startsWith("policy_contract_")
 		)
@@ -674,11 +921,13 @@ export function evaluateCommercialPolicy(input: {
 		blockers,
 		satisfiedRequirements,
 		policyVersionIds: selected.map((row) => row.id),
+		compositionTrace,
 		applicableRequirements: selected.flatMap((version) =>
 			version.requirements
 				.filter(
 					(requirement) =>
-						requirement.required && requirementApplies(requirement.condition, input.context)
+						requirement.required &&
+						requirementApplies(requirement.condition, versionContext(version))
 				)
 				.map((requirement) => ({ ...requirement, policyVersionId: version.id }))
 		),

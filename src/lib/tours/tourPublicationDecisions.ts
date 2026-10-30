@@ -1,4 +1,5 @@
 import type { CommercialPolicyDiagnosis } from "@/lib/commercial-policy/evaluate"
+import { classifyCommercialFinding } from "@/lib/commercial-policy/findings"
 import { z } from "zod"
 
 export const publicationDecisionSchema = z.object({
@@ -29,7 +30,7 @@ export function projectAuthorizationDecisions(input: {
 	const payments = `/provider/settings/payments?${new URLSearchParams({ scope: "tour", productId: input.productId, returnTo: `/product/${input.productId}/preview` })}`
 	const blockers = input.policy?.blockers.filter((b) => b.capabilities.includes("publish")) ?? []
 	const configuration = blockers.filter(
-		(b) => b.id.startsWith("policy_context_") || b.id.startsWith("policy_contract_")
+		(b) => classifyCommercialFinding(b).category === "configuration"
 	)
 	const contextTask = blockers.find((b) =>
 		[

@@ -1,4 +1,4 @@
-import { type ExperienceFormat } from "@/shared/domain/experience-format"
+import { normalizeContextSelector as selector, parsePolicyRequirement } from "./contract-parser"
 import {
 	and,
 	db,
@@ -8,13 +8,17 @@ import {
 	CompliancePolicyVersion,
 	ComplianceRequirementRule,
 	CommercialPolicyApproval,
+	AuditEvent,
+	DocumentDefinitionVersion,
+	inArray,
 } from "@/shared/infrastructure/db/compat"
+import { withPostgresTransaction } from "@/shared/infrastructure/db/client"
+import { commandPayloadHash } from "@/lib/commands/command-idempotency"
 import {
 	tourPolicyPublicationErrors,
 	hasRequiredTourApprovals,
 	type CommercialPolicyApproval as CommercialPolicyApprovalRecord,
 	type CommercialPolicyApprovalArea,
-	type CommercialPolicyRequirement,
 	type CommercialPolicyVersion,
 } from "./evaluate"
 
@@ -32,51 +36,11 @@ export class CommercialPolicyRatificationError extends Error {
 	}
 }
 
-function array(value: unknown): string[] {
-	return Array.isArray(value)
-		? value.filter((item): item is string => typeof item === "string")
-		: []
-}
-
-function condition(value: unknown): CommercialPolicyRequirement["condition"] {
-	if (!value || typeof value !== "object" || Array.isArray(value)) return null
-	const source = value as Record<string, unknown>
-	const result = {
-		operatingRoles: array(source.operatingRoles),
-		activityClasses: array(source.activityClasses),
-		jurisdictionCodes: array(source.jurisdictionCodes),
-		resourceIds: array(source.resourceIds),
-		subjectReferences: array(source.subjectReferences),
-		evidenceScope: ["provider", "product", "operation"].includes(String(source.evidenceScope))
-			? (String(source.evidenceScope) as "provider" | "product" | "operation")
-			: undefined,
-	}
-	return Object.values(result).some((item) => (Array.isArray(item) ? item.length : Boolean(item)))
-		? result
-		: null
-}
-
-function selector(value: unknown): CommercialPolicyVersion["context"] {
-	if (!value || typeof value !== "object" || Array.isArray(value)) return null
-	const source = value as Record<string, unknown>
-	const result = {
-		contextVersion: source.contextVersion === undefined ? undefined : Number(source.contextVersion),
-		experienceFormats: array(source.experienceFormats) as ExperienceFormat[],
-		operatingRoles: array(source.operatingRoles),
-		activityClasses: array(source.activityClasses),
-		jurisdictionCodes: array(source.jurisdictionCodes),
-	}
-	return result.operatingRoles.length &&
-		result.activityClasses.length &&
-		result.jurisdictionCodes.length
-		? result
-		: null
-}
-
 async function loadVersion(versionId: string): Promise<CommercialPolicyVersion | null> {
 	const version = await db
 		.select({
 			id: CompliancePolicyVersion.id,
+			policySetId: CompliancePolicyVersion.policySetId,
 			status: CompliancePolicyVersion.status,
 			effectiveFrom: CompliancePolicyVersion.effectiveFrom,
 			effectiveTo: CompliancePolicyVersion.effectiveTo,
@@ -128,6 +92,7 @@ async function loadVersion(versionId: string): Promise<CommercialPolicyVersion |
 	])
 	return {
 		id: version.id,
+		policySetId: version.policySetId,
 		status: version.status as CommercialPolicyVersion["status"],
 		effectiveFrom: version.effectiveFrom,
 		effectiveTo: version.effectiveTo,
@@ -148,20 +113,7 @@ async function loadVersion(versionId: string): Promise<CommercialPolicyVersion |
 		collectionModel: version.collectionModel as CommercialPolicyVersion["collectionModel"],
 		holderType: version.holderType as CommercialPolicyVersion["holderType"],
 		jurisdictionRole: version.jurisdictionRole as CommercialPolicyVersion["jurisdictionRole"],
-		requirements: rules.map((rule) => ({
-			key: rule.requirementKey,
-			required: rule.required,
-			capabilities: array(rule.capabilitiesJson) as CommercialPolicyRequirement["capabilities"],
-			acceptedEvidence: array(rule.acceptedEvidenceJson),
-			blockingAction: rule.blockingAction ?? "",
-			reviewOwner: rule.reviewOwner ?? "",
-			sourceKind: ["legal", "contract", "fastt_policy"].includes(String(rule.sourceKind))
-				? (rule.sourceKind as CommercialPolicyRequirement["sourceKind"])
-				: null,
-			sourceReference: rule.sourceReference,
-			sourceCheckedAt: rule.sourceCheckedAt,
-			condition: condition(rule.conditionJson),
-		})),
+		requirements: rules.map(parsePolicyRequirement),
 	}
 }
 
@@ -173,7 +125,8 @@ export async function ratifyCommercialTourPolicy(params: {
 	approvalReference: string
 	approvedAt?: Date
 }) {
-	return db.transaction(async (tx) => {
+	return withPostgresTransaction(async () => {
+		const tx = db
 		// Serialise ratifications per version. Without this lock, two different
 		// final-area approvals could both observe only two signatures and leave the
 		// version stranded in draft after committing.
@@ -226,6 +179,30 @@ export async function ratifyCommercialTourPolicy(params: {
 				error !== "tour_policy_signatures_incomplete" &&
 				(publish || error !== "tour_policy_approval_metadata_missing")
 		)
+		const definitionIds = [
+			...new Set(
+				version.requirements.flatMap(
+					(requirement) =>
+						requirement.documentAcceptance?.alternatives.flatMap((alternative) =>
+							alternative.allOf.map((part) => part.definitionVersionId)
+						) ?? []
+				)
+			),
+		]
+		if (definitionIds.length) {
+			const definitions = await tx
+				.select({ id: DocumentDefinitionVersion.id })
+				.from(DocumentDefinitionVersion)
+				.where(
+					and(
+						inArray(DocumentDefinitionVersion.id, definitionIds),
+						eq(DocumentDefinitionVersion.status, "published")
+					)
+				)
+				.for("share")
+			if (definitions.length !== definitionIds.length)
+				errors.push("policy_evidence_definition_not_published")
+		}
 		if (errors.length)
 			throw new CommercialPolicyRatificationError("commercial_policy_not_publishable", { errors })
 		await tx.insert(CommercialPolicyApproval).values({
@@ -252,8 +229,42 @@ export async function ratifyCommercialTourPolicy(params: {
 					)
 				)
 		}
+		const contractHash = commandPayloadHash({
+			policySetId: version.policySetId,
+			context: version.context,
+			country: version.country,
+			holderType: version.holderType,
+			vertical: version.vertical,
+			collectionModel: version.collectionModel,
+			jurisdictionRole: version.jurisdictionRole,
+			effectiveFrom: version.effectiveFrom.toISOString(),
+			effectiveTo: version.effectiveTo?.toISOString() ?? null,
+			requirements: [...version.requirements]
+				.sort((a, b) => a.key.localeCompare(b.key))
+				.map((requirement) => ({
+					...requirement,
+					sourceCheckedAt: requirement.sourceCheckedAt?.toISOString() ?? null,
+				})),
+		})
+		await tx.insert(AuditEvent).values({
+			id: crypto.randomUUID(),
+			requestId: crypto.randomUUID(),
+			actorUserId: params.approverUserId,
+			action: "commercial_policy.ratify",
+			entityType: "CompliancePolicyVersion",
+			entityId: params.policyVersionId,
+			riskLevel: "high",
+			beforeJson: { status: version.status },
+			afterJson: {
+				contractHash,
+				approvalArea: params.approvalArea,
+				approvalReference: approval.approvalReference,
+				status: publish ? "published" : "draft",
+			},
+		})
 		return {
 			policyVersionId: params.policyVersionId,
+			contractHash,
 			status: publish ? ("published" as const) : ("draft" as const),
 		}
 	})

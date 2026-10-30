@@ -10,6 +10,8 @@ Review trigger: cambio del contrato o de las superficies públicas y del proveed
 
 ## Leer primero
 
+- [Composición de cumplimiento](./compliance-policy-composition.md): familias, sustituciones, contratos históricos y simulación administrativa.
+
 - [Negocios y experiencias: catálogo de encaje](./experience-business-catalog.md): tipos de proveedor, actividades, formatos, límites y mapa editable Excalidraw.
 
 - [Políticas comerciales de tours](./policies.md): contrato, editor, preview y compatibilidad histórica.

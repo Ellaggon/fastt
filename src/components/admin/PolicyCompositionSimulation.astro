@@ -1,0 +1,137 @@
+---
+import Button from "@/components/ui/Button.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import { and, db, eq, Product } from "@/shared/infrastructure/db/compat"
+const { providerId, products: loadedProducts } = Astro.props as {
+	providerId: string
+	products?: Array<{ id: string; name: string | null }>
+}
+const products =
+	loadedProducts ??
+	(await db
+		.select({ id: Product.id, name: Product.name })
+		.from(Product)
+		.where(and(eq(Product.providerId, providerId), eq(Product.productType, "tour")))
+		.limit(100))
+---
+
+<section class="space-y-4 border-t border-slate-200 pt-5" aria-labelledby="policy-simulation-title">
+	<h2 id="policy-simulation-title" class="text-lg font-semibold">Comprobar cobertura</h2>
+	<form
+		action="/api/admin/commercial-policies/simulation"
+		method="get"
+		data-policy-simulation
+		class="grid items-end gap-4 sm:grid-cols-[minmax(0,1fr)_12rem_auto]"
+	>
+		<input type="hidden" name="providerId" value={providerId} />
+		<FormField label="Experiencia" htmlFor="simulation-product"
+			><Select name="productId" id="simulation-product" required
+				><option value="">Selecciona una experiencia</option>{
+					products.map((product) => (
+						<option value={product.id}>{product.name || "Experiencia sin nombre"}</option>
+					))
+				}</Select
+			></FormField
+		>
+		<FormField label="Fecha de evaluación (UTC)" htmlFor="simulation-date"
+			><Input
+				name="at"
+				type="date"
+				id="simulation-date"
+				value={new Date().toISOString().slice(0, 10)}
+				required
+			/></FormField
+		>
+		<Button type="submit" variant="secondary" disabled={!products.length}>Comprobar</Button>
+		<div
+			class="space-y-2 text-sm text-slate-700 sm:col-span-3"
+			role="status"
+			aria-live="polite"
+			data-policy-simulation-result
+		>
+		</div>
+	</form>
+</section>
+<script>
+	import { policyFamilyLabels } from "@/lib/commercial-policy/composition"
+	import type { CommercialPolicyDiagnosis } from "@/lib/commercial-policy/evaluate"
+	function bind() {
+		document.querySelectorAll<HTMLFormElement>("[data-policy-simulation]").forEach((form) => {
+			if (form.dataset.bound) return
+			form.dataset.bound = "true"
+			let revision = 0
+			form.addEventListener("change", () => {
+				revision++
+				const output = form.querySelector<HTMLElement>("[data-policy-simulation-result]")
+				if (output)
+					output.textContent =
+						"Selección modificada. Comprueba de nuevo para actualizar el resultado."
+			})
+			form.addEventListener("submit", async (event) => {
+				event.preventDefault()
+				if (!form.reportValidity() || form.getAttribute("aria-busy") === "true") return
+				const output = form.querySelector<HTMLElement>("[data-policy-simulation-result]")!
+				const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!
+				form.setAttribute("aria-busy", "true")
+				button.disabled = true
+				const submittedRevision = revision
+				output.textContent = "Comprobando cobertura…"
+				try {
+					const url = new URL(form.getAttribute("action")!, location.origin)
+					for (const [key, value] of new FormData(form))
+						if (typeof value === "string") url.searchParams.set(key, value)
+					const response = await fetch(url, {
+						credentials: "same-origin",
+						signal: AbortSignal.timeout(20000),
+						headers: { Accept: "application/json" },
+					})
+					const data = await response.json()
+					if (submittedRevision !== revision || !form.isConnected) return
+					if (!response.ok || !data.ok)
+						throw new Error(data.message || "No se pudo comprobar la cobertura.")
+					const diagnosis = data.diagnosis as CommercialPolicyDiagnosis
+					output.replaceChildren()
+					const add = (text: string) => {
+						const p = document.createElement("p")
+						p.textContent = text
+						output.append(p)
+					}
+					add(
+						diagnosis.capabilities.publish
+							? "Políticas aplicables: requisitos satisfechos."
+							: "Hay condiciones que impiden habilitar esta operación."
+					)
+					if (diagnosis.evaluation?.coverage)
+						add(
+							`Cobertura: ${{ covered: "comprobada", partial: "parcial", unknown: "pendiente de determinar" }[diagnosis.evaluation.coverage.state]}.`
+						)
+					for (const blocker of diagnosis.blockers) add(blocker.action)
+					for (const trace of diagnosis.compositionTrace ?? []) {
+						add(
+							`${trace.selectedIds.length} versiones seleccionadas · ${trace.replacements.length} sustituciones.`
+						)
+						if (trace.missingFamilies.length)
+							add(
+								`Cobertura pendiente: ${trace.missingFamilies.map((family) => policyFamilyLabels[family]).join(", ")}.`
+							)
+						if (trace.conflicts.length)
+							add(`${trace.conflicts.length} conflictos requieren revisión interna.`)
+					}
+					add("Solo consulta de políticas y evidencias; no publica ni aprueba la experiencia.")
+				} catch (error) {
+					if (submittedRevision !== revision || !form.isConnected) return
+					output.textContent =
+						error instanceof Error ? error.message : "No se pudo comprobar la cobertura."
+					output.append(" Puedes volver a pulsar Comprobar para reintentar.")
+				} finally {
+					form.removeAttribute("aria-busy")
+					button.disabled = false
+				}
+			})
+		})
+	}
+	bind()
+	document.addEventListener("astro:page-load", bind)
+</script>

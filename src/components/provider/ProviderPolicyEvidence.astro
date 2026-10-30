@@ -1,0 +1,117 @@
+---
+import ProviderVerificationOptionals from "@/components/provider/ProviderVerificationOptionals.astro"
+import type { ProviderVerificationWorkspaceModel } from "@/lib/provider-verification-workspace"
+import { providerDocumentTypes } from "@/lib/provider-documents"
+const { model, productId } = Astro.props as {
+	model: ProviderVerificationWorkspaceModel
+	productId: string
+}
+const requirements =
+	model.policyDiagnosis?.policyStatus === "supported"
+		? (model.policyDiagnosis.applicableRequirements?.filter(
+				(requirement) => requirement.documentAcceptance
+			) ?? [])
+		: []
+const subjectLabels = {
+	holder: "Titular del negocio",
+	guides: "Cada guía declarado",
+	operator: "Operador efectivo",
+	resources: "Cada recurso declarado",
+}
+---
+
+{
+	requirements.length > 0 && (
+		<section class="space-y-5" aria-label="Respaldos aplicables">
+			<h3 class="text-lg font-semibold text-slate-900">Respaldos aplicables</h3>
+			{requirements.map((requirement) => {
+				const ids = requirement.documentAcceptance!.alternatives.flatMap((alternative) =>
+					alternative.allOf.map((part) => part.definitionVersionId)
+				)
+				const definitions = (model.documentDefinitions ?? []).filter((definition) =>
+					ids.includes(definition.id)
+				)
+				const blocker = model.policyDiagnosis!.blockers.find(
+					(item) =>
+						item.id === `requirement_${requirement.key}` &&
+						item.policyVersionId === requirement.policyVersionId
+				)
+				const documents = model.documents.filter(
+					(document) => document.definitionVersionId && ids.includes(document.definitionVersionId)
+				)
+				const packageResult = model.policyDiagnosis?.evaluation?.requirements.find(
+					(item) =>
+						item.policyVersionId === requirement.policyVersionId && item.key === requirement.key
+				)?.package
+				const types = [...new Set(definitions.map((definition) => definition.family))].flatMap(
+					(family) => {
+						const type = providerDocumentTypes.find((type) => type.value === family)
+						return type
+							? [{ value: type.value, label: type.label, description: requirement.blockingAction }]
+							: []
+					}
+				)
+				return (
+					<article class="space-y-3 border-t border-slate-200 pt-4">
+						<div class="flex flex-wrap items-start justify-between gap-2">
+							<h4 class="font-semibold text-slate-900">{requirement.blockingAction}</h4>
+							<span class="text-sm text-slate-600">
+								{!blocker
+									? "Documentación vigente"
+									: blocker.evidenceState === "pending_review"
+										? "En revisión"
+										: "Requiere documentación"}
+							</span>
+						</div>
+						<p class="text-sm text-slate-600">
+							{subjectLabels[requirement.condition?.evidenceSubjectSelector ?? "holder"]}
+						</p>
+						{packageResult && (
+							<p class="text-sm text-slate-600">
+								{packageResult.subjects.filter((subject) => subject.satisfiedBy).length} de{" "}
+								{packageResult.subjects.length} sujetos con respaldo completo.
+								{packageResult.subjects.length === 0 &&
+									" Completa las personas o recursos de la operación antes de cargar sus respaldos."}
+							</p>
+						)}
+						<ol class="space-y-2 text-sm text-slate-700">
+							{requirement.documentAcceptance!.alternatives.map((alternative, index) => (
+								<li>
+									Opción {index + 1}:{" "}
+									{alternative.allOf
+										.map(
+											(part) =>
+												model.documentDefinitions?.find(
+													(definition) => definition.id === part.definitionVersionId
+												)?.label ?? "Documento registrado en el expediente"
+										)
+										.join(" + ")}
+								</li>
+							))}
+						</ol>
+						{blocker && blocker.evidenceState !== "pending_review" && (
+							<ProviderVerificationOptionals
+								surface="tour-activity"
+								documents={documents}
+								documentTypes={types}
+								documentDefinitions={definitions}
+								policyRequirement={{ key: requirement.key, versionId: requirement.policyVersionId }}
+								canManageDocuments={model.canManageDocuments}
+								scopeProductId={productId}
+								availableProducts={model.tourProducts.map((product) => ({
+									id: product.id,
+									name: product.name,
+									kind: "tour",
+								}))}
+								guideResources={model.tourResources.filter((resource) => resource.type === "guide")}
+								resourceChoices={model.tourResources}
+								playbookReturnTo={`/product/${productId}#experience-requirements`}
+								playbookVertical="tour"
+							/>
+						)}
+					</article>
+				)
+			})}
+		</section>
+	)
+}
