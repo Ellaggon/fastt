@@ -1,7 +1,9 @@
 import { GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
-import { r2 } from "@/container/shared.container"
+import { r2, getDocumentR2Client } from "@/container/shared.container"
+import { documentStorageConfig } from "@/lib/documents/storage-config"
+import { documentIntegrity } from "@/lib/documents/object-integrity"
 
 const OBJECT_PREFIX = "provider-documents"
 
@@ -13,20 +15,26 @@ export type ProviderDocumentPreviewAvailability = {
 }
 
 export function isR2DocumentStorageConfigured(): boolean {
-	return Boolean(
-		process.env.R2_BUCKET_NAME?.trim() &&
-		process.env.R2_ACCOUNT_ID?.trim() &&
-		process.env.R2_ACCESS_KEY_ID?.trim() &&
-		process.env.R2_SECRET_ACCESS_KEY?.trim()
-	)
+	return Boolean(documentStorageConfig())
+}
+
+function storageFor(fileUrl: string) {
+	if (fileUrl.startsWith("r2-documents:")) {
+		const config = documentStorageConfig()
+		return config ? { client: getDocumentR2Client(), bucket: config.bucket } : null
+	}
+	// Historical references retain their original bucket until an explicit migration.
+	return process.env.R2_BUCKET_NAME &&
+		process.env.R2_ACCOUNT_ID &&
+		process.env.R2_ACCESS_KEY_ID &&
+		process.env.R2_SECRET_ACCESS_KEY
+		? { client: r2, bucket: process.env.R2_BUCKET_NAME }
+		: null
 }
 
 export function allowLegacyLocalDocumentUrls(): boolean {
-	// Tests always allow placeholders.
-	if (process.env.VITEST) return true
-	// Local/dev may keep local:// even when R2 env is present but upload fails.
-	if (process.env.NODE_ENV !== "production") return true
-	return !isR2DocumentStorageConfigured()
+	// A test runner alone must never relax a development/production environment.
+	return process.env.FASTT_DATA_ENV === "test"
 }
 
 export function buildProviderDocumentObjectKey(params: {
@@ -34,19 +42,28 @@ export function buildProviderDocumentObjectKey(params: {
 	documentId: string
 	fileName: string
 }): string {
-	const safeName = String(params.fileName || "document")
-		.replace(/[^a-zA-Z0-9._-]+/g, "_")
-		.slice(0, 120)
-	return `${OBJECT_PREFIX}/${params.providerId}/${params.documentId}/${safeName}`
+	if (![params.providerId, params.documentId].every((id) => /^[a-zA-Z0-9_-]+$/.test(id)))
+		throw new Error("invalid_document_object_identity")
+	return `${OBJECT_PREFIX}/${params.providerId}/${params.documentId}/original`
 }
 
 export function toProviderDocumentFileRef(objectKey: string): string {
-	return `r2:${objectKey}`
+	if (!/^provider-documents\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+\/original$/.test(objectKey))
+		throw new Error("invalid_document_object_key")
+	return `r2-documents:${objectKey}`
 }
 
 export function parseProviderDocumentObjectKey(fileUrl: string | null | undefined): string | null {
 	const raw = String(fileUrl ?? "").trim()
 	if (!raw) return null
+	if (raw.startsWith("r2-documents:")) {
+		const key = raw.slice("r2-documents:".length)
+		return /^provider-documents\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+\/(?:original|[a-zA-Z0-9_.-]+)$/.test(
+			key
+		) && !key.includes("..")
+			? key
+			: null
+	}
 	if (raw.startsWith("r2:")) return raw.slice(3)
 	const publicBase = String(process.env.R2_PUBLIC_BASE_URL ?? "")
 		.trim()
@@ -70,7 +87,9 @@ export function assertAllowedProviderDocumentUrl(fileUrl: string): void {
 		;(error as Error & { status?: number }).status = 400
 		throw error
 	}
-	if (raw.startsWith("r2:")) return
+	if (raw.startsWith("r2-documents:") && !parseProviderDocumentObjectKey(raw))
+		throw Object.assign(new Error("invalid_document_storage_url"), { status: 400 })
+	if (raw.startsWith("r2:") || raw.startsWith("r2-documents:")) return
 	const publicBase = String(process.env.R2_PUBLIC_BASE_URL ?? "")
 		.trim()
 		.replace(/\/$/, "")
@@ -115,15 +134,16 @@ export async function inspectProviderDocumentPreview(params: {
 			message: "La referencia del archivo no corresponde a un almacenamiento permitido.",
 		}
 	}
-	if (!isR2DocumentStorageConfigured())
+	const storage = storageFor(raw)
+	if (!storage)
 		return {
 			state: "unavailable",
 			message: "El almacenamiento seguro de documentos no está configurado en este entorno.",
 		}
 	try {
-		await r2.send(
+		await storage.client.send(
 			new HeadObjectCommand({
-				Bucket: process.env.R2_BUCKET_NAME!,
+				Bucket: storage.bucket,
 				Key: objectKey,
 			})
 		)
@@ -152,16 +172,37 @@ export async function uploadProviderDocumentObject(params: {
 		;(error as Error & { status?: number }).status = 503
 		throw error
 	}
-	const bucket = process.env.R2_BUCKET_NAME!
+	const bucket = documentStorageConfig()!.bucket
 	const objectKey = buildProviderDocumentObjectKey(params)
-	await r2.send(
-		new PutObjectCommand({
-			Bucket: bucket,
-			Key: objectKey,
-			Body: Buffer.isBuffer(params.body) ? params.body : Buffer.from(params.body),
-			ContentType: params.mimeType,
-		})
-	)
+	const integrity = documentIntegrity(params.body, params.mimeType)
+	try {
+		await getDocumentR2Client().send(
+			new PutObjectCommand({
+				Bucket: bucket,
+				Key: objectKey,
+				Body: Buffer.isBuffer(params.body) ? params.body : Buffer.from(params.body),
+				ContentType: params.mimeType,
+				ContentLength: integrity.byteSize,
+				IfNoneMatch: "*",
+				Metadata: { sha256: integrity.sha256 },
+			}),
+			{ abortSignal: AbortSignal.timeout(60_000) }
+		)
+	} catch (error) {
+		// PUT may have succeeded even when its acknowledgement was lost. Never overwrite it.
+		const head = await getDocumentR2Client()
+			.send(new HeadObjectCommand({ Bucket: bucket, Key: objectKey }), {
+				abortSignal: AbortSignal.timeout(10_000),
+			})
+			.catch(() => null)
+		if (
+			!head ||
+			head.ContentLength !== integrity.byteSize ||
+			head.Metadata?.sha256 !== integrity.sha256 ||
+			head.ContentType !== params.mimeType
+		)
+			throw error
+	}
 	return { objectKey, fileUrl: toProviderDocumentFileRef(objectKey) }
 }
 
@@ -175,13 +216,14 @@ export async function createProviderDocumentPreviewUrl(params: {
 		if (/^https?:\/\//i.test(raw)) return raw
 		return null
 	}
-	if (!isR2DocumentStorageConfigured()) return null
+	const storage = storageFor(params.fileUrl)
+	if (!storage) return null
 	const availability = await inspectProviderDocumentPreview({ fileUrl: params.fileUrl })
 	if (availability.state !== "ready") return null
 	return getSignedUrl(
-		r2,
+		storage.client,
 		new GetObjectCommand({
-			Bucket: process.env.R2_BUCKET_NAME!,
+			Bucket: storage.bucket,
 			Key: objectKey,
 		}),
 		{ expiresIn: params.expiresInSeconds ?? 300 }
@@ -195,10 +237,11 @@ export async function createProviderDocumentProcessingUrl(params: {
 	expiresInSeconds?: number
 }): Promise<string | null> {
 	const objectKey = parseProviderDocumentObjectKey(params.fileUrl)
-	if (!objectKey || !isR2DocumentStorageConfigured()) return null
+	const storage = storageFor(params.fileUrl)
+	if (!objectKey || !storage) return null
 	return getSignedUrl(
-		r2,
-		new GetObjectCommand({ Bucket: process.env.R2_BUCKET_NAME!, Key: objectKey }),
+		storage.client,
+		new GetObjectCommand({ Bucket: storage.bucket, Key: objectKey }),
 		{ expiresIn: params.expiresInSeconds ?? 300 }
 	)
 }
@@ -208,13 +251,14 @@ export async function readProviderDocumentObject(params: {
 	maxBytes?: number
 }): Promise<Buffer> {
 	const objectKey = parseProviderDocumentObjectKey(params.fileUrl)
-	if (!objectKey || !isR2DocumentStorageConfigured()) {
+	const storage = storageFor(params.fileUrl)
+	if (!objectKey || !storage) {
 		const error = new Error("document_processing_source_unavailable")
 		;(error as Error & { status?: number }).status = 404
 		throw error
 	}
-	const response = await r2.send(
-		new GetObjectCommand({ Bucket: process.env.R2_BUCKET_NAME!, Key: objectKey })
+	const response = await storage.client.send(
+		new GetObjectCommand({ Bucket: storage.bucket, Key: objectKey })
 	)
 	if (!response.Body) throw new Error("document_processing_source_empty")
 	const bytes = Buffer.from(await response.Body.transformToByteArray())
