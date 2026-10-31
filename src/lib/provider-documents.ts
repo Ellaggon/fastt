@@ -1,4 +1,15 @@
 import { tourComplianceActivityClasses } from "@/shared/domain/tour-operation"
+import { documentIntegrity } from "@/lib/documents/object-integrity"
+import { registerDocumentWithRetry } from "@/lib/documents/registration-retry"
+import { createHash } from "node:crypto"
+import {
+	commandPayloadHash,
+	reserveCommandIdempotency,
+	lockCommandIdempotency,
+	completeCommandIdempotency,
+	failCommandIdempotency,
+	normalizeCommandIdempotencyKey,
+} from "@/lib/commands/command-idempotency"
 import { readPublishedDocumentDefinition } from "@/lib/documents/document-definitions"
 import { validateDocumentCapture } from "@/shared/domain/document-definition"
 import { withPostgresTransaction } from "@/shared/infrastructure/db/client"
@@ -106,6 +117,7 @@ export type ProviderDocumentEvidenceInput = {
 }
 
 export type ProviderDocumentRecord = {
+	technicalInspection?: import("./documents/inspection-presentation").DocumentTechnicalState | null
 	id: string
 	definitionVersionId?: string | null
 	replacesDocumentId?: string | null
@@ -250,6 +262,7 @@ export type ProviderKycFiscalBridge = {
 }
 
 export type ProviderKycSlot = {
+	technicalInspection?: ProviderDocumentRecord["technicalInspection"]
 	type: RequiredKycDocumentType
 	label: string
 	description: string
@@ -692,6 +705,7 @@ export function buildRequiredKycSlots(params: {
 			state,
 			stateLabel: kycSlotStateLabels[state],
 			documentId: document?.id ?? null,
+			technicalInspection: document?.technicalInspection ?? null,
 			fileName: document?.fileName ?? null,
 			reviewedAt: document?.reviewedAt ?? null,
 			reviewNotes: state === "rejected" ? String(document?.reviewNotes ?? "").trim() || null : null,
@@ -1052,6 +1066,19 @@ type DocumentRow = Parameters<typeof mapRow>[0]
 async function withDocumentScopes(rows: DocumentRow[]): Promise<ProviderDocumentRecord[]> {
 	const ids = rows.map((row) => row.id)
 	if (ids.length === 0) return []
+	const inspections = await db
+		.select({
+			documentId: ProviderDocumentInspection.documentId,
+			processingState: ProviderDocumentInspection.processingState,
+			structuralStatus: ProviderDocumentInspection.structuralStatus,
+			malwareStatus: ProviderDocumentInspection.malwareStatus,
+			tamperStatus: ProviderDocumentInspection.tamperStatus,
+		})
+		.from(ProviderDocumentInspection)
+		.where(inArray(ProviderDocumentInspection.documentId, ids))
+	const inspectionByDocument = new Map(
+		inspections.map((inspection) => [inspection.documentId, inspection])
+	)
 	const scopes = await db
 		.select({
 			id: ProviderDocumentScope.id,
@@ -1082,7 +1109,10 @@ async function withDocumentScopes(rows: DocumentRow[]): Promise<ProviderDocument
 		})
 		byDocument.set(scope.documentId, list)
 	}
-	return rows.map((row) => mapRow({ ...row, scopes: byDocument.get(row.id) ?? [] }))
+	return rows.map((row) => ({
+		...mapRow({ ...row, scopes: byDocument.get(row.id) ?? [] }),
+		technicalInspection: inspectionByDocument.get(row.id) ?? null,
+	}))
 }
 
 async function getProviderRole(providerId: string, userId: string) {
@@ -1279,7 +1309,8 @@ export async function assessExpiredDocumentOperationalImpact(params: {
 	}
 }
 
-export async function submitProviderDocument(params: {
+type SubmitProviderDocumentParams = {
+	idempotencyKey?: string
 	providerId: string
 	actorUserId: string
 	type: unknown
@@ -1299,9 +1330,88 @@ export async function submitProviderDocument(params: {
 	replacesDocumentId?: unknown
 	/** When set with R2 configured, uploads bytes and stores an r2: ref. */
 	fileBytes?: Uint8Array | Buffer | null
-}) {
-	await assertCanManageDocuments(params.providerId, params.actorUserId)
+}
 
+export async function submitProviderDocument(params: SubmitProviderDocumentParams) {
+	await assertCanManageDocuments(params.providerId, params.actorUserId)
+	const key = normalizeCommandIdempotencyKey(params.idempotencyKey ?? crypto.randomUUID())
+	const scope = `provider.document.submit:${params.providerId}`
+	const { fileBytes, ...input } = params
+	delete input.idempotencyKey
+	const payload = JSON.parse(
+		JSON.stringify({
+			...input,
+			integrity: fileBytes?.byteLength ? documentIntegrity(fileBytes, null) : null,
+		})
+	)
+	const fingerprint = commandPayloadHash(payload)
+	const id = `upload_${createHash("sha256").update(`${scope}:${key}`).digest("hex").slice(0, 48)}`
+	const readCommitted = async () => {
+		const [row] = await db
+			.select(documentColumns)
+			.from(ProviderDocument)
+			.where(eq(ProviderDocument.id, id))
+		if (!row) return null
+		if ((row.metadataJson as Record<string, unknown> | null)?.submissionFingerprint !== fingerprint)
+			throw Object.assign(new Error("idempotency_key_reused_with_different_payload"), {
+				status: 409,
+			})
+		return (await withDocumentScopes([row]))[0]!
+	}
+	const committed = await readCommitted()
+	if (committed) return committed
+	const requestId = crypto.randomUUID()
+	let reservation
+	try {
+		reservation = await reserveCommandIdempotency({
+			scope,
+			key,
+			payload,
+			requestId,
+			actorUserId: params.actorUserId,
+			ttlMs: 5 * 60_000,
+		})
+	} catch (error) {
+		if (
+			error instanceof Error &&
+			"code" in error &&
+			error.code === "idempotency_key_reused_with_different_payload"
+		)
+			throw Object.assign(error, { status: 409 })
+		throw error
+	}
+	if (reservation.kind === "in_progress")
+		throw Object.assign(new Error("document_submission_in_progress"), { status: 409 })
+	if (reservation.kind === "replay") {
+		const document = await readCommitted()
+		if (document) return document
+		throw Object.assign(new Error("document_submission_unavailable"), { status: 503 })
+	}
+	try {
+		return await submitProviderDocumentAttempt(params, {
+			id,
+			fingerprint,
+			leaseId: reservation.id,
+			requestId,
+		})
+	} catch (error) {
+		// A lost COMMIT acknowledgement is not proof that PostgreSQL rolled back.
+		const document = await readCommitted().catch(() => null)
+		if (document) return document
+		await failCommandIdempotency({ id: reservation.id, requestId }).catch(() => undefined)
+		throw error
+	}
+}
+
+async function submitProviderDocumentAttempt(
+	params: SubmitProviderDocumentParams,
+	submission: {
+		id: string
+		fingerprint: string
+		leaseId: string
+		requestId: string
+	}
+) {
 	const type = asDocumentType(params.type)
 	if (!type) {
 		const error = new Error("invalid_document_type")
@@ -1320,6 +1430,9 @@ export async function submitProviderDocument(params: {
 			? params.sizeBytes
 			: Number(params.sizeBytes)
 	const normalizedSize = Number.isFinite(sizeBytes) && sizeBytes > 0 ? Math.floor(sizeBytes) : null
+	const uploadIntegrity = params.fileBytes?.byteLength
+		? documentIntegrity(params.fileBytes, mimeType)
+		: null
 	const submissionNotes = String(params.submissionNotes ?? "").trim() || null
 	const evidence = validateProviderDocumentEvidence(
 		{
@@ -1369,6 +1482,9 @@ export async function submitProviderDocument(params: {
 	}
 	const replacesDocumentId = String(params.replacesDocumentId ?? "").trim() || null
 	const hasBytes = Boolean(params.fileBytes && params.fileBytes.byteLength > 0)
+	if (!hasBytes && !allowLegacyLocalDocumentUrls()) {
+		throw Object.assign(new Error("document_file_required"), { status: 400 })
+	}
 
 	if (!fileUrlRaw && !fileName && !hasBytes) {
 		const error = new Error("document_file_required")
@@ -1382,57 +1498,14 @@ export async function submitProviderDocument(params: {
 		throw error
 	}
 
-	if (normalizedSize != null && normalizedSize > maxFileBytes) {
+	if ((uploadIntegrity?.byteSize ?? normalizedSize ?? 0) > maxFileBytes) {
 		const error = new Error("file_too_large")
 		;(error as Error & { status?: number }).status = 400
 		throw error
 	}
 
 	const now = new Date()
-	const id = crypto.randomUUID()
-
-	let fileUrl = fileUrlRaw
-	if (hasBytes) {
-		if (!fileName) {
-			const error = new Error("document_file_meta_required")
-			;(error as Error & { status?: number }).status = 400
-			throw error
-		}
-		const resolvedMime = mimeType || "application/octet-stream"
-		if (isR2DocumentStorageConfigured()) {
-			try {
-				const uploaded = await uploadProviderDocumentObject({
-					providerId: params.providerId,
-					documentId: id,
-					fileName,
-					mimeType: resolvedMime === "application/octet-stream" ? "application/pdf" : resolvedMime,
-					body: params.fileBytes!,
-				})
-				fileUrl = uploaded.fileUrl
-			} catch (uploadErr) {
-				console.error("provider.document.r2_upload_failed", {
-					providerId: params.providerId,
-					documentId: id,
-					fileName,
-					error: String((uploadErr as Error)?.message || uploadErr),
-				})
-				// Local/dev: keep the submission usable if R2 is misconfigured.
-				if (allowLegacyLocalDocumentUrls() || process.env.NODE_ENV !== "production") {
-					fileUrl = `local://provider-documents/${params.providerId}/${id}/${fileName}`
-				} else {
-					const error = new Error("document_storage_upload_failed")
-					;(error as Error & { status?: number }).status = 502
-					throw error
-				}
-			}
-		} else {
-			fileUrl = `local://provider-documents/${params.providerId}/${id}/${fileName}`
-		}
-	} else if (!fileUrl) {
-		fileUrl = `local://provider-documents/${params.providerId}/${id}/${fileName}`
-	}
-
-	assertAllowedProviderDocumentUrl(fileUrl)
+	const id = submission.id
 
 	const [ownedProducts, ownedResources] = await Promise.all([
 		evidence.productIds.length
@@ -1498,13 +1571,49 @@ export async function submitProviderDocument(params: {
 		throw error
 	}
 
+	let fileUrl = fileUrlRaw
+	if (hasBytes) {
+		if (!fileName) throw Object.assign(new Error("document_file_meta_required"), { status: 400 })
+		if (isR2DocumentStorageConfigured()) {
+			try {
+				const uploaded = await uploadProviderDocumentObject({
+					providerId: params.providerId,
+					documentId: id,
+					fileName,
+					mimeType: mimeType || "application/pdf",
+					body: params.fileBytes!,
+				})
+				fileUrl = uploaded.fileUrl
+			} catch {
+				// Keep uncertain uploads for reconciliation; deleting here could destroy a committed record.
+				throw Object.assign(new Error("document_storage_upload_failed"), { status: 502 })
+			}
+		} else {
+			if (!allowLegacyLocalDocumentUrls())
+				throw Object.assign(new Error("document_storage_not_configured"), { status: 503 })
+			fileUrl = `local://provider-documents/${params.providerId}/${id}/${fileName}`
+		}
+	} else if (!fileUrl) {
+		if (!allowLegacyLocalDocumentUrls())
+			throw Object.assign(new Error("document_file_required"), { status: 400 })
+		fileUrl = `local://provider-documents/${params.providerId}/${id}/${fileName}`
+	}
+	assertAllowedProviderDocumentUrl(fileUrl)
+
 	const metadataJson = {
+		submissionFingerprint: submission.fingerprint,
+		...(uploadIntegrity ? { integrity: uploadIntegrity } : {}),
 		fileName,
 		mimeType,
-		sizeBytes: normalizedSize,
+		sizeBytes: uploadIntegrity?.byteSize ?? normalizedSize,
 		submissionNotes,
 		source: "provider.settings.documents",
-		storage: fileUrl.startsWith("r2:") ? "r2" : fileUrl.startsWith("local://") ? "local" : "url",
+		storage:
+			fileUrl.startsWith("r2:") || fileUrl.startsWith("r2-documents:")
+				? "r2"
+				: fileUrl.startsWith("local://")
+					? "local"
+					: "url",
 	}
 	const scope = (
 		scopeType: ProviderDocumentScopeRecord["scopeType"],
@@ -1535,8 +1644,9 @@ export async function submitProviderDocument(params: {
 		),
 	]
 
-	await withPostgresTransaction(async () => {
+	await registerDocumentWithRetry(async () => {
 		const tx = db
+		await lockCommandIdempotency({ id: submission.leaseId, requestId: submission.requestId })
 		const supersedeIds = replacement && replacement.status !== "verified" ? [replacement.id] : []
 		for (const documentId of supersedeIds) {
 			await tx
@@ -1610,6 +1720,12 @@ export async function submitProviderDocument(params: {
 				evidence,
 			},
 			riskLevel: inferSettingsRiskLevel({ domain: "documents" }),
+		})
+		await completeCommandIdempotency({ id: submission.leaseId, response: { documentId: id } })
+	}).catch((error) => {
+		if (error instanceof Error && error.message === "idempotency_lease_changed") throw error
+		throw Object.assign(new Error("document_registration_unconfirmed", { cause: error }), {
+			status: 503,
 		})
 	})
 
@@ -1713,6 +1829,21 @@ export async function reviewProviderDocument(params: {
 
 	await withPostgresTransaction(async () => {
 		const tx = db
+		if (nextStatus === "verified") {
+			await tx
+				.select({ id: ProviderDocumentInspection.id })
+				.from(ProviderDocumentInspection)
+				.where(eq(ProviderDocumentInspection.documentId, existing.id))
+				.for("update")
+			const { documentInspectionGate, getProviderDocumentInspection } =
+				await import("@/lib/documents/document-processing")
+			const gate = documentInspectionGate(await getProviderDocumentInspection(existing.id))
+			if (!gate.canReveal)
+				throw Object.assign(new Error("document_processing_gate_blocked"), {
+					status: 422,
+					details: gate.blockers,
+				})
+		}
 		if (nextStatus === "verified" && existing.replacesDocumentId) {
 			await tx
 				.select({ id: ProviderDocument.id })

@@ -1,9 +1,11 @@
-import { beforeAll, describe, expect, it } from "vitest"
+import { beforeAll, describe, expect, it, vi } from "vitest"
+import * as documentStorage from "@/lib/provider-document-storage"
 import {
 	db,
 	eq,
 	ProviderAuditLog,
 	ProviderDocument,
+	ProviderDocumentInspection,
 	ProviderUser,
 	Product,
 	TourComplianceContext,
@@ -127,6 +129,45 @@ describe("provider compliance documents", () => {
 				expect(submitted.document.type).toBe("business_registration")
 				expect(submitted.document.fileName).toBe("registro-mercantil.pdf")
 
+				const configured = vi
+					.spyOn(documentStorage, "isR2DocumentStorageConfigured")
+					.mockReturnValue(true)
+				const upload = vi
+					.spyOn(documentStorage, "uploadProviderDocumentObject")
+					.mockRejectedValue(new Error("synthetic_storage_outage"))
+				try {
+					const failedBody = new FormData()
+					failedBody.set("type", "business_registration")
+					failedBody.set(
+						"file",
+						new File(["%PDF-1.4 synthetic"], "outage.pdf", { type: "application/pdf" })
+					)
+					const failedResponse = await documentsPost({
+						request: makeAuthedRequest("/api/provider/settings/documents", token, failedBody),
+					} as any)
+					expect(failedResponse.status).toBe(502)
+					expect(await failedResponse.json()).toMatchObject({
+						error: "document_storage_upload_failed",
+					})
+					const htmlBody = new FormData()
+					htmlBody.set("type", "business_registration")
+					htmlBody.set(
+						"file",
+						new File(["%PDF-1.4 synthetic"], "outage.pdf", { type: "application/pdf" })
+					)
+					const htmlRequest = makeAuthedRequest("/api/provider/settings/documents", token, htmlBody)
+					htmlRequest.headers.set("accept", "text/html")
+					const htmlResponse = await documentsPost({ request: htmlRequest } as any)
+					expect(htmlResponse.status).toBe(303)
+					expect(htmlResponse.headers.get("location")).toContain(
+						"error=document_storage_upload_failed"
+					)
+					expect(htmlResponse.headers.get("location")).not.toContain("result=submitted")
+				} finally {
+					configured.mockRestore()
+					upload.mockRestore()
+				}
+
 				const listRes = await documentsGet({
 					request: makeAuthedRequest("/api/provider/settings/documents", token),
 				} as any)
@@ -149,6 +190,34 @@ describe("provider compliance documents", () => {
 				expect(selfReviewPayload.error).toBe("forbidden")
 
 				await elevateInternalTestSession({ userId: adminId, accessToken: adminToken })
+				const blockedResponse = await adminDocumentsPost({
+					request: makeAuthedRequest(
+						"/api/admin/providers/documents",
+						adminToken,
+						JSON.stringify({
+							providerId,
+							documentId: submitted.document.id,
+							status: "verified",
+							reviewNotes: "Synthetic pending inspection",
+						})
+					),
+				} as any)
+				expect(blockedResponse.status).toBe(422)
+				expect(await blockedResponse.json()).toMatchObject({
+					error: "document_processing_gate_blocked",
+				})
+				// Explicit isolated fixture: approval requires a completed technical result.
+				await db
+					.update(ProviderDocumentInspection)
+					.set({
+						processingState: "completed",
+						structuralStatus: "valid",
+						malwareStatus: "clean",
+						tamperStatus: "clear",
+						ocrStatus: "completed",
+						extractionStatus: "completed",
+					})
+					.where(eq(ProviderDocumentInspection.documentId, submitted.document.id))
 				const adminRes = await adminDocumentsPost({
 					request: makeAuthedRequest(
 						"/api/admin/providers/documents",
@@ -179,6 +248,28 @@ describe("provider compliance documents", () => {
 				expect(persisted?.reviewNotes).toBe("Documento legible y vigente")
 				expect(persisted?.reviewedBy).toBe(adminId)
 
+				const ownerResult = await documentsGet({
+					request: makeAuthedRequest("/api/provider/settings/documents", token),
+				} as any)
+				const ownerDocuments = await ownerResult.json()
+				expect(
+					ownerDocuments.documents.find((doc: any) => doc.id === submitted.document.id).status
+				).toBe("verified")
+				expect(ownerDocuments.counts.pending).toBe(0)
+				const repeated = await adminDocumentsPost({
+					request: makeAuthedRequest(
+						"/api/admin/providers/documents",
+						adminToken,
+						JSON.stringify({
+							providerId,
+							documentId: submitted.document.id,
+							status: "rejected",
+							reviewNotes: "Second stale review must not overwrite approval",
+						})
+					),
+				} as any)
+				expect(repeated.status).toBe(409)
+
 				const audit = await db
 					.select({
 						action: ProviderAuditLog.action,
@@ -189,6 +280,7 @@ describe("provider compliance documents", () => {
 					.where(eq(ProviderAuditLog.providerId, providerId))
 
 				expect(audit.some((row) => row.action === "provider.document.submit")).toBe(true)
+				expect(audit.filter((row) => row.action === "provider.document.submit")).toHaveLength(1)
 				expect(audit.some((row) => row.action === "provider.document.review")).toBe(true)
 				const reviewAudit = audit.find((row) => row.action === "provider.document.review")
 				expect(reviewAudit?.beforeJson).toMatchObject({ status: "pending" })
@@ -244,7 +336,7 @@ describe("provider compliance documents", () => {
 			second.set("type", "operating_license")
 			second.set("fileUrl", "https://cdn.example.com/licencia-uyuni.pdf")
 			second.set("fileName", "licencia-uyuni.pdf")
-		second.set("territoryCode", "BO-PT")
+			second.set("territoryCode", "BO-PT")
 			second.set("territoryLabel", "Potosí")
 			second.append("activityClass", "adventure")
 
@@ -280,7 +372,7 @@ describe("provider compliance documents", () => {
 				licences.find((document: any) => document.id === secondDocument.document.id).scopes
 			).toEqual(
 				expect.arrayContaining([
-				expect.objectContaining({ scopeType: "territory", territoryCode: "geo:bo:potosi" }),
+					expect.objectContaining({ scopeType: "territory", territoryCode: "geo:bo:potosi" }),
 					expect.objectContaining({ scopeType: "activity", activityClass: "adventure" }),
 				])
 			)

@@ -3,12 +3,12 @@
 Status: active
 Document type: canonical
 Owner: Platform / Security
-Last verified: 2026-10-01
-Scope: procesamiento documental en modo sombra y condiciones de activación
-Source of truth: arquitectura y código enlazados; activación especializada pendiente
+Last verified: 2026-10-30
+Scope: inspección obligatoria de documentos y condiciones de operación
+Source of truth: arquitectura, services/document-analysis y pruebas enlazadas; producción no habilitada
 Review trigger: cambio de contrato, controles o procedimiento; revisar evidencia del entorno antes de ejecutar
 
-**Estado:** implementada en modo sombra; activación obligatoria pendiente de proveedor especializado  
+**Estado:** gateway autoalojado operativo y certificado en desarrollo; producción no habilitada
 **Alcance:** documentos de identidad, negocio, fiscalidad y corroboración de pagos  
 **Decisión:** el archivo original permanece privado en R2 y toda decisión se apoya en un expediente técnico persistente, reproducible y auditable.
 
@@ -37,7 +37,9 @@ FASTT adopta una arquitectura híbrida. El núcleo propio controla almacenamient
 | Reintento o duplicado               | un job por documento + lease                   | procesamiento idempotente                    |
 | Fuga de PII                         | URL R2 efímera, gateway privado y minimización | sin bucket público ni OCR completo en logs   |
 
-Principio central: **`unavailable` no significa `clean`**. Mientras el feature flag obligatorio esté desactivado, la ausencia de antivirus/OCR genera una advertencia para permitir la transición. Al activar el control, antivirus sin resultado limpio bloquea apertura y aprobación.
+Principio central: **`unavailable` no significa `clean`**. La inspección es obligatoria:
+sin antivirus limpio no se habilitan apertura ni aprobación. OCR no disponible exige
+revisión manual documentada; no demuestra fraude ni autenticidad.
 
 ## 3. Flujo implementado
 
@@ -68,6 +70,25 @@ Worker con lease ──► hash SHA-256 + magic bytes + estructura local
 ```
 
 La base conserva una inspección y un trabajo por documento. El worker reconstruye el backlog en cada ejecución para reparar huérfanos, recupera leases vencidos y reintenta con backoff. Los trabajos detenidos porque no existía gateway se reencolan automáticamente cuando aparecen ambas credenciales.
+
+La carga valida alcance y reemplazo antes de R2. Usa `CommandIdempotency` existente,
+una identidad estable por proveedor/intento y `PUT If-None-Match: *`: un reintento
+reutiliza el objeto sólo si HEAD confirma tamaño, MIME y SHA-256. Registro, auditoría,
+inspección, trabajo y respuesta idempotente se confirman juntos. Sólo serialización
+y deadlock admiten tres intentos transaccionales; una pérdida de conexión obliga a
+consultar el registro antes de afirmar fallo. El formulario conserva la clave del
+intento fallido, sin compartirla con formularios hermanos. Refrescos de caché o del
+expediente posteriores no convierten un registro confirmado en otro envío.
+
+`pnpm run audit:r2-documents` concilia todas las páginas del bucket documental privado
+con referencias de **todos** los estados en PostgreSQL. Distingue referencias válidas,
+cargas recientes (24 horas), candidatos huérfanos y objetos sin identidad/edad fiable.
+Falla si no puede consultar referencias o completar la paginación. Es sólo lectura:
+un candidato no autoriza borrado ni creación de documentos o aprobaciones. Platform
+debe contrastarlo con intentos pendientes y retención antes de autorizar una limpieza.
+Nunca borrar como compensación inmediata de un COMMIT cuyo resultado sea incierto.
+El cron documental existente ejecuta la misma conciliación cuando R2 está configurado;
+devuelve sólo conteos y registra atención si hay candidatos u objetos desconocidos.
 
 ## 4. Contrato del gateway
 
@@ -121,10 +142,18 @@ Bloquean siempre:
 - malware `infected`;
 - manipulación `suspected`.
 
-Bloquean cuando `DOCUMENT_PROCESSING_ENFORCED=true`:
+También bloquean siempre, sin interruptor de bypass:
 
 - inspección inexistente;
 - antivirus pendiente, no disponible o con error.
+- procesamiento distinto de `completed` y estructura o integridad pendientes/con error.
+
+Flujo: archivo recibido → comprobación técnica → pendiente de revisión humana →
+resultado documental. `ProviderDocument.status=pending` no implica que el análisis
+haya terminado. La UI presenta esa fase usando la inspección persistida, cargada por
+lote. Preview y aprobación aplican el mismo gate del servidor. Aprobar nunca marca
+la inspección como completada. La aprobación vuelve a comprobarla bajo bloqueo
+transaccional; el rechazo documental no equivale a un diagnóstico antivirus.
 
 Generan revisión humana, pero no rechazo automático:
 
@@ -141,7 +170,6 @@ Variables server-only:
 ```ini
 DOCUMENT_ANALYSIS_GATEWAY_URL=https://gateway-interno.example/v1/documents/analyze
 DOCUMENT_ANALYSIS_GATEWAY_TOKEN=<secreto-rotado>
-DOCUMENT_PROCESSING_ENFORCED=false
 ```
 
 El endpoint diario `/api/cron/document-processing` usa el `CRON_SECRET` ya existente. Para operación controlada:
@@ -154,57 +182,60 @@ pnpm run ops:process-provider-documents -- --local-only --limit=25
 pnpm run ops:process-provider-documents -- --limit=25
 ```
 
-No activar `DOCUMENT_PROCESSING_ENFORCED=true` hasta que el backlog sea cero, el proveedor esté certificado y las métricas confirmen estabilidad.
+Sin gateway configurado, el worker registra `awaiting_configuration`; no habilita
+preview ni aprobación. Los errores transitorios de antivirus/integridad reintentan
+con backoff. OCR y extracción fallidos requieren notas de revisión manual, no se
+convierten en rechazo automático ni en una afirmación de autenticidad.
 
-## 8. Plan de activación
+## 8. Desarrollo autoalojado
 
-### Etapa A — sombra técnica (implementada)
+`services/document-analysis/` implementa el protocolo existente con ClamAV, qpdf,
+Poppler y Tesseract español/inglés. Docker usa imagen oficial fijada por digest,
+usuario sin privilegios, disco de aplicación de sólo lectura, temporales en RAM,
+3 GiB máximos y puerto publicado exclusivamente en `127.0.0.1:4319`. FreshClam
+actualiza firmas; si superan 48 horas, el servicio falla cerrado. No conserva texto
+OCR, archivos temporales ni URLs firmadas en logs. No expone el socket de ClamAV.
 
-- migración y backfill;
-- inspección local, SHA-256 y tipo real;
-- cola durable, lease, retry, dead-letter y reconciliación de huérfanos;
-- gates de preview/aprobación y estado visible en Casework;
-- flag obligatorio apagado.
+```bash
+pnpm run gateway:documents:configure:dev
+pnpm run gateway:documents:up
+pnpm run gateway:documents:test
+pnpm run gateway:documents:certify:dev
+pnpm run gateway:documents:down
+```
 
-### Etapa B — integración especializada
+Configuración genera secretos locales excluidos de Git (`.env` y
+`tmp/document-analysis.env`, modo 0600). HTTP requiere el opt-in
+`DOCUMENT_ANALYSIS_LOCAL_DEVELOPMENT=true`; está prohibido en producción/Vercel.
+El servicio acepta sólo la URL R2 firmada, origen configurado, identidad del objeto,
+hash y tamaño esperados. No sigue redirecciones. La certificación usa el PDF sintético
+del repositorio y EICAR, elimina sólo sus objetos temporales tras comprobar hashes y
+no aprueba documentos. `tests/integration/document-gateway-live.test.ts` certifica
+R2 real → gateway real → PostgreSQL aislado con `FASTT_CERTIFY_LOCAL_GATEWAY=1`.
 
-- desplegar gateway privado;
-- integrar ClamAV y OCR/extracción;
-- configurar secretos solo en Vercel Production/Preview correspondiente;
-- procesar fixtures sintéticos y después el backlog real autorizado;
-- alertas por `infected`, `failed`, `dead_letter` y antigüedad de cola.
-
-### Etapa C — certificación
-
-- archivo limpio PDF/JPEG/PNG;
-- MIME falsificado y PDF truncado;
-- EICAR únicamente en entorno aislado de prueba;
-- PDF con JavaScript/Launch/EmbeddedFile;
-- imagen borrosa, rotada y con reflejo;
-- conjunto dorado en español para nombre legal, NIT, fechas y número documental;
-- fallo/timeout del gateway y replay idempotente;
-- comprobar que preview y aprobación quedan bloqueados por servidor.
-
-### Etapa D — enforcement
-
-- backlog sin pendientes fuera de SLA;
-- tasa de error y falsos positivos aceptada;
-- aprobación Legal/Security/Ops;
-- activar `DOCUMENT_PROCESSING_ENFORCED=true` gradualmente;
-- revisar métricas durante 48–72 horas antes de generalizar.
+Límites explícitos: OCR de PDF de una página y JPEG/PNG; documentos de varias páginas
+devuelven `not_supported`, no un falso OCR completo. Extracción contractual de campos
+no está implementada: devuelve `not_supported` y exige notas humanas. Manipulación
+devuelve `inconclusive`; este gateway no certifica autenticidad ni identidad legal.
+Objetos históricos fuera del namespace privado canónico requieren revisión/migración
+autorizada, nunca ampliar silenciosamente la lista de orígenes.
 
 ## 9. Criterio de cierre
 
-El gap técnico queda **arquitectónicamente resuelto y en modo sombra**. El cierre operacional completo exige proveedor real, contrato de privacidad, certificación y enforcement. Hasta entonces FASTT muestra honestamente “no disponible” y mantiene revisión manual; nunca afirma que un documento está limpio o auténtico sin evidencia.
+Desarrollo está certificado con ClamAV/Tesseract y R2 reales, PDF sintético limpio,
+EICAR detectado, PDF inválido y hash incorrecto bloqueados. La prueba del worker usa
+PostgreSQL aislado y conserva `ProviderDocument.status=pending`: aptitud técnica no
+es aprobación. No equivale a certificación de producción, autenticidad ni extracción.
 
-## 10. Trabajo manual pendiente
+## 10. Producción pendiente (fuera de desarrollo)
 
-1. Elegir región/proveedor y firmar DPA/condiciones de tratamiento.
-2. Desplegar el gateway privado y configurar sus credenciales en Vercel; no compartir el token en el repositorio.
-3. Crear el set de fixtures sintéticos y obtener autorización antes de procesar documentos reales con un tercero.
-4. Ejecutar la certificación de la Etapa C y revisar falsos positivos con Ops/Legal.
-5. Activar `DOCUMENT_PROCESSING_ENFORCED=true` solo al superar el gate.
-6. Los tres documentos legacy cuyo origen ya no existe deben volver a cargarse o marcarse formalmente como evidencia no disponible; no pueden analizarse ni aprobarse técnicamente.
+1. Elegir alojamiento, región, presupuesto y responsables. Si hay un tercero que
+   procese documentos, aprobar contrato, DPA, residencia y retención antes de egress.
+2. Desplegar con HTTPS, secretos separados, monitorización, límites de cola y alertas.
+3. Certificar carga/rendimiento, falsos positivos, JPEG/PNG, documentos difíciles,
+   caídas, backlog autorizado y operación sostenida 48–72 horas con Security/Ops.
+4. Implementar y certificar extracción especializada sólo si se decide incorporarla.
+5. Resolver históricos no disponibles sin inventar archivos ni aprobaciones.
 
 ## 11. Referencias técnicas primarias
 

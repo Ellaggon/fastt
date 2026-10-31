@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from "node:crypto"
+import { assertDocumentIntegrity } from "./object-integrity"
+import { documentAnalysisGatewayConfig } from "./analysis-gateway-config"
 import { z } from "zod"
 
-import { getFeatureFlag } from "@/config/featureFlags"
 import {
 	createProviderDocumentProcessingUrl,
 	readProviderDocumentObject,
@@ -22,6 +23,8 @@ import {
 const MAX_ATTEMPTS = 5
 const LEASE_MS = 10 * 60 * 1000
 const PERMANENT_SOURCE_ERRORS = new Set([
+	"document_integrity_invalid",
+	"document_integrity_mismatch",
 	"document_processing_source_missing",
 	"document_processing_source_unavailable",
 	"document_processing_source_empty",
@@ -128,9 +131,9 @@ async function callDocumentGateway(params: {
 	allowExternalGateway: boolean
 }) {
 	if (!params.allowExternalGateway) return null
-	const endpoint = String(process.env.DOCUMENT_ANALYSIS_GATEWAY_URL ?? "").trim()
-	const token = String(process.env.DOCUMENT_ANALYSIS_GATEWAY_TOKEN ?? "").trim()
-	if (!endpoint || !token) return null
+	const config = documentAnalysisGatewayConfig()
+	if (!config) return null
+	const { endpoint, token } = config
 	const sourceUrl = await createProviderDocumentProcessingUrl({
 		fileUrl: params.fileUrl,
 		expiresInSeconds: 300,
@@ -152,9 +155,18 @@ async function callDocumentGateway(params: {
 			controls: ["malware", "ocr", "field_extraction", "tamper"],
 		}),
 		signal: AbortSignal.timeout(45_000),
+		redirect: "error",
 	})
 	if (!response.ok) throw new Error(`document_gateway_http_${response.status}`)
-	return gatewaySchema.parse(await response.json())
+	if (!response.body) throw new Error("document_gateway_empty_response")
+	const chunks: Uint8Array[] = []
+	let size = 0
+	for await (const chunk of response.body) {
+		size += chunk.byteLength
+		if (size > 64 * 1024) throw new Error("document_gateway_response_too_large")
+		chunks.push(chunk)
+	}
+	return gatewaySchema.parse(JSON.parse(Buffer.concat(chunks).toString("utf8")))
 }
 
 export async function getProviderDocumentInspection(
@@ -185,30 +197,26 @@ export async function getProviderDocumentInspection(
 	}
 }
 
-export function documentInspectionGate(
-	inspection: ProviderDocumentInspectionReadModel | null,
-	options: { enforced?: boolean } = {}
-) {
-	const enforced = options.enforced ?? getFeatureFlag("DOCUMENT_PROCESSING_ENFORCED")
+export function documentInspectionGate(inspection: ProviderDocumentInspectionReadModel | null) {
 	const blockers: string[] = []
 	const warnings: string[] = []
 	if (!inspection) {
-		;(enforced ? blockers : warnings).push(
-			"El documento aún no tiene inspección técnica registrada."
-		)
-		return { blockers, warnings, canReveal: !enforced }
+		blockers.push("El documento aún no tiene inspección técnica registrada.")
+		return { blockers, warnings, canReveal: false }
 	}
-	if (inspection.structuralStatus === "invalid")
+	if (inspection.processingState !== "completed")
+		blockers.push("La comprobación técnica todavía no terminó correctamente.")
+	if (inspection.structuralStatus !== "valid")
 		blockers.push("El contenido real no corresponde a un archivo estructuralmente válido.")
 	if (inspection.structuralStatus === "suspicious" || inspection.tamperStatus === "suspected")
 		blockers.push("El archivo presenta señales de contenido activo o posible manipulación.")
 	if (inspection.malwareStatus === "infected")
 		blockers.push("El antivirus detectó contenido malicioso; el archivo permanece en cuarentena.")
 	if (inspection.malwareStatus !== "clean" && inspection.malwareStatus !== "infected") {
-		;(enforced ? blockers : warnings).push(
-			"El análisis antivirus todavía no confirmó que el archivo esté limpio."
-		)
+		blockers.push("El análisis antivirus todavía no confirmó que el archivo esté limpio.")
 	}
+	if (!["clear", "inconclusive", "suspected"].includes(inspection.tamperStatus))
+		blockers.push("La comprobación de integridad del archivo no pudo completarse.")
 	if (inspection.ocrStatus !== "completed")
 		warnings.push("OCR no completado; la revisión manual debe justificar cualquier aprobación.")
 	if (inspection.extractionStatus !== "completed")
@@ -216,10 +224,7 @@ export function documentInspectionGate(
 	return {
 		blockers,
 		warnings,
-		canReveal:
-			!blockers.length &&
-			(!enforced || inspection.malwareStatus === "clean") &&
-			inspection.structuralStatus !== "invalid",
+		canReveal: !blockers.length,
 	}
 }
 
@@ -267,6 +272,12 @@ async function processJob(
 			.limit(1)
 		if (!document?.fileUrl) throw new Error("document_processing_source_missing")
 		const bytes = await readProviderDocumentObject({ fileUrl: document.fileUrl })
+		assertDocumentIntegrity(
+			bytes,
+			document.metadataJson && typeof document.metadataJson === "object"
+				? (document.metadataJson as Record<string, unknown>).integrity
+				: undefined
+		)
 		const declaredMimeType =
 			document.metadataJson && typeof document.metadataJson === "object"
 				? String((document.metadataJson as Record<string, unknown>).mimeType ?? "") || null
@@ -319,9 +330,11 @@ async function processJob(
 				.where(eq(ProviderDocumentProcessingJob.id, job.id))
 			return "blocked" as const
 		}
+		if (gateway.malware.status === "error" || gateway.tamper.status === "error")
+			throw new Error("document_analysis_incomplete")
 		const blocked =
 			local.structuralStatus !== "valid" ||
-			gateway.malware.status === "infected" ||
+			gateway.malware.status !== "clean" ||
 			gateway.tamper.status === "suspected"
 		await db
 			.update(ProviderDocumentInspection)
@@ -472,9 +485,9 @@ export async function runProviderDocumentProcessingWorker(
 		gatewayMode?: "configured" | "disabled"
 	} = {}
 ) {
-	const now = new Date()
 	const allowExternalGateway = params.gatewayMode !== "disabled"
 	await ensureDocumentProcessingBacklog()
+	const now = new Date()
 	if (allowExternalGateway && documentGatewayConfigured()) {
 		await db
 			.update(ProviderDocumentProcessingJob)

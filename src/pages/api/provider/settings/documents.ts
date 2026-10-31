@@ -147,7 +147,8 @@ export function redirectAfterFormError(
 	type?: string,
 	returnToRaw?: unknown,
 	verticalRaw?: unknown,
-	scopeProductIdRaw?: unknown
+	scopeProductIdRaw?: unknown,
+	retrySubmission?: { key: string; form: string }
 ) {
 	const rawType = String(type ?? "").trim()
 	const isOptional =
@@ -163,6 +164,17 @@ export function redirectAfterFormError(
 			: routes.providerSettingsVerification()
 	const target = new URL(path, request.url)
 	target.searchParams.set("result", "error")
+	if (
+		retrySubmission &&
+		[
+			"document_storage_upload_failed",
+			"document_registration_unconfirmed",
+			"document_submission_in_progress",
+		].includes(errorCode)
+	) {
+		target.searchParams.set("documentSubmissionKey", retrySubmission.key)
+		target.searchParams.set("documentSubmissionForm", retrySubmission.form)
+	}
 	target.searchParams.set("error", errorCode)
 	if (rawType) target.searchParams.set("type", rawType)
 	if (isOptional && !inlineTour)
@@ -212,11 +224,21 @@ export const POST: APIRoute = async ({ request }) => {
 	let returnToHint = ""
 	let verticalHint = ""
 	let scopeProductIdHint = ""
+	let retrySubmission: { key: string; form: string } | undefined
 	try {
 		const { user, provider } = await requireProviderSessionSurface(request)
 		const providerId = provider.providerId
 
 		const form = await request.formData()
+		const submissionKey = String(
+			request.headers.get("idempotency-key") ?? form.get("idempotencyKey") ?? ""
+		).trim()
+		if (!submissionKey || submissionKey.length > 200)
+			throw Object.assign(new Error("idempotency_key_required"), { status: 400 })
+		retrySubmission = {
+			key: submissionKey,
+			form: String(form.get("submissionForm") ?? "").slice(0, 200),
+		}
 		const action = String(form.get("action") ?? "submit")
 		formTypeHint = String(form.get("type") ?? "").trim()
 		await assertHolderDeclarationAllowsDocuments(providerId, formTypeHint)
@@ -395,6 +417,7 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		const submitted = await submitProviderDocument({
+			idempotencyKey: submissionKey,
 			providerId,
 			actorUserId: user.id,
 			type: parsed.type,
@@ -421,15 +444,22 @@ export const POST: APIRoute = async ({ request }) => {
 			replacesDocumentId: parsed.replacesDocumentId,
 			fileBytes,
 		})
-		await synchronizeComplianceCaseCompat({
-			providerId,
-			domain: "documents",
-			sourceType: "ProviderDocument",
-			sourceRef: submitted.id,
-			summary: `Revisión documental: ${submitted.typeLabel}`,
-		})
-		await invalidateProvider(providerId)
-		await invalidateProviderGovernance(providerId, "provider_document_submitted")
+		const effects = await Promise.allSettled([
+			synchronizeComplianceCaseCompat({
+				providerId,
+				domain: "documents",
+				sourceType: "ProviderDocument",
+				sourceRef: submitted.id,
+				summary: `Revisión documental: ${submitted.typeLabel}`,
+			}),
+			invalidateProvider(providerId),
+			invalidateProviderGovernance(providerId, "provider_document_submitted"),
+		])
+		if (effects.some((effect) => effect.status === "rejected"))
+			console.warn("provider.document.post_commit_refresh_pending", {
+				providerId,
+				documentId: submitted.id,
+			})
 
 		return preferRedirect
 			? redirectAfterSubmit(
@@ -475,7 +505,8 @@ export const POST: APIRoute = async ({ request }) => {
 				formTypeHint,
 				returnToHint,
 				verticalHint,
-				scopeProductIdHint
+				scopeProductIdHint,
+				retrySubmission
 			)
 		}
 		if (err instanceof ZodError)
