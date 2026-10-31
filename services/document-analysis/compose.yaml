@@ -4,6 +4,7 @@ services:
     build:
       context: .
     platform: linux/amd64
+    user: clamav
     env_file: ../../tmp/document-analysis.env
     ports:
       - "127.0.0.1:4319:4319"

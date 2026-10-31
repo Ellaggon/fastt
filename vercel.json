@@ -33,6 +33,10 @@
       "schedule": "7 5 * * *"
     },
     {
+      "path": "/api/cron/document-storage-reconciliation",
+      "schedule": "27 5 * * *"
+    },
+    {
       "path": "/api/cron/compliance-case-reconciliation",
       "schedule": "17 5 * * *"
     }

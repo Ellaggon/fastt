@@ -10,6 +10,7 @@ import {
 	db,
 	eq,
 } from "@/shared/infrastructure/db/compat"
+import { prepareIsolatedTestDatabase } from "@/shared/infrastructure/db/data-environment"
 type Db = typeof db
 
 const tourApprovalAreas = ["policy", "finance", "tour_operations"] as const
@@ -175,6 +176,8 @@ export async function seedMarketplaceCertificationCommercialPolicy(params: {
 	tourProductId: string
 	now: Date
 }) {
+	if (!prepareIsolatedTestDatabase().configured)
+		throw new Error("Commercial certification fixtures require an isolated test database")
 	await ensureTourApproverUsers(params.db)
 	await seedVerticalPolicies({
 		db: params.db,

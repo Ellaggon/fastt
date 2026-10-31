@@ -21,7 +21,7 @@ import {
 } from "@/lib/verification/navigation"
 import { routes } from "@/lib/routes"
 import { loadProviderVerificationResolution } from "@/lib/verification/requirement-context"
-import { packDocumentTypes, packUploadOptions } from "@/lib/verification/requirement-resolver"
+import { packUploadOptions } from "@/lib/verification/requirement-resolver"
 import { asc, db, eq, Product } from "@/shared/infrastructure/db/compat"
 
 const auth = await requireProviderSessionSurface(Astro.request).catch((e: any) => {
@@ -84,10 +84,10 @@ const legacyOptionalTypes = providerDocumentTypes.filter(
 const resolvedPack =
 	loadedResolution?.enforced && loadedResolution.resolution ? loadedResolution.resolution : null
 const optionalDocumentTypes = resolvedPack ? packUploadOptions(resolvedPack) : legacyOptionalTypes
-const packTypes = new Set<string>(
-	resolvedPack ? packDocumentTypes(resolvedPack) : legacyOptionalTypes.map((item) => item.value)
+// Historical files remain visible even when their type is no longer offered for new uploads.
+const optionalDocuments = documents.filter(
+	(doc) => !(requiredKycDocumentTypes as readonly string[]).includes(doc.type)
 )
-const optionalDocuments = documents.filter((doc) => packTypes.has(doc.type))
 const renewalDocumentId = String(Astro.url.searchParams.get("renewDocumentId") ?? "").trim() || null
 
 const result = Astro.url.searchParams.get("result")
@@ -106,6 +106,7 @@ const tourWorkspaceHref = tourDocumentWorkspaceHref({
 	requirements: resolvedPack?.requirements ?? [],
 })
 if (tourWorkspaceHref) return Astro.redirect(tourWorkspaceHref)
+const readOnlyTourArchive = navigation.line === "tour"
 const defaultOptionalUploadType = optionalDocumentTypes.some((item) => item.value === requestedType)
 	? requestedType
 	: (optionalDocumentTypes.find((item) => item.value.startsWith(`${requestedType}::`))?.value ??
@@ -206,6 +207,7 @@ const verificationBackHref = `${verificationBackUrl.pathname}${verificationBackU
 				) : null}
 				{canManageDocuments ? (
 					<ProviderVerificationOptionals
+						readOnlyArchive={readOnlyTourArchive}
 						documents={optionalDocuments}
 						documentTypes={optionalDocumentTypes}
 						canManageDocuments={canManageDocuments}
@@ -271,6 +273,7 @@ const verificationBackHref = `${verificationBackUrl.pathname}${verificationBackU
 
 			{canManageDocuments ? (
 				<ProviderVerificationOptionals
+					readOnlyArchive={readOnlyTourArchive}
 					documents={optionalDocuments}
 					documentTypes={optionalDocumentTypes}
 					canManageDocuments={canManageDocuments}

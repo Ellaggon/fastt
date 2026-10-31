@@ -18,6 +18,15 @@ const server = createServer(async (request, response) => {
 		response.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store" })
 		response.end(JSON.stringify(body))
 	}
+	// Hosting probes cannot attach the bearer token. Disclose only readiness.
+	if (request.method === "GET" && request.url === "/readyz") {
+		try {
+			await engineReadiness()
+			return send(200, { ready: true })
+		} catch {
+			return send(503, { ready: false })
+		}
+	}
 	if (!authorized(request.headers.authorization)) return send(401, { error: "unauthorized" })
 	if (request.method === "GET" && request.url === "/health") {
 		try {

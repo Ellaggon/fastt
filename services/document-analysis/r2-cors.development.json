@@ -1,0 +1,11 @@
+{
+  "CORSRules": [
+    {
+      "ID": "fastt-document-upload-development",
+      "AllowedOrigins": ["http://localhost:4321"],
+      "AllowedMethods": ["PUT"],
+      "AllowedHeaders": ["content-type", "if-none-match", "x-amz-meta-sha256", "x-amz-checksum-crc32", "x-amz-sdk-checksum-algorithm"],
+      "MaxAgeSeconds": 300
+    }
+  ]
+}

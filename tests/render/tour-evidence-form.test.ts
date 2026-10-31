@@ -80,7 +80,9 @@ describe("requirement-specific tour evidence", () => {
 	it("preserves the archival generic editor", async () => {
 		const html = await render("operating_license", "archive")
 		expect(html).toContain("Referencia del titular")
-		expect(html).toContain('placeholder="BO-LP o código de permiso"')
+		expect(html).toContain("Territorios cubiertos (opcional)")
+		expect(html).toContain('placeholder="Buscar país, región o ciudad"')
+		expect(html).toContain("data-territory-picker")
 	})
 })
 

@@ -6,15 +6,27 @@ import {
 } from "@/lib/commercial-policy/migration-audit"
 
 describe("commercial evidence migration audit", () => {
+	it("never treats an invalid historical expiry as valid evidence", () => {
+		expect(
+			classifyCommercialEvidenceMigration({
+				status: "verified",
+				scopeCount: 1,
+				expiresAt: "invalid",
+			})
+		).toBe("invalid_expiry_requires_review")
+	})
 	it("preserves historical evidence but never classifies it as permission-granting", () => {
+		expect(classifyCommercialEvidenceMigration({ status: "verified", scopeCount: 0 })).toBe(
+			"legacy_generic_requires_scope"
+		)
+		expect(classifyCommercialEvidenceMigration({ status: "verified", scopeCount: 1 })).toBe(
+			"scoped_requires_policy_match"
+		)
 		expect(
-			classifyCommercialEvidenceMigration({ status: "verified", scopeCount: 0 })
-		).toBe("legacy_generic_requires_scope")
-		expect(
-			classifyCommercialEvidenceMigration({ status: "verified", scopeCount: 1 })
-		).toBe("scoped_requires_policy_match")
-		expect(
-			classifyCommercialEvidenceMigration({ status: "verified", scopeCount: 1, expiresAt: "2026-09-25" }, new Date("2026-09-26T12:00:00Z"))
+			classifyCommercialEvidenceMigration(
+				{ status: "verified", scopeCount: 1, expiresAt: "2026-09-25" },
+				new Date("2026-09-26T12:00:00Z")
+			)
 		).toBe("expired_requires_renewal")
 		expect(classifyCommercialEvidenceMigration({ status: "pending", scopeCount: 1 })).toBe(
 			"pending_review"

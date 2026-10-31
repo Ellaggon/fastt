@@ -23,7 +23,12 @@ const context: CommercialPolicyContext = {
 it("preserves deterministic evaluation provenance without granting missing coverage", () => {
 	const now = new Date("2026-10-29T12:00:00Z")
 	const result = evaluateCommercialPolicy({ context, versions: [], now })
-	expect(result.evaluation).toMatchObject({ contractVersion: 1, evaluatedAt: now.toISOString(), requirements: [], coverage: { state: "unknown" } })
+	expect(result.evaluation).toMatchObject({
+		contractVersion: 1,
+		evaluatedAt: now.toISOString(),
+		requirements: [],
+		coverage: { state: "unknown" },
+	})
 	expect(result.capabilities.publish).toBe(false)
 	expect(result.capabilityStates.collect_payment).toBe("not_applicable")
 	expect(result.policyStatus).toBe("unsupported")
@@ -80,6 +85,45 @@ function version(
 	}
 }
 describe("commercial policy diagnosis", () => {
+	it("certifies synthetic second-country configuration without mutating signed inputs", () => {
+		// Synthetic policy configuration, not Chilean legal requirements or market admission.
+		const now = new Date("2026-10-31T12:00:00Z")
+		for (const country of ["BO", "CL"]) {
+			const territory = `synthetic:${country}:territory`
+			const configured = ["holder", "product", "tax"].map((role) => {
+				const policy = version(role as CommercialPolicyVersion["jurisdictionRole"], country)
+				return { ...policy, context: { ...policy.context!, jurisdictionCodes: [territory] } }
+			})
+			const inputContext = {
+				...context,
+				holderCountry: country,
+				taxCountry: country,
+				payoutCountry: country,
+				productCountry: country,
+				jurisdictionCode: territory,
+			}
+			const before = JSON.stringify(configured)
+			const input = {
+				context: inputContext,
+				versions: configured,
+				now,
+				verifiedEvidence: ["holder-verified", "product-verified", "tax-verified"],
+			}
+			expect(evaluateCommercialPolicy(input).capabilities.publish).toBe(true)
+			expect(evaluateCommercialPolicy({ ...input, versions: [] }).capabilities.publish).toBe(false)
+			expect(
+				evaluateCommercialPolicy({
+					...input,
+					versions: configured.filter((policy) => policy.jurisdictionRole !== "product"),
+				}).capabilities.publish
+			).toBe(false)
+			expect(
+				evaluateCommercialPolicy({ ...input, context: { ...inputContext, productCountry: "XX" } })
+					.capabilities.publish
+			).toBe(false)
+			expect(JSON.stringify(configured)).toBe(before)
+		}
+	})
 	it("waits for review only after an entire package has been presented", () => {
 		const policies = [version("holder", "CL"), version("product", "BO"), version("tax", "CL")]
 		const requirement = policies[1].requirements[0]

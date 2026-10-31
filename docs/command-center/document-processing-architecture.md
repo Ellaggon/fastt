@@ -3,7 +3,7 @@
 Status: active
 Document type: canonical
 Owner: Platform / Security
-Last verified: 2026-10-30
+Last verified: 2026-10-31
 Scope: inspección obligatoria de documentos y condiciones de operación
 Source of truth: arquitectura, services/document-analysis y pruebas enlazadas; producción no habilitada
 Review trigger: cambio de contrato, controles o procedimiento; revisar evidencia del entorno antes de ejecutar
@@ -87,7 +87,7 @@ Falla si no puede consultar referencias o completar la paginación. Es sólo lec
 un candidato no autoriza borrado ni creación de documentos o aprobaciones. Platform
 debe contrastarlo con intentos pendientes y retención antes de autorizar una limpieza.
 Nunca borrar como compensación inmediata de un COMMIT cuyo resultado sea incierto.
-El cron documental existente ejecuta la misma conciliación cuando R2 está configurado;
+El cron separado `document-storage-reconciliation` ejecuta la conciliación diaria;
 devuelve sólo conteos y registra atención si hay candidatos u objetos desconocidos.
 
 ## 4. Contrato del gateway
@@ -172,7 +172,9 @@ DOCUMENT_ANALYSIS_GATEWAY_URL=https://gateway-interno.example/v1/documents/analy
 DOCUMENT_ANALYSIS_GATEWAY_TOKEN=<secreto-rotado>
 ```
 
-El endpoint diario `/api/cron/document-processing` usa el `CRON_SECRET` ya existente. Para operación controlada:
+El endpoint procesa un documento por llamada; el dispatcher usa token exclusivo y
+el cron diario conserva `CRON_SECRET`. Carga directa, CORS y despliegue están en el
+[runbook documental](../runbooks/document-processing-deployment.md). Para operación manual:
 
 ```bash
 # Validación local de formato/hash, sin egress a terceros
@@ -237,7 +239,35 @@ es aprobación. No equivale a certificación de producción, autenticidad ni ext
 4. Implementar y certificar extracción especializada sólo si se decide incorporarla.
 5. Resolver históricos no disponibles sin inventar archivos ni aprobaciones.
 
-## 11. Referencias técnicas primarias
+## 11. Conservación y recuperación
+
+Los plazos provisionales no autorizan borrados. `documentDeletionPolicy()` los
+bloquea; no hay adaptador destructivo. Vencimiento documental y conservación son
+distintos; original, expediente y copias requieren plazos y holds aprobados.
+
+`src/lib/documents/recovery-archive.ts` cifra objetos e inventario con AES-256-GCM,
+nonce aleatorio y clave externa de 32 bytes. Archivo exclusivo 0600; verifica hash,
+tamaño y referencia canónica. No inventa hashes históricos. `databaseCheckpoint`
+es correlación del operador, no prueba de backup PostgreSQL.
+
+Recuperación autentica y valida todo antes de escribir, exige autorización actual,
+creación condicional y lectura posterior. No sobrescribe diferencias ni cambia
+aprobaciones. Fallos parciales admiten reintento, nunca compensación borrando.
+
+```bash
+pnpm run certify:documents:recovery
+pnpm exec vitest run tests/unit/document-recovery-archive.test.ts
+```
+
+El simulacro usa sólo el PDF sintético, elimina temporales y no conecta DB/R2.
+No certifica respaldo independiente ni recuperación de PostgreSQL.
+
+Para datos reales faltan destino/residencia autorizados, claves y credenciales
+independientes, adaptadores auditados, catálogo durable y barrera de borrados vigente
+tras restaurar DB; definir RPO/RTO, calendario, alertas y caducidad. No se habilitó
+un comando real ni se contrató almacenamiento.
+
+## 12. Referencias técnicas primarias
 
 - [Cloudflare R2 — Event notifications](https://developers.cloudflare.com/r2/buckets/event-notifications/): opción futura para disparar procesamiento en tiempo casi real; la cola de base permanece como fuente de verdad.
 - [Google Cloud — Document AI overview](https://cloud.google.com/document-ai/docs/overview) y [processor list](https://docs.cloud.google.com/document-ai/docs/processors-list): OCR, extracción, idiomas y análisis de calidad.
