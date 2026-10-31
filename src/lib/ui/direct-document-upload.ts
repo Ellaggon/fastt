@@ -1,3 +1,8 @@
+import {
+	DOCUMENT_MULTIPART_FALLBACK_LIMIT_BYTES,
+	submitDocumentMultipartFallback,
+} from "@/lib/documents/direct-upload-fallback"
+
 const pending = new WeakSet<HTMLFormElement>()
 
 document.addEventListener(
@@ -15,6 +20,7 @@ document.addEventListener(
 		if (pending.has(form)) return
 		pending.add(form)
 		const data = new FormData(form)
+		const multipartData = new FormData(form)
 		const controls = Array.from(form.elements).filter(
 			(element): element is HTMLButtonElement =>
 				element instanceof HTMLButtonElement && element.type === "submit"
@@ -93,9 +99,23 @@ document.addEventListener(
 			if (destination.origin !== location.origin) throw new Error("redirect")
 			location.assign(destination.href)
 		} catch (error) {
-			message.textContent =
-				error instanceof Error && error.message === "size"
-					? "Selecciona un archivo de hasta 12 MB."
+			const isSizeError = error instanceof Error && error.message === "size"
+			if (!isSizeError && file.size <= DOCUMENT_MULTIPART_FALLBACK_LIMIT_BYTES) {
+				message.textContent = "La carga directa no está disponible. Intentando el envío estándar…"
+				const redirectTo = await submitDocumentMultipartFallback({
+					action,
+					formData: multipartData,
+					fileSizeBytes: file.size,
+				})
+				if (redirectTo) {
+					location.assign(redirectTo)
+					return
+				}
+			}
+			message.textContent = isSizeError
+				? "Selecciona un archivo de hasta 12 MB."
+				: file.size > DOCUMENT_MULTIPART_FALLBACK_LIMIT_BYTES
+					? "La carga directa no está disponible para este archivo. Intenta más tarde con el mismo archivo."
 					: "No pudimos confirmar el envío. Conservamos los datos; vuelve a intentarlo con el mismo archivo."
 			form.removeAttribute("aria-busy")
 			controls.forEach((button, index) => {
