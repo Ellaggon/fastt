@@ -483,8 +483,11 @@ export async function runProviderDocumentProcessingWorker(
 		limit?: number
 		workerId?: string
 		gatewayMode?: "configured" | "disabled"
+		maxElapsedMs?: number
 	} = {}
 ) {
+	const startedAt = Date.now()
+	const maxElapsedMs = Math.min(Math.max(params.maxElapsedMs ?? 45_000, 1_000), 45_000)
 	const allowExternalGateway = params.gatewayMode !== "disabled"
 	await ensureDocumentProcessingBacklog()
 	const now = new Date()
@@ -533,6 +536,11 @@ export async function runProviderDocumentProcessingWorker(
 		.limit(Math.min(Math.max(params.limit ?? 10, 1), 25))
 	const workerId = params.workerId ?? `document-worker:${randomUUID()}`
 	const outcomes = { completed: 0, blocked: 0, retry: 0, failed: 0, skipped: 0 }
-	for (const job of jobs) outcomes[await processJob(job, workerId, allowExternalGateway)] += 1
-	return { claimed: jobs.length, ...outcomes }
+	let attempted = 0
+	for (const job of jobs) {
+		if (Date.now() - startedAt >= maxElapsedMs) break
+		outcomes[await processJob(job, workerId, allowExternalGateway)] += 1
+		attempted++
+	}
+	return { claimed: attempted, ...outcomes }
 }
