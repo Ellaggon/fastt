@@ -1,11 +1,72 @@
 import { GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3"
+import { Readable } from "node:stream"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
 import { r2, getDocumentR2Client } from "@/container/shared.container"
 import { documentStorageConfig } from "@/lib/documents/storage-config"
-import { documentIntegrity } from "@/lib/documents/object-integrity"
+import { documentIntegrity, assertDocumentIntegrity } from "@/lib/documents/object-integrity"
+import { directDocumentUploadSchema, documentSubmissionId } from "@/lib/documents/upload-contract"
 
 const OBJECT_PREFIX = "provider-documents"
+
+export async function createDirectDocumentUpload(providerId: string, input: unknown) {
+	const parsed = directDocumentUploadSchema.parse(input)
+	const config = documentStorageConfig()
+	if (!config) throw Object.assign(new Error("document_storage_not_configured"), { status: 503 })
+	const objectKey = buildProviderDocumentObjectKey({
+		providerId,
+		documentId: documentSubmissionId(providerId, parsed.idempotencyKey),
+		fileName: parsed.fileName,
+	})
+	const headers = {
+		"content-type": parsed.mimeType,
+		"if-none-match": "*",
+		"x-amz-meta-sha256": parsed.sha256,
+	}
+	const signedUrl = await getSignedUrl(
+		getDocumentR2Client(),
+		new PutObjectCommand({
+			Bucket: config.bucket,
+			Key: objectKey,
+			ContentType: parsed.mimeType,
+			ContentLength: parsed.sizeBytes,
+			IfNoneMatch: "*",
+			Metadata: { sha256: parsed.sha256 },
+		}),
+		{
+			expiresIn: 300,
+			signableHeaders: new Set(["content-type", "content-length", "if-none-match"]),
+			unhoistableHeaders: new Set(["x-amz-meta-sha256"]),
+		}
+	)
+	return { signedUrl, headers, expiresIn: 300 }
+}
+
+/** Only a server-derived key is read; client URLs never select the object. */
+export async function confirmDirectDocumentUpload(providerId: string, input: unknown) {
+	const parsed = directDocumentUploadSchema.parse(input)
+	const objectKey = buildProviderDocumentObjectKey({
+		providerId,
+		documentId: documentSubmissionId(providerId, parsed.idempotencyKey),
+		fileName: parsed.fileName,
+	})
+	const fileUrl = toProviderDocumentFileRef(objectKey)
+	const config = documentStorageConfig()
+	if (!config) throw Object.assign(new Error("document_storage_not_configured"), { status: 503 })
+	const head = await getDocumentR2Client().send(
+		new HeadObjectCommand({ Bucket: config.bucket, Key: objectKey }),
+		{ abortSignal: AbortSignal.timeout(10_000) }
+	)
+	if (
+		head.ContentLength !== parsed.sizeBytes ||
+		head.ContentType !== parsed.mimeType ||
+		head.Metadata?.sha256 !== parsed.sha256
+	)
+		throw Object.assign(new Error("document_integrity_mismatch"), { status: 422 })
+	const bytes = await readProviderDocumentObject({ fileUrl, maxBytes: parsed.sizeBytes })
+	assertDocumentIntegrity(bytes, { version: 1, sha256: parsed.sha256, byteSize: parsed.sizeBytes })
+	return { bytes, fileUrl }
+}
 
 export type ProviderDocumentPreviewState = "ready" | "missing" | "unavailable"
 
@@ -258,11 +319,26 @@ export async function readProviderDocumentObject(params: {
 		throw error
 	}
 	const response = await storage.client.send(
-		new GetObjectCommand({ Bucket: storage.bucket, Key: objectKey })
+		new GetObjectCommand({ Bucket: storage.bucket, Key: objectKey }),
+		{ abortSignal: AbortSignal.timeout(20_000) }
 	)
 	if (!response.Body) throw new Error("document_processing_source_empty")
-	const bytes = Buffer.from(await response.Body.transformToByteArray())
-	if (bytes.byteLength > (params.maxBytes ?? 12 * 1024 * 1024))
+	const body = response.Body
+	if (!(body instanceof Readable)) throw new Error("document_storage_stream_required")
+	const maxBytes = params.maxBytes ?? 12 * 1024 * 1024
+	if ((response.ContentLength ?? 0) > maxBytes) {
+		body.destroy()
 		throw new Error("document_processing_source_too_large")
-	return bytes
+	}
+	const chunks: Buffer[] = []
+	let size = 0
+	for await (const chunk of body as AsyncIterable<Uint8Array>) {
+		size += chunk.byteLength
+		if (size > maxBytes) {
+			body.destroy()
+			throw new Error("document_processing_source_too_large")
+		}
+		chunks.push(Buffer.from(chunk))
+	}
+	return Buffer.concat(chunks)
 }

@@ -1,5 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest"
 import * as documentStorage from "@/lib/provider-document-storage"
+import { documentIntegrity } from "@/lib/documents/object-integrity"
+import { documentSubmissionId } from "@/lib/documents/upload-contract"
 import {
 	db,
 	eq,
@@ -80,6 +82,64 @@ function makeAuthedRequest(path: string, token: string, body?: FormData | string
 
 describe("provider compliance documents", () => {
 	beforeAll(ensureOperatingGeographyFixtures)
+
+	it("confirms direct uploads without re-uploading and replays the same registration", async () => {
+		const providerId = "provider_direct_upload_flow"
+		const ownerEmail = "direct.upload@example.com"
+		await upsertProvider({
+			id: providerId,
+			legalName: "Synthetic direct upload",
+			displayName: "Synthetic direct upload",
+			ownerEmail,
+		})
+		const key = crypto.randomUUID()
+		const bytes = Buffer.from("%PDF-1.4\nsynthetic\n%%EOF")
+		const fileUrl = `r2-documents:provider-documents/${providerId}/${documentSubmissionId(providerId, key)}/original`
+		const configured = vi
+			.spyOn(documentStorage, "isR2DocumentStorageConfigured")
+			.mockReturnValue(true)
+		const confirmation = vi
+			.spyOn(documentStorage, "confirmDirectDocumentUpload")
+			.mockResolvedValue({ bytes, fileUrl })
+		const upload = vi
+			.spyOn(documentStorage, "uploadProviderDocumentObject")
+			.mockRejectedValue(new Error("must_not_reupload"))
+		try {
+			await withSupabaseAuthStub(
+				{ direct: { id: `user_${ownerEmail}`, email: ownerEmail } },
+				async () => {
+					const send = async () => {
+						const form = new FormData()
+						for (const [name, value] of Object.entries({
+							type: "business_registration",
+							fileName: "synthetic.pdf",
+							mimeType: "application/pdf",
+							sizeBytes: String(bytes.length),
+							directUploadSha256: documentIntegrity(bytes, null).sha256,
+						}))
+							form.set(name, value)
+						const request = makeAuthedRequest("/api/provider/settings/documents", "direct", form)
+						request.headers.set("Idempotency-Key", key)
+						return documentsPost({ request } as never)
+					}
+					const first = await send()
+					expect(first.status).toBe(201)
+					const result = await first.json()
+					expect(result.document.fileUrl).toBe(fileUrl)
+					expect(result.document.status).toBe("pending")
+					expect(result.redirectTo).toContain("result=submitted")
+					const retry = await send()
+					expect(retry.status).toBe(201)
+					expect((await retry.json()).document.id).toBe(result.document.id)
+					expect(upload).not.toHaveBeenCalled()
+				}
+			)
+		} finally {
+			configured.mockRestore()
+			confirmation.mockRestore()
+			upload.mockRestore()
+		}
+	})
 
 	it("lets an owner submit documents and only an internal admin review them", async () => {
 		const providerId = "provider_documents_flow"

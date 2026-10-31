@@ -5,7 +5,13 @@ import { expect, it } from "vitest"
 import { getDocumentR2Client } from "@/container/shared.container"
 import { documentStorageConfig } from "@/lib/documents/storage-config"
 import { documentIntegrity } from "@/lib/documents/object-integrity"
-import { uploadProviderDocumentObject } from "@/lib/provider-document-storage"
+import {
+	createDirectDocumentUpload,
+	confirmDirectDocumentUpload,
+	buildProviderDocumentObjectKey,
+	toProviderDocumentFileRef,
+} from "@/lib/provider-document-storage"
+import { documentSubmissionId } from "@/lib/documents/upload-contract"
 import {
 	documentInspectionGate,
 	getProviderDocumentInspection,
@@ -21,7 +27,7 @@ import {
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 it.skipIf(process.env.FASTT_CERTIFY_LOCAL_GATEWAY !== "1")(
-	"certifies real private R2 → local antivirus/OCR → isolated PostgreSQL without approving the document",
+	"certifies signed direct R2 upload → local antivirus/OCR → isolated PostgreSQL without approval",
 	async () => {
 		if (
 			process.env.FASTT_DATA_ENV !== "test" ||
@@ -29,8 +35,15 @@ it.skipIf(process.env.FASTT_CERTIFY_LOCAL_GATEWAY !== "1")(
 		)
 			throw new Error("isolated_local_certification_required")
 		const providerId = `gateway-worker-certification-${randomUUID()}`,
-			documentId = randomUUID()
-		const bytes = Buffer.from(await readFile(new URL("../../services/document-analysis/fixtures/synthetic.pdf.b64", import.meta.url), "utf8"), "base64")
+			idempotencyKey = randomUUID(),
+			documentId = documentSubmissionId(providerId, idempotencyKey)
+		const bytes = Buffer.from(
+			await readFile(
+				new URL("../../services/document-analysis/fixtures/synthetic.pdf.b64", import.meta.url),
+				"utf8"
+			),
+			"base64"
+		)
 		const integrity = documentIntegrity(bytes, "application/pdf"),
 			config = documentStorageConfig()!
 		await upsertProvider({
@@ -38,24 +51,38 @@ it.skipIf(process.env.FASTT_CERTIFY_LOCAL_GATEWAY !== "1")(
 			legalName: "Synthetic gateway certification",
 			displayName: "Synthetic gateway certification",
 		})
-		const object = await uploadProviderDocumentObject({
-			providerId,
-			documentId,
+		const input = {
+			idempotencyKey,
 			fileName: "synthetic.pdf",
 			mimeType: "application/pdf",
+			sizeBytes: bytes.length,
+			sha256: integrity.sha256,
+		}
+		const signed = await createDirectDocumentUpload(providerId, input)
+		const put = await fetch(signed.signedUrl, {
+			method: "PUT",
+			headers: signed.headers,
 			body: bytes,
+			redirect: "error",
+			signal: AbortSignal.timeout(30_000),
 		})
+		if (!put.ok) throw new Error(`synthetic_upload_failed_${put.status}`)
+		const objectKey = buildProviderDocumentObjectKey({
+			providerId,
+			documentId,
+			fileName: input.fileName,
+		})
+		const object = { objectKey, fileUrl: toProviderDocumentFileRef(objectKey) }
 		try {
-			await db
-				.insert(ProviderDocument)
-				.values({
-					id: documentId,
-					providerId,
-					type: "business_registration",
-					status: "pending",
-					fileUrl: object.fileUrl,
-					metadataJson: { mimeType: "application/pdf", integrity },
-				})
+			expect((await confirmDirectDocumentUpload(providerId, input)).bytes).toEqual(bytes)
+			await db.insert(ProviderDocument).values({
+				id: documentId,
+				providerId,
+				type: "business_registration",
+				status: "pending",
+				fileUrl: object.fileUrl,
+				metadataJson: { mimeType: "application/pdf", integrity },
+			})
 			const result = await runProviderDocumentProcessingWorker({ limit: 1 })
 			expect(result.completed).toBe(1)
 			const inspection = await getProviderDocumentInspection(documentId)

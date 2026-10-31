@@ -21,6 +21,7 @@ import { matchUpload, type VerificationRequirement } from "@/lib/verification/re
 import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
 import { resolveProductCommercialDiagnosis } from "@/lib/commercial-policy/enforcement"
 import { readPublishedDocumentDefinition } from "@/lib/documents/document-definitions"
+import { confirmDirectDocumentUpload } from "@/lib/provider-document-storage"
 
 const submitSchema = z.object({
 	type: z.enum([
@@ -219,6 +220,11 @@ export const GET: APIRoute = async ({ request }) => {
 }
 
 export const POST: APIRoute = async ({ request }) => {
+	if (
+		request.headers.get("origin") &&
+		request.headers.get("origin") !== new URL(request.url).origin
+	)
+		return json({ error: "invalid_origin" }, 403)
 	const preferRedirect = shouldReturnHtmlRedirect(request)
 	let formTypeHint = ""
 	let returnToHint = ""
@@ -412,6 +418,18 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		let fileBytes: Uint8Array | null = null
+		const directUpload = String(form.get("directUploadSha256") ?? "").trim()
+		if (directUpload) {
+			if (file instanceof File && file.size > 0) throw new Error("ambiguous_document_source")
+			const confirmed = await confirmDirectDocumentUpload(providerId, {
+				idempotencyKey: submissionKey,
+				sha256: directUpload,
+				fileName: parsed.fileName,
+				mimeType: parsed.mimeType,
+				sizeBytes: parsed.sizeBytes,
+			})
+			fileBytes = confirmed.bytes
+		}
 		if (file instanceof File && typeof file.arrayBuffer === "function") {
 			fileBytes = new Uint8Array(await file.arrayBuffer())
 		}
@@ -443,6 +461,7 @@ export const POST: APIRoute = async ({ request }) => {
 						: undefined,
 			replacesDocumentId: parsed.replacesDocumentId,
 			fileBytes,
+			directUploadVerified: Boolean(directUpload),
 		})
 		const effects = await Promise.allSettled([
 			synchronizeComplianceCaseCompat({
@@ -470,7 +489,21 @@ export const POST: APIRoute = async ({ request }) => {
 					verticalHint,
 					scopeProductIdHint
 				)
-			: json({ ok: true, document: submitted }, 201)
+			: json(
+					{
+						ok: true,
+						document: submitted,
+						redirectTo: redirectAfterSubmit(
+							request,
+							"submitted",
+							parsed.type,
+							returnToHint,
+							verticalHint,
+							scopeProductIdHint
+						).headers.get("location"),
+					},
+					201
+				)
 	} catch (err: any) {
 		if (err instanceof Response) {
 			// Auth redirects/forbidden — keep as-is for API clients; form posts go back to UI.
