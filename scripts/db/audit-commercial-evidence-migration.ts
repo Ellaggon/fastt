@@ -1,5 +1,11 @@
 import { config as loadDotenv } from "dotenv"
 import postgres from "postgres"
+import { readFile, writeFile } from "node:fs/promises"
+import { parseAcceptedEvidence } from "../../src/lib/commercial-policy/contract-parser"
+import {
+	compareComplianceSnapshots,
+	readComplianceSnapshot,
+} from "../../src/lib/commercial-policy/migration-integrity"
 
 import {
 	classifyCommercialEvidenceMigration,
@@ -22,11 +28,11 @@ function prepareAuditEnvironment() {
 	stripInvalidPostgresEnv()
 	const requested = String(process.env.FASTT_DATA_ENV ?? "").trim()
 	if (requested === "test") {
-		loadDotenv({ path: ".env.test", override: false })
+		loadDotenv({ path: ".env.test", override: false, quiet: true })
 		delete process.env.DATABASE_URL
 		delete process.env.DIRECT_URL
 	} else {
-		loadDotenv({ path: ".env", override: false })
+		loadDotenv({ path: ".env", override: false, quiet: true })
 	}
 	stripInvalidPostgresEnv()
 	const dataEnvironment = getFasttDataEnvironment()
@@ -49,6 +55,9 @@ function prepareAuditEnvironment() {
 }
 
 type EvidenceRow = {
+	definitionVersionId: string | null
+	subjectType: string
+	subjectReference: string | null
 	documentId: string
 	providerId: string
 	type: string
@@ -89,7 +98,32 @@ async function main() {
 	const sql = postgres(target.connectionUrl, { max: 1, prepare: false })
 	try {
 		const report = await sql.begin(async (tx) => {
-			await tx`set transaction read only`
+			await tx`set transaction isolation level repeatable read, read only`
+			const integrity = await readComplianceSnapshot(tx)
+			const baselinePath = process.argv.find((arg) => arg.startsWith("--baseline="))?.slice(11)
+			let changedTables: string[] | null = null
+			if (baselinePath) {
+				const baseline = JSON.parse(await readFile(baselinePath, "utf8"))
+				if (baseline.target?.fingerprint !== target.fingerprint || !baseline.integrity)
+					throw new Error("Compliance baseline target or integrity inventory mismatch")
+				changedTables = compareComplianceSnapshots(baseline.integrity, integrity)
+				if (changedTables.length) process.exitCode = 1
+			}
+			const countries = await tx`
+				select ps.country, ps.vertical, pv.status, count(*)::int as versions
+				from "CompliancePolicySet" ps join "CompliancePolicyVersion" pv on pv."policySetId" = ps.id
+				group by ps.country, ps.vertical, pv.status order by ps.country, ps.vertical, pv.status
+			`
+			const acceptanceRows =
+				await tx`select id, "acceptedEvidenceJson" from "ComplianceRequirementRule"`
+			let invalidAcceptanceContracts = 0
+			for (const row of acceptanceRows) {
+				try {
+					parseAcceptedEvidence(row.acceptedEvidenceJson)
+				} catch {
+					invalidAcceptanceContracts++
+				}
+			}
 			const policySchema = await tx<
 				Array<{
 					hasContext: boolean
@@ -126,6 +160,7 @@ async function main() {
 						d."providerId" as "providerId",
 						d."type",
 						d."status",
+						d."definitionVersionId", d."subjectType", d."subjectReference",
 						d."expiresAt" as "expiresAt",
 						count(s."id")::int as "scopeCount",
 						coalesce(array_agg(distinct s."scopeType") filter (where s."scopeType" is not null), '{}') as "scopeTypes"
@@ -172,7 +207,14 @@ async function main() {
 									and requirement."required" = true
 									and (
 										coalesce(jsonb_array_length(requirement."capabilitiesJson"), 0) = 0
-										or coalesce(jsonb_array_length(requirement."acceptedEvidenceJson"), 0) = 0
+										or not (
+											case jsonb_typeof(requirement."acceptedEvidenceJson")
+												when 'array' then jsonb_array_length(requirement."acceptedEvidenceJson") > 0
+												when 'object' then requirement."acceptedEvidenceJson"->>'version' = '1'
+													and jsonb_typeof(requirement."acceptedEvidenceJson"->'alternatives') = 'array'
+													and jsonb_array_length(requirement."acceptedEvidenceJson"->'alternatives') > 0
+												else false end
+										)
 										or coalesce(requirement."reviewOwner", '') = ''
 										or coalesce(requirement."blockingAction", '') = ''
 										or requirement."sourceKind" is null
@@ -241,6 +283,11 @@ async function main() {
 			return {
 				report: "commercial_evidence_migration_inventory",
 				readOnly: true,
+				integrity,
+				inventoryIsAuthorization: false,
+				preservation: { compared: changedTables !== null, changedTables },
+				countries,
+				invalidAcceptanceContracts,
 				target: {
 					environment: target.dataEnvironment,
 					fingerprint: target.fingerprint,
@@ -254,6 +301,12 @@ async function main() {
 				generatedAt: now.toISOString(),
 				evidence: {
 					total: classifiedEvidence.length,
+					withoutDefinition: evidence.filter((row) => !row.definitionVersionId).length,
+					unresolvedSubjects: evidence.filter(
+						(row) =>
+							["person", "resource", "third_party"].includes(row.subjectType) &&
+							!row.subjectReference?.trim()
+					).length,
 					byClassification,
 					samples: verbose
 						? classifiedEvidence
@@ -291,12 +344,16 @@ async function main() {
 					})),
 				},
 				commercialPolicies: {
+					countsAreStructuralOnly: true,
 					status: policySchemaReady ? "ready" : "migration_required",
 					policies,
 				},
 			}
 		})
-		console.log(JSON.stringify(report, null, 2))
+		const json = JSON.stringify(report, null, 2)
+		const output = process.argv.find((arg) => arg.startsWith("--output="))?.slice(9)
+		if (output) await writeFile(output, `${json}\n`, { flag: "wx", mode: 0o600 })
+		console.log(json)
 	} finally {
 		await sql.end()
 	}
