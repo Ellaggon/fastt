@@ -1,4 +1,5 @@
 ---
+import OperatingTerritoryPicker from "@/components/provider/OperatingTerritoryPicker.astro"
 import ProviderReviewWaitNotice from "@/components/provider/ProviderReviewWaitNotice.astro"
 import ProviderTourEvidenceFields from "@/components/provider/ProviderTourEvidenceFields.astro"
 import Badge from "@/components/ui/Badge.astro"
@@ -29,6 +30,7 @@ type Props = {
 	guideResources?: Array<{ id: string; name: string }>
 	resourceChoices?: Array<{ id: string; name: string; type: string }>
 	surface?: "archive" | "tour-activity" | "tour-safety"
+	readOnlyArchive?: boolean
 	documents?: ProviderDocumentRecord[]
 	documentTypes?: OptionalDocType[]
 	requirementStates?: Record<string, string>
@@ -56,6 +58,7 @@ const {
 	guideResources = [],
 	resourceChoices = [],
 	surface = "archive",
+	readOnlyArchive = false,
 	documents = [],
 	documentTypes = [],
 	requirementStates = {},
@@ -272,7 +275,8 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 								class="mt-3"
 							/>
 						) : null}
-						{doc.status === "verified" &&
+						{!readOnlyArchive &&
+						doc.status === "verified" &&
 						isProviderDocumentExpired(doc.expiresAt) &&
 						(!tourSurface || doc.scopes.some((scope) => scope.productId === scopeProductId)) ? (
 							<a
@@ -295,7 +299,7 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 	</div>
 
 	{
-		canManageDocuments && uploadTypes.length ? (
+		!readOnlyArchive && canManageDocuments && uploadTypes.length ? (
 			<details
 				class="space-y-3"
 				open={!tourSurface || Boolean(defaultUploadType) || renewalIsExpired}
@@ -545,10 +549,10 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 										placeholder="Identificador del guía o recurso registrado"
 									/>
 								</label>
-								<label class="grid gap-2 text-sm font-medium text-slate-700">
-									Código territorial (opcional)
-									<Input name="territoryCode" placeholder="BO-LP o código de permiso" />
-								</label>
+								<fieldset class="grid gap-2 text-sm font-medium text-slate-700">
+									<legend>Territorios cubiertos (opcional)</legend>
+									<OperatingTerritoryPicker name="territoryCode" />
+								</fieldset>
 								<label class="grid gap-2 text-sm font-medium text-slate-700">
 									Territorio cubierto (opcional)
 									<Input name="territoryLabel" placeholder="La Paz, ruta o área autorizada" />
@@ -557,12 +561,14 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 							<fieldset class="mt-4 grid gap-2 text-sm text-slate-700">
 								<legend class="font-medium">Actividad cubierta (si corresponde)</legend>
 								<div class="flex flex-wrap gap-x-4 gap-y-2">
-									{tourComplianceActivityClasses.map((value) => (
-										<label class="inline-flex items-center gap-2">
-											<input type="checkbox" name="activityClass" value={value} />
-											{tourComplianceActivityLabels[value]}
-										</label>
-									))}
+									{tourComplianceActivityClasses
+										.filter((value) => value !== "water_air")
+										.map((value) => (
+											<label class="inline-flex items-center gap-2">
+												<input type="checkbox" name="activityClass" value={value} />
+												{tourComplianceActivityLabels[value]}
+											</label>
+										))}
 								</div>
 							</fieldset>
 						</details>
@@ -593,7 +599,7 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 					</div>
 				</form>
 			</details>
-		) : renewalIsExpired && canManageDocuments ? (
+		) : !readOnlyArchive && renewalIsExpired && canManageDocuments ? (
 			<Notice variant="warning" title="Esta evidencia requiere revisión de alcance">
 				Su tipo ya no aparece entre los requisitos de esta línea. Revisa la actividad declarada
 				antes de renovarla.
@@ -601,11 +607,27 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 		) : null
 	}
 	{
-		!canManageDocuments && uploadTypes.length > 0 && (
+		!readOnlyArchive && !canManageDocuments && uploadTypes.length > 0 && (
 			<p class="text-sm text-slate-600">
 				Puedes consultar los requisitos. Pide al titular permiso de Documentos para enviar o renovar
 				un respaldo.
 			</p>
 		)
 	}
+	{
+		readOnlyArchive && (
+			<Notice variant="info" title="Los respaldos se gestionan en cada experiencia">
+				Conservamos aquí los archivos y su historial. Abre una experiencia para revisar sus
+				requisitos y enviar o renovar el respaldo que corresponda.
+				<div class="mt-3">
+					<Button href="/catalog/tours?scope=tour" variant="secondary">
+						Ver mis experiencias
+					</Button>
+				</div>
+			</Notice>
+		)
+	}
 </section>
+<script>
+	import "@/lib/ui/direct-document-upload"
+</script>
