@@ -21,3 +21,11 @@ it("rejects external returns and encodes product identifiers", () => {
 		experienceRequirementsHref("a/b", new URL("https://fastt.test/?returnTo=https://evil.test"))
 	).toBe("/product/a%2Fb#experience-requirements")
 })
+it("keeps the upload retry identity when returning to the inline experience editor", () => {
+	const source = new URL(
+		"http://localhost/provider/settings/verification?tab=activity&documentSubmissionKey=retry&documentSubmissionForm=policy-a"
+	)
+	const target = new URL(experienceRequirementsHref("a", source), source)
+	expect(target.searchParams.get("documentSubmissionKey")).toBe("retry")
+	expect(target.searchParams.get("documentSubmissionForm")).toBe("policy-a")
+})

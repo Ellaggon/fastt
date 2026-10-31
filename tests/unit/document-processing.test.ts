@@ -51,17 +51,14 @@ describe("provider document processing", () => {
 	})
 
 	it("never treats an unavailable antivirus as clean when enforcement is enabled", () => {
-		const gate = documentInspectionGate(inspection({ malwareStatus: "unavailable" }), {
-			enforced: true,
-		})
+		const gate = documentInspectionGate(inspection({ malwareStatus: "unavailable" }))
 		expect(gate.canReveal).toBe(false)
 		expect(gate.blockers.join(" ")).toContain("antivirus")
 	})
 
 	it("keeps OCR failure reviewable but requires a documented manual review", () => {
 		const gate = documentInspectionGate(
-			inspection({ ocrStatus: "error", extractionStatus: "error" }),
-			{ enforced: true }
+			inspection({ ocrStatus: "error", extractionStatus: "error" })
 		)
 		expect(gate.blockers).toEqual([])
 		expect(gate.warnings).toHaveLength(2)
@@ -73,9 +70,29 @@ describe("provider document processing", () => {
 			inspection({ malwareStatus: "infected" }),
 			inspection({ tamperStatus: "suspected" }),
 		]) {
-			const gate = documentInspectionGate(unsafe, { enforced: false })
+			const gate = documentInspectionGate(unsafe)
 			expect(gate.canReveal).toBe(false)
 			expect(gate.blockers.length).toBeGreaterThan(0)
 		}
+	})
+
+	it("never reveals files with missing or unfinished inspection", () => {
+		expect(documentInspectionGate(null).canReveal).toBe(false)
+		for (const processingState of [
+			"queued",
+			"processing",
+			"failed",
+			"blocked",
+			"awaiting_configuration",
+		])
+			expect(documentInspectionGate(inspection({ processingState })).canReveal).toBe(false)
+	})
+
+	it("blocks incomplete structure and integrity checks even with a clean antivirus", () => {
+		for (const unsafe of [
+			inspection({ structuralStatus: "error" }),
+			inspection({ tamperStatus: "error" }),
+		])
+			expect(documentInspectionGate(unsafe).canReveal).toBe(false)
 	})
 })

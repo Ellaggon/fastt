@@ -88,7 +88,7 @@ export const GET: APIRoute = async ({ request }) => {
 		const msg = e instanceof Error ? e.message : "Unknown error"
 		return withRequestId(
 			new Response(JSON.stringify({ error: msg }), {
-				status: 500,
+				status: msg === "document_quarantined" ? 423 : 500,
 				headers: { "Content-Type": "application/json" },
 			}),
 			requestId

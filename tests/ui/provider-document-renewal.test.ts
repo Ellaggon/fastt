@@ -19,7 +19,9 @@ describe("renewal of scoped provider evidence", () => {
 		expect(console).toContain("listExpiredProviderDocumentsForAdmin")
 		expect(console).toContain("assessExpiredDocumentOperationalImpact")
 		expect(documents).toContain("document_expired")
-		expect(documents).toContain("replacementIsRenewable")
+		expect(documents).toContain("invalid_document_replacement")
+		expect(documents).toContain('replacement.status !== "verified" ? [replacement.id] : []')
+		expect(documents).toContain("document_replacement_obsolete")
 		expect(documents).toContain("existingReservationsTreatment: \"preserved_snapshot\"")
 	})
 

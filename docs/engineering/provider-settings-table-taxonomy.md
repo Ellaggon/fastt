@@ -192,9 +192,28 @@ a 3-step shortcut.
 `accountIdentifier`. Admin review decrypts in memory only. Generate
 `PROVIDER_PAYOUT_SECRETS_KEY` with `openssl rand -base64 48` (operator-owned secret).
 
-**Document storage:** with R2 configured, uploads store `r2:provider-documents/...`
-refs; admin opens files via signed preview
-(`GET /api/admin/providers/documents/preview`). `local://` is test/local-only.
+**Document storage:** configure `R2_DOCUMENTS_ACCOUNT_ID`, `R2_DOCUMENTS_BUCKET_NAME`,
+`R2_DOCUMENTS_ACCESS_KEY_ID` and `R2_DOCUMENTS_SECRET_ACCESS_KEY` independently of
+public assets. Bucket and key must differ; restrict the token to its private bucket
+and disable r2.dev/custom public domains. Use separate development/production buckets.
+Verify upload, HEAD, signed GET and denied anonymous access before activation;
+code configuration alone cannot certify privacy. New writes never use asset credentials
+or silently succeed as `local://` outside explicit `FASTT_DATA_ENV=test` fixtures.
+An attempted storage write that fails never falls back, including in tests. API
+returns 502; HTML returns an error redirect, with no new document/submission audit.
+
+New references use `r2-documents:provider-documents/{providerId}/{documentId}/original`;
+the original filename is metadata. Reject traversal, query strings and fragments.
+Historical `r2:`/public-base references retain their original read client until an
+explicit migration verifies counts and hashes. Do not copy or rewrite automatically.
+Preview remains MFA/permission controlled at `/api/admin/providers/documents/preview`.
+
+Upload metadata stores a versioned SHA-256/size contract computed from received bytes;
+S3 receives matching size/hash metadata. The existing inspection worker compares the
+download with that contract before structure/MIME and malware analysis. Mismatch is
+a permanent failure, not a rewritten fingerprint. Historical missing hashes remain
+unknown. Declared MIME is separate from inspection-detected MIME. Tests cover these
+contracts in `document-object-integrity.test.ts` and `document-storage-routing.test.ts`.
 
 **Publish gates:** product publish and rate-plan activation both call
 `assertProviderCapability("publish")` in addition to inventory/pricing checks.

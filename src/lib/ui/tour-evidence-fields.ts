@@ -1,4 +1,39 @@
-export {}
+import { documentCaptureSchema } from "@/shared/domain/document-definition"
+
+document.addEventListener("change", (event) => {
+	const select = event.target
+	if (!(select instanceof HTMLSelectElement) || !select.matches("[data-document-definition]"))
+		return
+	const form = select.form
+	if (!form) return
+	let capture
+	try {
+		const raw = select.selectedOptions[0]?.dataset.capture
+		capture = raw ? documentCaptureSchema.parse(JSON.parse(raw)) : null
+	} catch {
+		return
+	}
+	for (const name of ["issuer", "issuedAt", "expiresAt"] as const) {
+		const field = form.querySelector<HTMLInputElement>(`input[name="${name}"]`)
+		if (!field) continue
+		const mode = capture?.[name] ?? "optional"
+		field.required = mode === "required"
+		field.disabled = mode === "not_applicable"
+		const label = field.closest("label")
+		if (label) label.hidden = field.disabled
+	}
+	const subject = form.querySelector<HTMLSelectElement>("[data-evidence-subject]")
+	if (!subject) return
+	for (const option of subject.options) {
+		if (!option.value) continue
+		option.disabled = Boolean(
+			capture && !capture.allowedSubjectTypes.some((value) => value === option.value)
+		)
+		option.hidden = option.disabled
+	}
+	if (subject.selectedOptions[0]?.disabled) subject.value = ""
+	subject.dispatchEvent(new Event("change", { bubbles: true }))
+})
 
 document.addEventListener("change", (event) => {
 	const type = event.target

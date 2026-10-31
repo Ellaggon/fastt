@@ -3,6 +3,10 @@ import ProviderKycCaptureCoach from "@/components/provider/ProviderKycCaptureCoa
 import ProviderKycFileField from "@/components/provider/ProviderKycFileField.astro"
 import Button from "@/components/ui/Button.astro"
 import Input from "@/components/ui/Input.astro"
+import {
+	documentSubmissionKey,
+	newDocumentSubmissionHref,
+} from "@/lib/verification/document-upload-presentation"
 import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
 
 type Props = {
@@ -45,6 +49,19 @@ const uploadAction = copyVerificationNavigationQuery(
 	data-funnel-surface="verification"
 >
 	<input type="hidden" name="action" value="submit" />
+	<input
+		type="hidden"
+		name="idempotencyKey"
+		value={documentSubmissionKey(Astro.url, `kyc-${documentType}`)}
+	/>
+	<input type="hidden" name="submissionForm" value={`kyc-${documentType}`} />
+	{
+		Astro.url.searchParams.get("documentSubmissionForm") === `kyc-${documentType}` && (
+			<Button href={newDocumentSubmissionHref(Astro.url)} variant="ghost" size="sm" reload>
+				Enviar otro archivo
+			</Button>
+		)
+	}
 	<input type="hidden" name="type" value={documentType} />
 
 	{

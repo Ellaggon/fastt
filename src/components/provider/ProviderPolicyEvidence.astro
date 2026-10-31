@@ -2,16 +2,20 @@
 import ProviderVerificationOptionals from "@/components/provider/ProviderVerificationOptionals.astro"
 import type { ProviderVerificationWorkspaceModel } from "@/lib/provider-verification-workspace"
 import { providerDocumentTypes } from "@/lib/provider-documents"
+import { presentPolicyEvidence } from "@/lib/commercial-policy/evidence-presentation"
 const { model, productId } = Astro.props as {
 	model: ProviderVerificationWorkspaceModel
 	productId: string
 }
 const requirements =
-	model.policyDiagnosis?.policyStatus === "supported"
-		? (model.policyDiagnosis.applicableRequirements?.filter(
-				(requirement) => requirement.documentAcceptance
-			) ?? [])
-		: []
+	model.policyDiagnosis?.applicableRequirements?.filter(
+		(requirement) => requirement.documentAcceptance
+	) ?? []
+const presentation = presentPolicyEvidence(
+	model.policyDiagnosis,
+	model.tourResources,
+	model.canManageDocuments
+)
 const subjectLabels = {
 	holder: "Titular del negocio",
 	guides: "Cada guía declarado",
@@ -25,16 +29,15 @@ const subjectLabels = {
 		<section class="space-y-5" aria-label="Respaldos aplicables">
 			<h3 class="text-lg font-semibold text-slate-900">Respaldos aplicables</h3>
 			{requirements.map((requirement) => {
+				const view = presentation.find(
+					(item) =>
+						item.key === requirement.key && item.policyVersionId === requirement.policyVersionId
+				)!
 				const ids = requirement.documentAcceptance!.alternatives.flatMap((alternative) =>
 					alternative.allOf.map((part) => part.definitionVersionId)
 				)
 				const definitions = (model.documentDefinitions ?? []).filter((definition) =>
 					ids.includes(definition.id)
-				)
-				const blocker = model.policyDiagnosis!.blockers.find(
-					(item) =>
-						item.id === `requirement_${requirement.key}` &&
-						item.policyVersionId === requirement.policyVersionId
 				)
 				const documents = model.documents.filter(
 					(document) => document.definitionVersionId && ids.includes(document.definitionVersionId)
@@ -55,17 +58,21 @@ const subjectLabels = {
 					<article class="space-y-3 border-t border-slate-200 pt-4">
 						<div class="flex flex-wrap items-start justify-between gap-2">
 							<h4 class="font-semibold text-slate-900">{requirement.blockingAction}</h4>
-							<span class="text-sm text-slate-600">
-								{!blocker
-									? "Documentación vigente"
-									: blocker.evidenceState === "pending_review"
-										? "En revisión"
-										: "Requiere documentación"}
-							</span>
+							<span class="text-sm text-slate-600">{view.label}</span>
 						</div>
 						<p class="text-sm text-slate-600">
 							{subjectLabels[requirement.condition?.evidenceSubjectSelector ?? "holder"]}
 						</p>
+						{view.subjects.length > 0 && (
+							<ul class="space-y-1 text-sm text-slate-600">
+								{view.subjects.map((subject) => (
+									<li>
+										{subject.label} ·{" "}
+										{subject.complete ? "Respaldo completo" : "Respaldo pendiente"}
+									</li>
+								))}
+							</ul>
+						)}
 						{packageResult && (
 							<p class="text-sm text-slate-600">
 								{packageResult.subjects.filter((subject) => subject.satisfiedBy).length} de{" "}
@@ -89,7 +96,7 @@ const subjectLabels = {
 								</li>
 							))}
 						</ol>
-						{blocker && blocker.evidenceState !== "pending_review" && (
+						{view.canUpload && (
 							<ProviderVerificationOptionals
 								surface="tour-activity"
 								documents={documents}

@@ -1,0 +1,22 @@
+services:
+  document-analysis:
+    image: fastt-document-analysis-development
+    build:
+      context: .
+    platform: linux/amd64
+    env_file: ../../tmp/document-analysis.env
+    ports:
+      - "127.0.0.1:4319:4319"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 3g
+    cpus: 2
+    pids_limit: 64
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    volumes:
+      - definitions:/var/lib/clamav
+    restart: unless-stopped
+volumes:
+  definitions:

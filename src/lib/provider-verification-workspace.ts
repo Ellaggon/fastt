@@ -101,7 +101,7 @@ type SlaAssignment = {
 
 export type ProviderVerificationWorkspaceModel = {
 	policyDiagnosis?: import("@/lib/commercial-policy/evaluate").CommercialPolicyDiagnosis | null
-	documentDefinitions?: Array<{ id: string; label: string; family: string }>
+	documentDefinitions?: Array<{ id: string; label: string; family: string; capture?: unknown }>
 	businessProfile?: {
 		displayName: string | null
 		legalName: string | null
