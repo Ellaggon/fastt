@@ -3,6 +3,7 @@ import ProviderReviewWaitNotice from "@/components/provider/ProviderReviewWaitNo
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
+import { documentTechnicalPresentation } from "@/lib/documents/inspection-presentation"
 import type { ProviderKycSlot } from "@/lib/provider-documents"
 import { buildProviderReviewWaitState } from "@/lib/provider-review-wait-state"
 import { verificationSectionUrl } from "@/lib/verification/navigation"
@@ -37,6 +38,7 @@ const fiscalHref = fiscalTarget.pathname + fiscalTarget.search
 const assignment = kycSlot.documentId ? (documentAssignments[kycSlot.documentId] ?? null) : null
 const fileLabel = kycSlot.fileName || "Archivo recibido"
 const documentWait = buildProviderReviewWaitState("document", { assignment })
+const technical = documentTechnicalPresentation(kycSlot.technicalInspection)
 ---
 
 <div class="space-y-3" data-kyc-slot-review-state>
@@ -44,16 +46,14 @@ const documentWait = buildProviderReviewWaitState("document", { assignment })
 		compact ? (
 			<Card variant="soft" class="space-y-3" data-kyc-slot-pending-compact>
 				<div class="flex flex-wrap items-center gap-2">
-					<Badge variant="warning">{kycSlot.stateLabel}</Badge>
+					<Badge variant="warning">{technical.label}</Badge>
 					<span class="text-sm text-slate-600">Revisión de Fastt</span>
 				</div>
 				<div data-kyc-slot-submitted-file>
 					<p class="text-sm font-semibold text-slate-950">{fileLabel}</p>
-					<p class="mt-1 text-sm leading-6 text-slate-600">
-						Comprobamos que coincida con los datos de tu cuenta. Te avisamos aquí al terminar.
-					</p>
+					<p class="mt-1 text-sm leading-6 text-slate-600">{technical.message}</p>
 				</div>
-				{documentWait.sla.hasPublishedSla ? (
+				{technical.ready && documentWait.sla.hasPublishedSla ? (
 					<p
 						class="text-sm leading-6 text-slate-500"
 						data-sla-mirror="published"
@@ -74,17 +74,17 @@ const documentWait = buildProviderReviewWaitState("document", { assignment })
 		) : (
 			<>
 				<p class="text-sm font-medium text-slate-700" data-kyc-slot-review-title>
-					Documento en revisión
+					{technical.label}
 				</p>
 				<Card variant="row" class="space-y-3">
 					<div class="flex flex-wrap items-center gap-2" data-kyc-slot-submitted-file>
 						<Badge variant="neutral">Archivo enviado</Badge>
 						<span class="text-sm font-semibold text-slate-950">{fileLabel}</span>
 					</div>
-					<p class="text-sm leading-6 text-slate-600">
-						Fastt revisará que coincida con los datos del negocio antes de marcarlo como verificado.
-					</p>
-					<ProviderReviewWaitNotice domain="document" assignment={assignment} compact />
+					<p class="text-sm leading-6 text-slate-600">{technical.message}</p>
+					{technical.ready && (
+						<ProviderReviewWaitNotice domain="document" assignment={assignment} compact />
+					)}
 					{showFiscalBridge ? (
 						<div class="flex flex-wrap items-center gap-2" data-kyc-slot-next-action>
 							<Button href={fiscalHref} variant="secondary" size="sm">

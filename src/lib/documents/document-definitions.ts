@@ -64,6 +64,7 @@ export async function listPublishedDocumentDefinitions() {
 			id: DocumentDefinitionVersion.id,
 			label: DocumentDefinitionVersion.label,
 			family: DocumentDefinitionVersion.family,
+			capture: DocumentDefinitionVersion.captureJson,
 		})
 		.from(DocumentDefinitionVersion)
 		.where(eq(DocumentDefinitionVersion.status, "published"))

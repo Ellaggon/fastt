@@ -1,6 +1,8 @@
 ---
 import AdminComplianceSlaAssign from "@/components/admin/AdminComplianceSlaAssign.astro"
 import ReviewedProviderDocuments from "@/components/admin/ReviewedProviderDocuments.astro"
+import DocumentReviewSummary from "@/components/admin/DocumentReviewSummary.astro"
+import { documentTechnicalPresentation } from "@/lib/documents/inspection-presentation"
 import ProviderBankAccountReview from "@/components/admin/ProviderBankAccountReview.astro"
 import ProviderCommercialAgreementSummary from "@/components/admin/ProviderCommercialAgreementSummary.astro"
 import ProviderPublicationPolicyBlockers from "@/components/admin/ProviderPublicationPolicyBlockers.astro"
@@ -777,6 +779,10 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 																			variant="ghost"
 																			className="h-auto px-0 text-xs font-medium text-slate-900 underline"
 																			data-preview-document={doc.id}
+																			disabled={
+																				!documentTechnicalPresentation(doc.technicalInspection)
+																					.ready
+																			}
 																			data-provider-id={doc.providerId}
 																		>
 																			Abrir archivo (seguro)
@@ -1282,12 +1288,7 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 																class="scroll-mt-4 space-y-3"
 																data-case-domain="documents"
 															>
-																<p class="text-sm font-semibold text-slate-900">
-																	Documento · {doc.typeLabel}
-																</p>
-																<p class="text-sm break-words text-slate-600">
-																	{doc.fileName || "Sin nombre de archivo"}
-																</p>
+																<DocumentReviewSummary document={doc} />
 																{doc.expiresAt && (
 																	<p class="text-xs text-slate-600">
 																		Vigencia: {fmt.format(new Date(doc.expiresAt))}
@@ -1353,6 +1354,10 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 																			<div class="flex flex-wrap gap-2">
 																				<Button
 																					data-verify-document={doc.id}
+																					disabled={
+																						!documentTechnicalPresentation(doc.technicalInspection)
+																							.ready
+																					}
 																					data-provider-id={doc.providerId}
 																				>
 																					Verificar documento

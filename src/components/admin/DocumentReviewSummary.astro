@@ -1,0 +1,63 @@
+---
+import type { ProviderDocumentRecord } from "@/lib/provider-documents"
+import { documentTechnicalPresentation } from "@/lib/documents/inspection-presentation"
+const { document: doc } = Astro.props as { document: ProviderDocumentRecord }
+const format = new Intl.DateTimeFormat("es", { dateStyle: "medium" })
+const date = (value: Date | string | null | undefined) => {
+	if (!value) return "No declarado"
+	const parsed = new Date(value)
+	return Number.isNaN(parsed.getTime()) ? "Fecha no válida" : format.format(parsed)
+}
+const subjectLabels: Record<string, string> = {
+	provider: "Titular del negocio",
+	legal_entity: "Entidad legal",
+	person: "Persona registrada",
+	resource: "Recurso operativo",
+	third_party: "Prestador externo",
+}
+---
+
+<header class="space-y-2">
+	<h3 class="text-sm font-semibold text-slate-900">{doc.typeLabel}</h3>
+	<p class="break-words text-sm text-slate-600">{doc.fileName || "Archivo sin nombre"}</p>
+</header>
+{
+	doc.status === "pending" && (
+		<p class="text-sm text-slate-600" role="status">
+			{documentTechnicalPresentation(doc.technicalInspection).message}
+		</p>
+	)
+}
+<dl class="grid gap-3 text-sm sm:grid-cols-2" aria-label="Datos del respaldo">
+	<div>
+		<dt class="text-slate-500">Titular declarado</dt><dd class="text-slate-900">
+			{subjectLabels[doc.subjectType ?? ""] ?? "Pendiente de clasificar"}
+		</dd>
+	</div>
+	<div>
+		<dt class="text-slate-500">Emisor</dt><dd class="break-words text-slate-900">
+			{doc.issuer || "No declarado"}
+		</dd>
+	</div>
+	<div>
+		<dt class="text-slate-500">Emitido el</dt><dd class="text-slate-900">{date(doc.issuedAt)}</dd>
+	</div>
+	<div>
+		<dt class="text-slate-500">Vence el</dt><dd class="text-slate-900">{date(doc.expiresAt)}</dd>
+	</div>
+</dl>
+{
+	!doc.scopes.length && (
+		<p class="text-sm text-amber-800">
+			Sin alcance declarado. Comprueba el requisito aplicable antes de registrar el resultado.
+		</p>
+	)
+}
+{
+	doc.scopes.length > 0 && (
+		<p class="text-sm text-slate-600">
+			{doc.scopes.length} vínculos de alcance declarados. La verificación del archivo no amplía su
+			cobertura.
+		</p>
+	)
+}

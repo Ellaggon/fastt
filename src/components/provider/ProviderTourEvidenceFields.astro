@@ -10,7 +10,7 @@ import {
 type ProductChoice = { id: string; name: string | null; kind?: "tour" | "lodging" }
 type Props = {
 	requireDefinition?: boolean
-	documentDefinitions?: Array<{ id: string; label: string; family: string }>
+	documentDefinitions?: Array<{ id: string; label: string; family: string; capture?: unknown }>
 	selectedType: string | null | undefined
 	scopeProductId: string | null
 	scopeProducts: ProductChoice[]
@@ -115,6 +115,7 @@ const subjectOptions = guideCredential
 							<option
 								value={definition.id}
 								data-definition-family={definition.family}
+								data-capture={definition.capture ? JSON.stringify(definition.capture) : undefined}
 								hidden={definition.family !== selectedType?.split("::")[0]}
 								disabled={definition.family !== selectedType?.split("::")[0]}
 							>
