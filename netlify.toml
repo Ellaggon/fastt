@@ -5,3 +5,6 @@ publish = "dist"
 
 [build.environment]
 FASTT_DOCUMENT_PIPELINE_ENABLED = "false"
+# This public environment label was imported as secret. Its literal value occurs
+# throughout the source; keep scanning all credentials and every other key.
+SECRETS_SCAN_OMIT_KEYS = "FASTT_DATA_ENV"
