@@ -1,4 +1,5 @@
 import type { MiddlewareHandler } from "astro"
+import { hostingEvaluationResponse } from "@/lib/platform/hosting-evaluation"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getOptionSession } from "@/lib/onboarding/tourOptionSession"
 import { PreparationSessionError } from "@/lib/onboarding/preparationSessionContext"
@@ -72,6 +73,8 @@ function appendServerTiming(response: Response, totalMs: number): void {
 }
 
 export const onRequest: MiddlewareHandler = async (context, next) => {
+	const evaluationResponse = hostingEvaluationResponse(context.request)
+	if (evaluationResponse) return evaluationResponse
 	const requestContext: FasttRequestContext = {
 		id: createRequestId(),
 		startedAt: performance.now(),
