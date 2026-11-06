@@ -34,6 +34,24 @@ pnpm dev
 Servidor local: `http://localhost:4321`
 
 Usar pnpm (versión declarada en `packageManager`) para respetar el lockfile y los parches de dependencias.
+
+### Evaluacion de compilacion Netlify
+
+En una copia limpia, sin `.env` ni credenciales operativas:
+
+```sh
+pnpm install --frozen-lockfile
+NETLIFY=true FASTT_DOCUMENT_PIPELINE_ENABLED=false pnpm run build
+```
+
+El adaptador Netlify conserva el servicio de imagenes passthrough existente;
+no activa Image CDN. Vercel sigue seleccionado por `VERCEL=1` y el build local
+sin flags conserva el adaptador Node. No definir ambos hosts simultaneamente.
+`netlify.toml` solo configura compilacion y deja documentos apagados; no replica
+los cron ni secretos de Vercel. Una compilacion correcta no certifica sesiones,
+Netlify Blobs, conexiones de datos, permisos, reservas o rendimiento hospedado.
+No ejecutar `netlify deploy` ni copiar credenciales de produccion para esta prueba.
+
 Astro 6.1.9 incorpora mediante `patches/astro@6.1.9.patch` la [corrección oficial de recarga SSR](https://github.com/withastro/astro/pull/17685): el identificador interno necesita el prefijo `virtual:` para que Vite no le añada `.js`.
 Retirar el parche y su entrada `pnpm.patchedDependencies` al actualizar a una versión que incluya esa corrección (verificada en 7.2.3; 6.4.8 aún no la incluye), regenerar el lockfile y comprobar una recarga SSR completa. La migración a Astro 7 requiere revisar adaptadores y Vite 8.
 

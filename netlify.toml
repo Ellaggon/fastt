@@ -1,0 +1,7 @@
+# Build evaluation only. No production data or scheduled tasks are configured.
+[build]
+command = "pnpm run build"
+publish = "dist"
+
+[build.environment]
+FASTT_DOCUMENT_PIPELINE_ENABLED = "false"
