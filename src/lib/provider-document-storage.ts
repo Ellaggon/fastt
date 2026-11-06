@@ -1,5 +1,6 @@
 import { GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3"
 import { Readable } from "node:stream"
+import { assertDocumentPipelineEnabled } from "@/lib/documents/activation"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
 import { r2, getDocumentR2Client } from "@/container/shared.container"
@@ -10,6 +11,7 @@ import { directDocumentUploadSchema, documentSubmissionId } from "@/lib/document
 const OBJECT_PREFIX = "provider-documents"
 
 export async function createDirectDocumentUpload(providerId: string, input: unknown) {
+	assertDocumentPipelineEnabled()
 	const parsed = directDocumentUploadSchema.parse(input)
 	const config = documentStorageConfig()
 	if (!config) throw Object.assign(new Error("document_storage_not_configured"), { status: 503 })
@@ -44,6 +46,7 @@ export async function createDirectDocumentUpload(providerId: string, input: unkn
 
 /** Only a server-derived key is read; client URLs never select the object. */
 export async function confirmDirectDocumentUpload(providerId: string, input: unknown) {
+	assertDocumentPipelineEnabled()
 	const parsed = directDocumentUploadSchema.parse(input)
 	const objectKey = buildProviderDocumentObjectKey({
 		providerId,
@@ -228,6 +231,7 @@ export async function uploadProviderDocumentObject(params: {
 	mimeType: string
 	body: Buffer | Uint8Array
 }): Promise<{ objectKey: string; fileUrl: string }> {
+	assertDocumentPipelineEnabled()
 	if (!isR2DocumentStorageConfigured()) {
 		const error = new Error("document_storage_not_configured")
 		;(error as Error & { status?: number }).status = 503

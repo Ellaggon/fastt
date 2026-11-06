@@ -1,10 +1,14 @@
-import { afterEach, expect, test, vi } from "vitest"
+import { afterEach, beforeEach, expect, test, vi } from "vitest"
 const mocks = vi.hoisted(() => ({ session: vi.fn(), upload: vi.fn() }))
 vi.mock("@/lib/auth/requireProvider", () => ({ requireProviderSessionSurface: mocks.session }))
 vi.mock("@/lib/provider-document-storage", () => ({ createDirectDocumentUpload: mocks.upload }))
 import { POST } from "@/pages/api/provider/settings/documents/upload"
 
-afterEach(() => vi.resetAllMocks())
+beforeEach(() => vi.stubEnv("FASTT_DOCUMENT_PIPELINE_ENABLED", "true"))
+afterEach(() => {
+	vi.resetAllMocks()
+	vi.unstubAllEnvs()
+})
 function request(origin = "https://fastt.test") {
 	return new Request("https://fastt.test/api/provider/settings/documents/upload", {
 		method: "POST",
@@ -12,6 +16,14 @@ function request(origin = "https://fastt.test") {
 		body: JSON.stringify({ fileName: "synthetic.pdf" }),
 	})
 }
+test("default-off prevents authentication, signing and storage access", async () => {
+	vi.stubEnv("FASTT_DOCUMENT_PIPELINE_ENABLED", "")
+	const response = await POST({ request: request() } as never)
+	expect(response.status).toBe(503)
+	expect(response.headers.get("cache-control")).toBe("no-store")
+	expect(mocks.session).not.toHaveBeenCalled()
+	expect(mocks.upload).not.toHaveBeenCalled()
+})
 test("rejects foreign origins before authentication or signing", async () => {
 	expect((await POST({ request: request("https://other.test") } as never)).status).toBe(403)
 	expect(mocks.session).not.toHaveBeenCalled()

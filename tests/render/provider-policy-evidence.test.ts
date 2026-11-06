@@ -1,8 +1,10 @@
 import { experimental_AstroContainer as AstroContainer } from "astro/container"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import Evidence from "@/components/provider/ProviderPolicyEvidence.astro"
 import type { ProviderVerificationWorkspaceModel } from "@/lib/provider-verification-workspace"
 vi.mock("@/lib/tours/operating-geography", () => ({ readOperatingPlaces: async () => [] }))
+beforeEach(() => vi.stubEnv("FASTT_DOCUMENT_PIPELINE_ENABLED", "true"))
+afterEach(() => vi.unstubAllEnvs())
 function model(state: "missing" | "pending_review" | null) {
 	return {
 		canManageDocuments: true,

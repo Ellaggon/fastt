@@ -1,4 +1,8 @@
 import type { APIRoute } from "astro"
+import {
+	documentPipelineEnabled,
+	documentPipelineDisabledResponse,
+} from "@/lib/documents/activation"
 import { auditProviderDocumentStorage } from "@/lib/documents/storage-reconciliation"
 
 export const config = { maxDuration: 60 }
@@ -7,6 +11,7 @@ export const GET: APIRoute = async ({ request }) => {
 	if (!secret) return Response.json({ error: "cron_secret_not_configured" }, { status: 503 })
 	if (request.headers.get("authorization") !== `Bearer ${secret}`)
 		return Response.json({ error: "unauthorized" }, { status: 401 })
+	if (!documentPipelineEnabled()) return documentPipelineDisabledResponse()
 	try {
 		const audit = await auditProviderDocumentStorage()
 		const counts = { scanned: audit.scanned, orphanCandidates: 0, recentUnconfirmed: 0, unknown: 0 }

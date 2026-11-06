@@ -1,4 +1,8 @@
 import type { APIRoute } from "astro"
+import {
+	documentPipelineEnabled,
+	documentPipelineDisabledResponse,
+} from "@/lib/documents/activation"
 
 import { runProviderDocumentProcessingWorker } from "@/lib/documents/document-processing"
 export const config = { maxDuration: 60 }
@@ -22,6 +26,7 @@ export const GET: APIRoute = async ({ request }) => {
 		return Response.json({ ok: false, error: "cron_secret_not_configured" }, { status: 503 })
 	if (!authorized(request))
 		return Response.json({ ok: false, error: "unauthorized" }, { status: 401 })
+	if (!documentPipelineEnabled()) return documentPipelineDisabledResponse()
 	try {
 		const result = await runProviderDocumentProcessingWorker({ limit: 1, maxElapsedMs: 45_000 })
 		return Response.json({ ok: true, ...result }, { headers: { "Cache-Control": "no-store" } })

@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, vi } from "vitest"
+import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from "vitest"
 import * as documentStorage from "@/lib/provider-document-storage"
 import { documentIntegrity } from "@/lib/documents/object-integrity"
 import { documentSubmissionId } from "@/lib/documents/upload-contract"
@@ -81,6 +81,8 @@ function makeAuthedRequest(path: string, token: string, body?: FormData | string
 }
 
 describe("provider compliance documents", () => {
+	beforeEach(() => vi.stubEnv("FASTT_DOCUMENT_PIPELINE_ENABLED", "true"))
+	afterEach(() => vi.unstubAllEnvs())
 	beforeAll(ensureOperatingGeographyFixtures)
 
 	it("confirms direct uploads without re-uploading and replays the same registration", async () => {

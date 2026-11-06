@@ -8,6 +8,10 @@ import Card from "@/components/ui/Card.astro"
 import Input from "@/components/ui/Input.astro"
 import Notice from "@/components/ui/Notice.astro"
 import Select from "@/components/ui/Select.astro"
+import {
+	documentPipelineEnabled,
+	documentPipelineUnavailableMessage,
+} from "@/lib/documents/activation"
 import { documentTechnicalPresentation } from "@/lib/documents/inspection-presentation"
 import { isProviderDocumentExpired, type ProviderDocumentRecord } from "@/lib/provider-documents"
 import {
@@ -299,7 +303,11 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 	</div>
 
 	{
-		!readOnlyArchive && canManageDocuments && uploadTypes.length ? (
+		!readOnlyArchive && canManageDocuments && uploadTypes.length && !documentPipelineEnabled() ? (
+			<p role="status" class="text-sm text-slate-600">
+				{documentPipelineUnavailableMessage}
+			</p>
+		) : !readOnlyArchive && canManageDocuments && uploadTypes.length ? (
 			<details
 				class="space-y-3"
 				open={!tourSurface || Boolean(defaultUploadType) || renewalIsExpired}

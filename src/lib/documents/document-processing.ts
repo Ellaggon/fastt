@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto"
+import { assertDocumentPipelineEnabled } from "./activation"
 import { assertDocumentIntegrity } from "./object-integrity"
 import { documentAnalysisGatewayConfig } from "./analysis-gateway-config"
 import { z } from "zod"
@@ -487,6 +488,7 @@ export async function runProviderDocumentProcessingWorker(
 	} = {}
 ) {
 	const startedAt = Date.now()
+	assertDocumentPipelineEnabled()
 	const maxElapsedMs = Math.min(Math.max(params.maxElapsedMs ?? 45_000, 1_000), 45_000)
 	const allowExternalGateway = params.gatewayMode !== "disabled"
 	await ensureDocumentProcessingBacklog()

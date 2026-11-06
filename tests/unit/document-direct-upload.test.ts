@@ -18,6 +18,7 @@ afterEach(() => {
 	vi.resetAllMocks()
 })
 function setup() {
+	vi.stubEnv("FASTT_DOCUMENT_PIPELINE_ENABLED", "true")
 	for (const [key, value] of Object.entries({
 		R2_DOCUMENTS_ACCOUNT_ID: "private-account",
 		R2_DOCUMENTS_BUCKET_NAME: "private",
@@ -35,6 +36,18 @@ function setup() {
 	}
 	return { bytes, input }
 }
+test("disabled pipeline never signs or reads storage even with R2 credentials", async () => {
+	const { input } = setup()
+	vi.stubEnv("FASTT_DOCUMENT_PIPELINE_ENABLED", "false")
+	await expect(createDirectDocumentUpload("owner", input)).rejects.toThrow(
+		"document_pipeline_disabled"
+	)
+	await expect(confirmDirectDocumentUpload("owner", input)).rejects.toThrow(
+		"document_pipeline_disabled"
+	)
+	expect(mocks.send).not.toHaveBeenCalled()
+	expect(mocks.sign).not.toHaveBeenCalled()
+})
 test("signs immutable provider-bound PUT with bounded length and MIME", async () => {
 	const { input } = setup()
 	mocks.sign.mockResolvedValue("https://private.test/signed")

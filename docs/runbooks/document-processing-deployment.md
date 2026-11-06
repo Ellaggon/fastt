@@ -3,13 +3,48 @@
 Status: active
 Document type: runbook
 Owner: Platform / Security
-Last verified: 2026-10-31
+Last verified: 2026-11-06
 Scope: preparación, activación y certificación de gateway y dispatcher
 Source of truth: services/document-analysis, services/document-dispatcher y endpoints documentales
 Related code/tests: src/lib/provider-document-storage.ts, tests/unit/document-direct-upload.test.ts, tests/integration/document-gateway-live.test.ts
 Review trigger: cambio de hosting, protocolo, credenciales, límites o retención
 
 ## Antes de desplegar
+
+### Integrar codigo no activa el servicio
+
+`FASTT_DOCUMENT_PIPELINE_ENABLED` esta apagado por defecto: solo el valor exacto
+`true` habilita nuevas cargas, confirmaciones, registro, worker y cron de
+reconciliacion. Tener credenciales R2 o gateway no lo habilita. Configurar
+`false` en Preview y Production mientras no exista certificacion del entorno.
+No se ha cambiado ninguna variable hospedada al introducir este control.
+
+Con el control apagado, la UI informa indisponibilidad y deshabilita u oculta los
+formularios de carga; POST y cron autorizado responden 503 sin registrar documentos,
+crear backlog ni escanear R2. El fallback multipart tampoco elude el control.
+La consulta del historial y los controles de inspeccion, acceso y revision existentes
+permanecen intactos. No devolver exito simulado ni aprobar evidencia para compensar
+la pausa. La pausa no borra documentos ni trabajos existentes.
+
+Para certificar, habilitar explicitamente solo en el entorno aislado de pruebas
+con documentos sinteticos. Tras certificar, registrar evidencia, version,
+responsable y autorizacion de activacion antes de habilitar en produccion y
+redesplegar. Render es una alternativa, no un requisito ni una contratacion aprobada.
+Si la beta exige documentos reales y no hay procesamiento certificado, esa cohorte
+no esta lista para apertura comercial aunque el codigo pueda integrarse apagado.
+
+Rollback: volver el control a `false`, redesplegar y pausar dispatcher; comprobar
+503 en los endpoints con autorizacion y que no crece la cola por nuevas cargas.
+Una peticion o PUT firmado ya iniciados no se revocan con el flag: esperar el
+vencimiento de firmas (cinco minutos), drenar peticiones en vuelo y conservar
+reconciliacion pendiente para una ventana de mantenimiento autorizada.
+
+Regresiones: `tests/unit/document-activation.test.ts`,
+`tests/unit/document-worker-route.test.ts`,
+`tests/unit/document-direct-upload-route.test.ts`,
+`tests/unit/document-reconciliation-cron.test.ts` y
+`tests/render/tour-evidence-form.test.ts`. Las pruebas locales no sustituyen la
+certificacion hospedada ni autorizan merge o activacion por si solas.
 
 Este procedimiento no autoriza contratación ni producción. Elegir y aprobar región,
 coste, residencia y responsables antes de aplicar

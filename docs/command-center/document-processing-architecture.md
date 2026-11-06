@@ -3,12 +3,20 @@
 Status: active
 Document type: canonical
 Owner: Platform / Security
-Last verified: 2026-10-31
+Last verified: 2026-11-06
 Scope: inspección obligatoria de documentos y condiciones de operación
 Source of truth: arquitectura, services/document-analysis y pruebas enlazadas; producción no habilitada
 Review trigger: cambio de contrato, controles o procedimiento; revisar evidencia del entorno antes de ejecutar
 
 **Estado:** gateway autoalojado operativo y certificado en desarrollo; producción no habilitada
+
+La integracion se entrega apagada por defecto mediante
+`FASTT_DOCUMENT_PIPELINE_ENABLED`. Las credenciales no la activan: sin opt-in
+explicito no se reciben documentos ni se ejecuta el worker o la reconciliacion
+programada. Se conserva la lectura del historial y los controles de seguridad.
+La activacion hospedada requiere la certificacion y autorizacion del
+[runbook de despliegue](../runbooks/document-processing-deployment.md); integrar
+codigo desactivado no acredita una beta comercial lista para recibir documentos.
 **Alcance:** documentos de identidad, negocio, fiscalidad y corroboración de pagos  
 **Decisión:** el archivo original permanece privado en R2 y toda decisión se apoya en un expediente técnico persistente, reproducible y auditable.
 

@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto"
 import { readFile } from "node:fs/promises"
 import { DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3"
-import { expect, it } from "vitest"
+import { afterEach, expect, it, vi } from "vitest"
+afterEach(() => vi.unstubAllEnvs())
 import { getDocumentR2Client } from "@/container/shared.container"
 import { documentStorageConfig } from "@/lib/documents/storage-config"
 import { documentIntegrity } from "@/lib/documents/object-integrity"
@@ -29,6 +30,7 @@ import { upsertProvider } from "../test-support/catalog-db-test-data"
 it.skipIf(process.env.FASTT_CERTIFY_LOCAL_GATEWAY !== "1")(
 	"certifies signed direct R2 upload → local antivirus/OCR → isolated PostgreSQL without approval",
 	async () => {
+		vi.stubEnv("FASTT_DOCUMENT_PIPELINE_ENABLED", "true")
 		if (
 			process.env.FASTT_DATA_ENV !== "test" ||
 			process.env.DOCUMENT_ANALYSIS_GATEWAY_URL !== "http://127.0.0.1:4319/v1/documents/analyze"

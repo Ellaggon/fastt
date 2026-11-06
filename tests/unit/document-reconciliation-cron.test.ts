@@ -1,4 +1,4 @@
-import { afterEach, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, expect, it, vi } from "vitest"
 const mock = vi.hoisted(() => ({ worker: vi.fn(), audit: vi.fn(), configured: vi.fn() }))
 vi.mock("@/lib/documents/document-processing", () => ({
 	runProviderDocumentProcessingWorker: mock.worker,
@@ -9,7 +9,8 @@ vi.mock("@/lib/documents/storage-reconciliation", () => ({
 vi.mock("@/lib/provider-document-storage", () => ({
 	isR2DocumentStorageConfigured: mock.configured,
 }))
-import { GET } from "@/pages/api/cron/document-processing"
+import { GET } from "@/pages/api/cron/document-storage-reconciliation"
+beforeEach(() => vi.stubEnv("FASTT_DOCUMENT_PIPELINE_ENABLED", "true"))
 afterEach(() => {
 	vi.unstubAllEnvs()
 	vi.clearAllMocks()
@@ -36,7 +37,7 @@ it("runs the read-only audit and exposes counts, never object identities", async
 	const response = await request(),
 		text = await response.text()
 	expect(response.status).toBe(200)
-	expect(JSON.parse(text).storage).toMatchObject({
+	expect(JSON.parse(text)).toMatchObject({
 		scanned: 1,
 		recentUnconfirmed: 1,
 		orphanCandidates: 0,
@@ -48,5 +49,11 @@ it("reports failure rather than a successful audit when reconciliation is unavai
 	mock.worker.mockResolvedValue({ completed: 0 })
 	mock.configured.mockReturnValue(true)
 	mock.audit.mockRejectedValue(new Error("database unavailable"))
-	expect((await request()).status).toBe(500)
+	expect((await request()).status).toBe(503)
+})
+it("does not scan storage when disabled, even with a valid cron secret", async () => {
+	vi.stubEnv("FASTT_DOCUMENT_PIPELINE_ENABLED", "false")
+	vi.stubEnv("CRON_SECRET", "test-cron")
+	expect((await request()).status).toBe(503)
+	expect(mock.audit).not.toHaveBeenCalled()
 })

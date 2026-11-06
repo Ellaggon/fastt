@@ -1,4 +1,5 @@
 import { tourComplianceActivityClasses } from "@/shared/domain/tour-operation"
+import { assertDocumentPipelineEnabled } from "@/lib/documents/activation"
 import { documentIntegrity } from "@/lib/documents/object-integrity"
 import { documentSubmissionId } from "@/lib/documents/upload-contract"
 import { registerDocumentWithRetry } from "@/lib/documents/registration-retry"
@@ -1337,6 +1338,7 @@ type SubmitProviderDocumentParams = {
 }
 
 export async function submitProviderDocument(params: SubmitProviderDocumentParams) {
+	assertDocumentPipelineEnabled()
 	await assertCanManageDocuments(params.providerId, params.actorUserId)
 	const key = normalizeCommandIdempotencyKey(params.idempotencyKey ?? crypto.randomUUID())
 	const scope = `provider.document.submit:${params.providerId}`

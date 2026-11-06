@@ -9,6 +9,7 @@ afterEach(() => {
 	vi.resetAllMocks()
 })
 test("dedicated worker token processes one bounded job, without bucket scans", async () => {
+	vi.stubEnv("FASTT_DOCUMENT_PIPELINE_ENABLED", "true")
 	vi.stubEnv("CRON_SECRET", "")
 	vi.stubEnv("DOCUMENT_PROCESSING_WORKER_TOKEN", "a".repeat(32))
 	worker.mockResolvedValue({ claimed: 0 })
@@ -19,6 +20,17 @@ test("dedicated worker token processes one bounded job, without bucket scans", a
 	} as never)
 	expect(response.status).toBe(200)
 	expect(worker).toHaveBeenCalledWith({ limit: 1, maxElapsedMs: 45_000 })
+})
+test("authorized cron cannot run while activation is absent", async () => {
+	vi.stubEnv("FASTT_DOCUMENT_PIPELINE_ENABLED", "")
+	vi.stubEnv("CRON_SECRET", "cron-token")
+	const response = await GET({
+		request: new Request("https://fastt.test/api/cron/document-processing", {
+			headers: { authorization: "Bearer cron-token" },
+		}),
+	} as never)
+	expect(response.status).toBe(503)
+	expect(worker).not.toHaveBeenCalled()
 })
 test("does not expose worker to anonymous requests", async () => {
 	vi.stubEnv("CRON_SECRET", "cron-token")

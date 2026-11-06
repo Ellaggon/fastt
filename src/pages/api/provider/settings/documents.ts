@@ -1,4 +1,8 @@
 import type { APIRoute } from "astro"
+import {
+	documentPipelineEnabled,
+	documentPipelineDisabledResponse,
+} from "@/lib/documents/activation"
 import { experienceRequirementsHref } from "@/lib/verification/experience-requirements-navigation"
 import { ZodError, z } from "zod"
 
@@ -225,6 +229,7 @@ export const POST: APIRoute = async ({ request }) => {
 		request.headers.get("origin") !== new URL(request.url).origin
 	)
 		return json({ error: "invalid_origin" }, 403)
+	if (!documentPipelineEnabled()) return documentPipelineDisabledResponse()
 	const preferRedirect = shouldReturnHtmlRedirect(request)
 	let formTypeHint = ""
 	let returnToHint = ""

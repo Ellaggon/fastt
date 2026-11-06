@@ -1,4 +1,8 @@
 import type { APIRoute } from "astro"
+import {
+	documentPipelineEnabled,
+	documentPipelineDisabledResponse,
+} from "@/lib/documents/activation"
 import { ZodError } from "zod"
 
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
@@ -7,6 +11,7 @@ import { createDirectDocumentUpload } from "@/lib/provider-document-storage"
 export const POST: APIRoute = async ({ request }) => {
 	if (request.headers.get("origin") !== new URL(request.url).origin)
 		return Response.json({ error: "invalid_origin" }, { status: 403 })
+	if (!documentPipelineEnabled()) return documentPipelineDisabledResponse()
 	try {
 		const { provider } = await requireProviderSessionSurface(request)
 		if (!provider.permissions.canManageDocuments)
