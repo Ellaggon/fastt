@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto"
+import { appendFile, mkdir } from "node:fs/promises"
 import { logger } from "@/lib/observability/logger"
 import {
 	currentRegion,
@@ -62,6 +63,26 @@ export function logRoutePerformance(params: {
 		productHash: hashIdentifier(params.productId),
 		timing: timingPayload(params.timing),
 		...params.extra,
+	}
+	if (process.env.NODE_ENV === "development" && !process.env.VERCEL) {
+		const directory = "artifacts/performance"
+		const sample = {
+			measuredAt: new Date().toISOString(),
+			name: params.name,
+			method: params.request?.method,
+			status: params.status,
+			durationMs,
+			region: currentRegion(),
+			cache: cache.state,
+			timing: timingPayload(params.timing),
+		}
+		void mkdir(directory, { recursive: true })
+			.then(() =>
+				appendFile(`${directory}/request-timings.jsonl`, JSON.stringify(sample) + "\n", {
+					mode: 0o600,
+				})
+			)
+			.catch(() => {})
 	}
 	if (durationMs > 1000) {
 		logger.warn("route.performance.slow", payload)

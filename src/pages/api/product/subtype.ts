@@ -148,7 +148,7 @@ export const POST: APIRoute = async ({ request }) => {
 					})
 		if (response.ok) {
 			try {
-				await invalidateProduct(productId)
+				await invalidateProduct(productId, { refreshOperationalSurface: false })
 				await refreshProductOperationalSurfaceAfterMutation({
 					productId,
 					providerId,

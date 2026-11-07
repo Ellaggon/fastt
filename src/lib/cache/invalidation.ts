@@ -19,12 +19,18 @@ async function invalidateRatePlanSurfacesByOwnership(params: {
 		const ratePlanIds = (params.ratePlanIds ?? []).filter(Boolean)
 		if (ratePlanIds.length) filters.push(inArray(RatePlan.id, ratePlanIds))
 		if (filters.length) {
-			const rows = await db
-				.select({ providerId: Product.providerId })
-				.from(Product)
-				.innerJoin(Variant, eq(Variant.productId, Product.id))
-				.leftJoin(RatePlan, eq(RatePlan.variantId, Variant.id))
-				.where(and(...filters))
+			const rows =
+				params.productId && !params.variantId && !ratePlanIds.length
+					? await db
+							.select({ providerId: Product.providerId })
+							.from(Product)
+							.where(eq(Product.id, params.productId))
+					: await db
+							.select({ providerId: Product.providerId })
+							.from(Product)
+							.innerJoin(Variant, eq(Variant.productId, Product.id))
+							.leftJoin(RatePlan, eq(RatePlan.variantId, Variant.id))
+							.where(and(...filters))
 			for (const row of rows) providerIds.add(String(row.providerId ?? "").trim())
 		}
 	}
@@ -158,7 +164,11 @@ export async function invalidateProduct(
 	console.debug("cache invalidated", { scope: "product", id: productId })
 }
 
-export async function invalidateVariant(variantId: string, productId: string): Promise<void> {
+export async function invalidateVariant(
+	variantId: string,
+	productId: string,
+	options: { refreshOperationalSurface?: boolean } = {}
+): Promise<void> {
 	invalidateAggregateCache({ variantId, productId })
 	await Promise.all([
 		delByPrefix(`ws:variant:${variantId}`),
@@ -169,7 +179,8 @@ export async function invalidateVariant(variantId: string, productId: string): P
 		delByPrefix("ws:search:public"),
 		invalidateRatePlanSurfacesByOwnership({ variantId, productId }),
 	])
-	refreshProductSurface(productId, "invalidate_variant")
+	if (options.refreshOperationalSurface !== false)
+		refreshProductSurface(productId, "invalidate_variant")
 	console.debug("cache invalidated", { scope: "variant", id: variantId, productId })
 }
 

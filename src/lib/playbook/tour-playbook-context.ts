@@ -12,6 +12,7 @@ export function tourPublicationHref(
 		step: "preview",
 		flow: "complete",
 		tourFlowVersion: TOUR_FLOW_VERSION,
+		productId,
 	})
 	if (selection.variantId) params.set("variantId", selection.variantId)
 	if (selection.ratePlanId) params.set("ratePlanId", selection.ratePlanId)
@@ -53,6 +54,7 @@ export function resolveTourPlaybookContext(url: URL, productId: string) {
 	const returnHref = tourPublicationReturn(params.get("returnTo"), productId, selection)
 	const part: TourPlaybookPart =
 		url.pathname.endsWith("/preview") ||
+		Boolean(returnHref) ||
 		["departure", "rate", "conditions", "bookingPolicies", "calendar"].includes(
 			params.get("step") || ""
 		) ||

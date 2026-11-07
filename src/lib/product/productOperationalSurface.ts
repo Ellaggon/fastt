@@ -8,6 +8,13 @@ import {
 	ProductOperationalSurface,
 } from "@/shared/infrastructure/db/compat"
 import { routes } from "@/lib/routes"
+import { withCommercialReadScope } from "@/lib/commercial-policy/read-scope"
+import { readTourRequestData, withTourProjectionReads } from "@/lib/tours/tourRequestReads"
+import {
+	createServerTimingRecorder,
+	type ServerTimingRecorder,
+} from "@/lib/observability/serverTiming"
+import { logRoutePerformance } from "@/lib/observability/performanceLog"
 import {
 	summarizeProductPreparation,
 	type ProductPreparationSummary,
@@ -315,7 +322,7 @@ function subtypeSummary(aggregate: any): string {
 	return "Subtipo no configurado"
 }
 
-export async function refreshProductOperationalSurface(params: {
+export function refreshProductOperationalSurface(params: {
 	productId: string
 	providerId: string
 	request?: Request
@@ -323,44 +330,85 @@ export async function refreshProductOperationalSurface(params: {
 	source?: string
 	lastPath?: string | null
 }): Promise<ProductOperationalSurfaceRead | null> {
-	const [aggregate, variantsAggregate, statusRow] = await Promise.all([
-		getProductFullAggregate(params.productId, params.providerId),
-		getProductVariantsAggregate(params.productId, params.providerId),
-		db
-			.select({ state: Product.publicationState })
-			.from(Product)
-			.where(eq(Product.id, params.productId))
-			.then(first),
+	const startedAt = performance.now()
+	const timing = createServerTimingRecorder()
+	return withTourProjectionReads(() =>
+		withCommercialReadScope(() => buildProductOperationalSurface(params, timing))
+	).finally(() => {
+		timing.addTotal()
+		logRoutePerformance({ name: "product.surface.refresh", startedAt, timing })
+	})
+}
+
+async function buildProductOperationalSurface(
+	params: Parameters<typeof refreshProductOperationalSurface>[0],
+	timing: ServerTimingRecorder
+): Promise<ProductOperationalSurfaceRead | null> {
+	const statusPromise = db
+		.select({ state: Product.publicationState })
+		.from(Product)
+		.where(and(eq(Product.id, params.productId), eq(Product.providerId, params.providerId)))
+		.then(first)
+	const aggregatePromise = timing.time("productAggregate", () =>
+		readTourRequestData(params.request, `aggregate:${params.providerId}:${params.productId}`, () =>
+			getProductFullAggregate(params.productId, params.providerId)
+		)
+	)
+	const variantsPromise = timing.time("variantsAggregate", () =>
+		getProductVariantsAggregate(params.productId, params.providerId)
+	)
+	const policySurfacePromise = Promise.all([aggregatePromise, variantsPromise]).then(
+		async ([aggregate, variantsAggregate]) => {
+			const defaultRatePlanIds = [
+				...new Set(
+					(variantsAggregate?.variants ?? [])
+						.map((variant) => String(variant.defaultRatePlanId ?? "").trim())
+						.filter(Boolean)
+				),
+			]
+			const policyCoverageState = aggregate
+				? await timing.time("policyCoverage", () =>
+						resolvePolicyCoverageState({
+							productId: params.productId,
+							providerId: params.providerId,
+							productType: String(aggregate.productType ?? ""),
+							defaultRatePlanIds,
+						})
+					)
+				: null
+			return { defaultRatePlanIds, policyCoverageState }
+		}
+	)
+	const [aggregate, variantsAggregate, statusRow, readiness, policySurface] = await Promise.all([
+		aggregatePromise,
+		variantsPromise,
+		statusPromise,
+		statusPromise.then((row) =>
+			timing.time("preparation", () =>
+				summarizeProductPreparation({
+					productId: params.productId,
+					providerId: params.providerId,
+					status: String(row?.state ?? "draft")
+						.trim()
+						.toLowerCase(),
+					request: params.request,
+					url: params.url,
+					lastPath: params.lastPath,
+				})
+			)
+		),
+		policySurfacePromise,
 	])
 	if (!aggregate) return null
 
 	const status = String(statusRow?.state ?? "draft")
 		.trim()
 		.toLowerCase()
-	const readiness = await summarizeProductPreparation({
-		productId: params.productId,
-		providerId: params.providerId,
-		status,
-		request: params.request,
-		url: params.url,
-		lastPath: params.lastPath,
-	})
-
 	const variants = Array.isArray(variantsAggregate?.variants) ? variantsAggregate.variants : []
 	const activeVariants = variants.filter(
 		(variant: any) => String(variant.lifecycleState ?? "") !== "archived"
 	)
-	const defaultRatePlanIds = [
-		...new Set(
-			variants.map((variant: any) => String(variant.defaultRatePlanId ?? "").trim()).filter(Boolean)
-		),
-	]
-	const policyCoverageState = await resolvePolicyCoverageState({
-		productId: params.productId,
-		providerId: params.providerId,
-		productType: String(aggregate.productType ?? ""),
-		defaultRatePlanIds,
-	})
+	const { defaultRatePlanIds, policyCoverageState } = policySurface
 	const conditionsHref = policyCoverageState?.ratePlanId
 		? routes.ratePlanPolicies(policyCoverageState.ratePlanId)
 		: routes.rates()

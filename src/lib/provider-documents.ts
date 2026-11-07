@@ -1069,33 +1069,35 @@ type DocumentRow = Parameters<typeof mapRow>[0]
 async function withDocumentScopes(rows: DocumentRow[]): Promise<ProviderDocumentRecord[]> {
 	const ids = rows.map((row) => row.id)
 	if (ids.length === 0) return []
-	const inspections = await db
-		.select({
-			documentId: ProviderDocumentInspection.documentId,
-			processingState: ProviderDocumentInspection.processingState,
-			structuralStatus: ProviderDocumentInspection.structuralStatus,
-			malwareStatus: ProviderDocumentInspection.malwareStatus,
-			tamperStatus: ProviderDocumentInspection.tamperStatus,
-		})
-		.from(ProviderDocumentInspection)
-		.where(inArray(ProviderDocumentInspection.documentId, ids))
+	const [inspections, scopes] = await Promise.all([
+		db
+			.select({
+				documentId: ProviderDocumentInspection.documentId,
+				processingState: ProviderDocumentInspection.processingState,
+				structuralStatus: ProviderDocumentInspection.structuralStatus,
+				malwareStatus: ProviderDocumentInspection.malwareStatus,
+				tamperStatus: ProviderDocumentInspection.tamperStatus,
+			})
+			.from(ProviderDocumentInspection)
+			.where(inArray(ProviderDocumentInspection.documentId, ids)),
+		db
+			.select({
+				id: ProviderDocumentScope.id,
+				documentId: ProviderDocumentScope.documentId,
+				scopeType: ProviderDocumentScope.scopeType,
+				productId: ProviderDocumentScope.productId,
+				resourceId: ProviderDocumentScope.resourceId,
+				territoryCode: ProviderDocumentScope.territoryCode,
+				territoryLabel: GeoPlace.canonicalName,
+				activityClass: ProviderDocumentScope.activityClass,
+			})
+			.from(ProviderDocumentScope)
+			.leftJoin(GeoPlace, eq(GeoPlace.id, ProviderDocumentScope.territoryCode))
+			.where(inArray(ProviderDocumentScope.documentId, ids)),
+	])
 	const inspectionByDocument = new Map(
 		inspections.map((inspection) => [inspection.documentId, inspection])
 	)
-	const scopes = await db
-		.select({
-			id: ProviderDocumentScope.id,
-			documentId: ProviderDocumentScope.documentId,
-			scopeType: ProviderDocumentScope.scopeType,
-			productId: ProviderDocumentScope.productId,
-			resourceId: ProviderDocumentScope.resourceId,
-			territoryCode: ProviderDocumentScope.territoryCode,
-			territoryLabel: GeoPlace.canonicalName,
-			activityClass: ProviderDocumentScope.activityClass,
-		})
-		.from(ProviderDocumentScope)
-		.leftJoin(GeoPlace, eq(GeoPlace.id, ProviderDocumentScope.territoryCode))
-		.where(inArray(ProviderDocumentScope.documentId, ids))
 	const byDocument = new Map<string, ProviderDocumentScopeRecord[]>()
 	for (const scope of scopes) {
 		const list = byDocument.get(scope.documentId) ?? []

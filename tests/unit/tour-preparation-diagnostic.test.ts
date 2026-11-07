@@ -5,14 +5,13 @@ const mocks = vi.hoisted(() => ({
 	commercial: vi.fn(),
 	authorization: vi.fn(),
 	readiness: vi.fn(),
+	repository: vi.fn(),
 }))
 vi.mock("@/container", () => ({
 	variantManagementRepository: {},
 	ratePlanPricingReadRepository: {},
 	productRepository: {
-		getProductAggregate: async () => ({
-			verticalReadiness: { kind: "tour", tour: { hasActiveTickets: true, hasCategory: true } },
-		}),
+		getProductAggregate: mocks.repository,
 	},
 }))
 vi.mock("@/modules/catalog/public", () => ({
@@ -71,6 +70,9 @@ const observations = {
 	availableDateCount: 1,
 }
 beforeEach(() => {
+	mocks.repository.mockResolvedValue({
+		verticalReadiness: { kind: "tour", tour: { hasActiveTickets: true, hasCategory: true } },
+	})
 	mocks.readiness.mockResolvedValue({ lifecycleState: "ready", validationErrors: [] })
 	mocks.aggregate.mockResolvedValue({
 		productType: "tour",
@@ -123,6 +125,28 @@ beforeEach(() => {
 })
 const input = { providerId: "provider", productId: "tour" }
 describe("B3 shared preparation and server diagnosis", () => {
+	it("starts commercial checks while editorial readiness is still loading", async () => {
+		let release!: (value: unknown) => void
+		mocks.repository.mockReturnValueOnce(
+			new Promise((resolve) => {
+				release = resolve
+			})
+		)
+		mocks.readiness.mockClear()
+		mocks.commercial.mockClear()
+		const pending = loadCompleteToPublishState(input)
+		try {
+			await vi.waitFor(() => {
+				expect(mocks.readiness).toHaveBeenCalledTimes(1)
+				expect(mocks.commercial).toHaveBeenCalledTimes(1)
+			})
+		} finally {
+			release({
+				verticalReadiness: { kind: "tour", tour: { hasActiveTickets: true, hasCategory: true } },
+			})
+			await pending
+		}
+	})
 	it("does not let a complete program mark the independent location stage complete", async () => {
 		const aggregate = await mocks.aggregate()
 		aggregate.location = { lat: null, lng: null }

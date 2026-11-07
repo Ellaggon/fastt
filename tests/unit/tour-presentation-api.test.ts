@@ -56,6 +56,10 @@ beforeEach(() => {
 it("saves once and advances directly to stage two preserving the commercial selection", async () => {
 	const response = await POST({ request: request() } as never)
 	expect(response.status).toBe(200)
+	expect(response.headers.get("Server-Timing")).toMatch(/authProvider;dur=/)
+	expect(response.headers.get("Server-Timing")).toMatch(/persist;dur=/)
+	expect(response.headers.get("Server-Timing")).toMatch(/invalidate;dur=/)
+	expect(response.headers.get("Server-Timing")).toMatch(/surfaceRefresh;dur=/)
 	const result = await response.json()
 	const url = new URL(result.nextHref, "https://fastt.test")
 	expect(url.pathname).toBe(`/product/${productId}/subtype`)

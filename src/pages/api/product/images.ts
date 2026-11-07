@@ -18,7 +18,7 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
-		const providerId = await getProviderIdFromRequest(request)
+		const providerId = await getProviderIdFromRequest(request, user)
 		if (!providerId) {
 			return new Response(JSON.stringify({ error: "Unauthorized / not a provider" }), {
 				status: 401,
@@ -107,7 +107,7 @@ export const POST: APIRoute = async ({ request }) => {
 			}),
 		})
 		if (response.ok) {
-			await invalidateProduct(productId)
+			await invalidateProduct(productId, { refreshOperationalSurface: false })
 			await refreshProductOperationalSurfaceAfterMutation({
 				productId,
 				providerId,

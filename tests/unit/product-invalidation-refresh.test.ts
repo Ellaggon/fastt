@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
 	aggregate: vi.fn(),
 	refresh: vi.fn(),
 	select: vi.fn(),
+	join: vi.fn(),
 }))
 vi.mock("@/lib/cache/persistentCache", () => ({ delByPrefix: mocks.del }))
 vi.mock("@/lib/cache/ssrAggregateCache", () => ({ invalidateAggregateCache: mocks.aggregate }))
@@ -14,14 +15,17 @@ vi.mock("@/shared/infrastructure/db/compat", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@/shared/infrastructure/db/compat")>()),
 	db: { select: mocks.select },
 }))
-import { invalidateProduct } from "@/lib/cache/invalidation"
+import { invalidateProduct, invalidateVariant } from "@/lib/cache/invalidation"
 beforeEach(() => {
 	vi.clearAllMocks()
 	mocks.del.mockResolvedValue(undefined)
 	mocks.refresh.mockResolvedValue(undefined)
 	const query: any = {
 		from: () => query,
-		innerJoin: () => query,
+		innerJoin: (...args: unknown[]) => {
+			mocks.join(...args)
+			return query
+		},
 		leftJoin: () => query,
 		where: async () => [{ providerId: "provider" }],
 	}
@@ -32,6 +36,13 @@ it("preserves automatic refresh for existing callers", async () => {
 	await vi.waitFor(() => expect(mocks.refresh).toHaveBeenCalledOnce())
 	expect(mocks.aggregate).toHaveBeenCalledWith({ productId: "product" })
 })
+it("preserves variant refresh unless the caller explicitly owns it", async () => {
+	await invalidateVariant("variant", "product", { refreshOperationalSurface: false })
+	expect(mocks.refresh).not.toHaveBeenCalled()
+	expect(mocks.aggregate).toHaveBeenCalledWith({ variantId: "variant", productId: "product" })
+	await invalidateVariant("variant", "product")
+	await vi.waitFor(() => expect(mocks.refresh).toHaveBeenCalledOnce())
+})
 it("invalidates all presentation surfaces while an explicit caller owns refresh", async () => {
 	await invalidateProduct("product", { refreshOperationalSurface: false })
 	expect(mocks.refresh).not.toHaveBeenCalled()
@@ -39,4 +50,5 @@ it("invalidates all presentation surfaces while an explicit caller owns refresh"
 	expect(mocks.del).toHaveBeenCalledWith("ws:product:product")
 	expect(mocks.del).toHaveBeenCalledWith("ws:search:public")
 	expect(mocks.del).toHaveBeenCalledTimes(5)
+	expect(mocks.join).not.toHaveBeenCalled()
 })

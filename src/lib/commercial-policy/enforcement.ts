@@ -1,5 +1,10 @@
 import { experienceFormatReady, type ExperienceFormat } from "@/shared/domain/experience-format"
 import { commercialReadOnce } from "./read-scope"
+import {
+	createServerTimingRecorder,
+	type ServerTimingRecorder,
+} from "@/lib/observability/serverTiming"
+import { logRoutePerformance } from "@/lib/observability/performanceLog"
 import { diagnoseCommercialPolicy } from "@/lib/commercial-policy/read"
 import type {
 	CommercialCapability,
@@ -126,11 +131,40 @@ export async function resolveProductCommercialDiagnosis(params: {
 	holder?: Awaited<ReturnType<typeof readProviderHolderProfile>>
 	agreementStatus?: Awaited<ReturnType<typeof commercialAgreementStatus>>
 }): Promise<ProductCommercialDiagnosis> {
-	const product = await db
-		.select({ productType: Product.productType })
-		.from(Product)
-		.where(and(eq(Product.id, params.productId), eq(Product.providerId, params.providerId)))
-		.then(first)
+	const startedAt = performance.now()
+	const timing = createServerTimingRecorder()
+	try {
+		return await resolveMeasuredCommercialDiagnosis(params, timing)
+	} finally {
+		timing.addTotal()
+		logRoutePerformance({ name: "commercial.policy.resolve", startedAt, timing })
+	}
+}
+
+async function resolveMeasuredCommercialDiagnosis(
+	params: Parameters<typeof resolveProductCommercialDiagnosis>[0],
+	timing: ServerTimingRecorder
+): Promise<ProductCommercialDiagnosis> {
+	const product = await timing.time("productContext", () =>
+		db
+			.select({
+				productType: Product.productType,
+				tourProductId: Tour.productId,
+				experienceFormat: Tour.experienceFormat,
+				formatContractVersion: Tour.formatContractVersion,
+				countryCode: GeoPlace.countryCode,
+			})
+			.from(Product)
+			.leftJoin(Tour, eq(Tour.productId, Product.id))
+			.leftJoin(
+				ProductGeoPlace,
+				and(eq(ProductGeoPlace.productId, Product.id), eq(ProductGeoPlace.isPrimary, true))
+			)
+			.leftJoin(GeoPlace, eq(ProductGeoPlace.placeId, GeoPlace.id))
+			.where(and(eq(Product.id, params.productId), eq(Product.providerId, params.providerId)))
+			.limit(1)
+			.then(first)
+	)
 	const vertical = String(product?.productType ?? "").toLowerCase()
 	if (!product || !["hotel", "tour", "whole_home"].includes(vertical)) {
 		return {
@@ -143,17 +177,12 @@ export async function resolveProductCommercialDiagnosis(params: {
 			),
 		}
 	}
-	const format =
-		vertical === "tour"
-			? await db
-					.select({
-						experienceFormat: Tour.experienceFormat,
-						formatContractVersion: Tour.formatContractVersion,
-					})
-					.from(Tour)
-					.where(eq(Tour.productId, params.productId))
-					.then(first)
-			: null
+	const format = product.tourProductId
+		? {
+				experienceFormat: product.experienceFormat,
+				formatContractVersion: product.formatContractVersion,
+			}
+		: null
 	if (vertical === "tour" && (!format || !experienceFormatReady(format)))
 		return {
 			productId: params.productId,
@@ -166,8 +195,10 @@ export async function resolveProductCommercialDiagnosis(params: {
 		}
 	const holder =
 		params.holder === undefined
-			? await commercialReadOnce(`holder:${params.providerId}`, () =>
-					readProviderHolderProfile(params.providerId)
+			? await timing.time("holder", () =>
+					commercialReadOnce(`holder:${params.providerId}`, () =>
+						readProviderHolderProfile(params.providerId)
+					)
 				)
 			: params.holder
 	if (!holder) {
@@ -192,14 +223,7 @@ export async function resolveProductCommercialDiagnosis(params: {
 			),
 		}
 	}
-	const place = await db
-		.select({ countryCode: GeoPlace.countryCode })
-		.from(ProductGeoPlace)
-		.innerJoin(GeoPlace, eq(ProductGeoPlace.placeId, GeoPlace.id))
-		.where(
-			and(eq(ProductGeoPlace.productId, params.productId), eq(ProductGeoPlace.isPrimary, true))
-		)
-		.then(first)
+	const place = { countryCode: product.countryCode }
 	if (!place?.countryCode) {
 		return {
 			productId: params.productId,
@@ -213,15 +237,21 @@ export async function resolveProductCommercialDiagnosis(params: {
 	}
 	const [documents, tourContext, commercialLines] = await Promise.all([
 		params.documents === undefined
-			? commercialReadOnce(`documents:${params.providerId}`, () =>
-					listProviderDocuments(params.providerId)
+			? timing.time("documents", () =>
+					commercialReadOnce(`documents:${params.providerId}`, () =>
+						listProviderDocuments(params.providerId)
+					)
 				)
 			: Promise.resolve(params.documents),
 		vertical === "tour"
-			? readTourComplianceContext(params.productId, params.providerId)
+			? timing.time("operationContext", () =>
+					readTourComplianceContext(params.productId, params.providerId)
+				)
 			: Promise.resolve(null),
-		commercialReadOnce(`lines:${params.providerId}`, () =>
-			readProviderCommercialLineState(params.providerId)
+		timing.time("commercialLines", () =>
+			commercialReadOnce(`lines:${params.providerId}`, () =>
+				readProviderCommercialLineState(params.providerId)
+			)
 		),
 	])
 	const collectionModel = collectionModelForCommercialLine(
@@ -259,16 +289,18 @@ export async function resolveProductCommercialDiagnosis(params: {
 	const declaredIds = operation ? operationSubjects(operation) : []
 	let declaredResources: Array<{ id: string; type: string }> = []
 	if (declaredIds.length) {
-		const resources = await db
-			.select({ id: TourOperationalResource.id, type: TourOperationalResource.type })
-			.from(TourOperationalResource)
-			.where(
-				and(
-					eq(TourOperationalResource.providerId, params.providerId),
-					eq(TourOperationalResource.status, "active"),
-					inArray(TourOperationalResource.id, declaredIds)
+		const resources = await timing.time("declaredResources", async () =>
+			db
+				.select({ id: TourOperationalResource.id, type: TourOperationalResource.type })
+				.from(TourOperationalResource)
+				.where(
+					and(
+						eq(TourOperationalResource.providerId, params.providerId),
+						eq(TourOperationalResource.status, "active"),
+						inArray(TourOperationalResource.id, declaredIds)
+					)
 				)
-			)
+		)
 		declaredResources = resources
 		if (operation && operationResourceIssue(operation, resources))
 			return {
@@ -281,47 +313,52 @@ export async function resolveProductCommercialDiagnosis(params: {
 				),
 			}
 	}
-	const diagnosis = await diagnoseCommercialPolicy({
-		now: params.policyEvaluationAt,
-		context: {
-			providerId: params.providerId,
-			evidenceSubjects: {
-				holder: [params.providerId],
-				guides: declaredResources
-					.filter((resource) => resource.type === "guide")
-					.map((resource) => resource.id),
-				operator: operation?.operatorResourceId
-					? [operation.operatorResourceId]
-					: [params.providerId],
-				resources: declaredResources.map((resource) => resource.id),
+	const productCountry = place.countryCode
+	const diagnosis = await timing.time("policyDecision", () =>
+		diagnoseCommercialPolicy({
+			now: params.policyEvaluationAt,
+			context: {
+				providerId: params.providerId,
+				evidenceSubjects: {
+					holder: [params.providerId],
+					guides: declaredResources
+						.filter((resource) => resource.type === "guide")
+						.map((resource) => resource.id),
+					operator: operation?.operatorResourceId
+						? [operation.operatorResourceId]
+						: [params.providerId],
+					resources: declaredResources.map((resource) => resource.id),
+				},
+				holderType: holder.holderType as "persona_natural" | "entidad",
+				holderCountry: holder.holderCountry,
+				legalFormCode: holder.legalFormCode ?? null,
+				operation,
+				taxCountry: holder.taxResidenceCountry,
+				payoutCountry: holder.payoutCountry,
+				productCountry,
+				vertical: vertical as "hotel" | "tour" | "whole_home",
+				collectionModel,
+				productId: params.productId,
+				experienceFormat: format?.experienceFormat as ExperienceFormat | null,
+				formatContractVersion: format?.formatContractVersion ?? undefined,
+				jurisdictionCode: tourContext?.jurisdictionCode ?? null,
+				jurisdictionCodes: tourContext?.jurisdictionCodes ?? undefined,
+				operatingRole:
+					(tourContext?.operatingRole as "operator" | "guide" | "intermediary" | null) ?? null,
+				activityClasses,
+				resourceIds: [
+					...new Set([...(params.resourceIds ?? []), ...(operation?.resourceIds ?? [])]),
+				],
+				subjectReferences: [
+					...new Set([
+						...(params.subjectReferences ?? params.resourceIds ?? []),
+						...(operation ? operationSubjects(operation) : []),
+					]),
+				],
 			},
-			holderType: holder.holderType as "persona_natural" | "entidad",
-			holderCountry: holder.holderCountry,
-			legalFormCode: holder.legalFormCode ?? null,
-			operation,
-			taxCountry: holder.taxResidenceCountry,
-			payoutCountry: holder.payoutCountry,
-			productCountry: place.countryCode,
-			vertical: vertical as "hotel" | "tour" | "whole_home",
-			collectionModel,
-			productId: params.productId,
-			experienceFormat: format?.experienceFormat as ExperienceFormat | null,
-			formatContractVersion: format?.formatContractVersion,
-			jurisdictionCode: tourContext?.jurisdictionCode ?? null,
-			jurisdictionCodes: tourContext?.jurisdictionCodes ?? undefined,
-			operatingRole:
-				(tourContext?.operatingRole as "operator" | "guide" | "intermediary" | null) ?? null,
-			activityClasses,
-			resourceIds: [...new Set([...(params.resourceIds ?? []), ...(operation?.resourceIds ?? [])])],
-			subjectReferences: [
-				...new Set([
-					...(params.subjectReferences ?? params.resourceIds ?? []),
-					...(operation ? operationSubjects(operation) : []),
-				]),
-			],
-		},
-		evidence,
-	})
+			evidence,
+		})
+	)
 	if (
 		vertical === "tour" &&
 		collectionModel === "property_collect" &&

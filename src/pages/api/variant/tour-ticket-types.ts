@@ -48,7 +48,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		if (!user?.email) {
 			return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
 		}
-		const providerId = await getProviderIdFromRequest(request)
+		const providerId = await getProviderIdFromRequest(request, user)
 		if (!providerId) {
 			return new Response(JSON.stringify({ error: "Unauthorized / not a provider" }), {
 				status: 401,
@@ -109,7 +109,7 @@ export const POST: APIRoute = async ({ request }) => {
 		if (!user?.email) {
 			return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
 		}
-		const providerId = await getProviderIdFromRequest(request)
+		const providerId = await getProviderIdFromRequest(request, user)
 		if (!providerId) {
 			return new Response(JSON.stringify({ error: "Unauthorized / not a provider" }), {
 				status: 401,
