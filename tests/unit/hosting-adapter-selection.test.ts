@@ -19,7 +19,7 @@ test.each([
 	vi.stubEnv("NETLIFY", netlify)
 	vi.stubEnv("URL", "https://evaluation.netlify.app")
 	const { default: config } = await import("../../astro.config.mjs")
-	expect(config.adapter.name).toBe(expected)
+	expect(config.adapter?.name).toBe(expected)
 	expect(config.output).toBe("server")
 	expect(config.site).toBe(
 		netlify ? "https://evaluation.netlify.app" : "https://fastt-five.vercel.app"
