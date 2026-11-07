@@ -50,6 +50,9 @@ jobs:
           DOCS_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: pnpm run check:docs
 
+      - name: Verify service inventory with synthetic evidence
+        run: pnpm run test:services:inventory
+
       - name: Install canonical schema
         run: psql "$DIRECT_URL" -v ON_ERROR_STOP=1 -f db/postgres/0001_initial_schema.sql
 
