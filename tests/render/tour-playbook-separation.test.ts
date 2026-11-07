@@ -39,11 +39,11 @@ vi.mock("@/lib/playbook/evaluate-complete-to-publish-progress", () => ({
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import Editor from "@/components/tours/TourSlotProfileEditor.astro"
 
-async function render(part: "prepare" | "publish") {
+async function render(part: "prepare" | "publish", returnToReview = part === "publish") {
 	const container = await AstroContainer.create()
 	return container.renderToString(PlaybookLayout, {
 		request: new Request(
-			`https://fastt.test/product/tour/${part === "prepare" ? "tickets" : "departures/option"}?playbook=${part === "prepare" ? "launch-tour" : "complete-to-publish"}&step=${part === "prepare" ? "tickets" : "departure"}&tourFlowVersion=2&variantId=option&ratePlanId=rate&returnTo=%2Fproduct%2Ftour%2Fpreview`
+			`https://fastt.test/product/tour/${part === "prepare" ? "tickets" : "departures/option"}?playbook=${part === "prepare" ? "launch-tour" : "complete-to-publish"}&step=${part === "prepare" ? "tickets" : "departure"}&tourFlowVersion=2&variantId=option&ratePlanId=rate${returnToReview ? "&returnTo=%2Fproduct%2Ftour%2Fpreview" : ""}`
 		),
 		props: {
 			active: true,
@@ -109,7 +109,7 @@ describe("two tour playbooks rendered in their actual layout", () => {
 		expect(html).toContain('aria-current="step"')
 		expect(html).not.toContain('href="/product//')
 	})
-	it("A shows only its nine folded stages and preserves the review return on stage links", async () => {
+	it("A keeps its five creation stages and selection when no review return is present", async () => {
 		const html = await render("prepare")
 		expect(html).toContain("Crear experiencia")
 		expect(html).toContain("Tour guardado - Etapa 5 de 5")
@@ -118,19 +118,25 @@ describe("two tour playbooks rendered in their actual layout", () => {
 		expect(html).not.toMatch(/<details[^>]*open/)
 		expect(html).not.toContain("data-tour-publication-correction")
 		expect(html).not.toContain("comprobaciones cumplidas")
-		expect(html).toMatch(/class="tour-stage-rail__link" href="[^"]*returnTo=/)
+		expect(html).toMatch(/class="tour-stage-rail__link" href="[^"]*playbook=launch-tour/)
+		expect(html).toContain("variantId=option")
+		expect(html).toContain("ratePlanId=rate")
+		expect(html).not.toContain("Guardar y volver")
 	})
-	it("B mounts only the correction and returns to publication, never to the next stage", async () => {
-		const html = await render("publish")
-		expect(html).toContain("Publicar experiencia")
-		expect(html).toContain("data-tour-publication-correction")
-		expect(html).toContain("Guardar y volver")
-		expect(html).not.toContain("Dejar para más tarde")
-		expect(html).toContain("Volver a publicación")
-		expect(html).not.toContain("data-tour-stage-id")
-		expect(html).not.toContain("Ver etapas")
-		expect(html).not.toContain("comprobaciones cumplidas")
-	})
+	it.each(["prepare", "publish"] as const)(
+		"%s with a review return mounts only the correction",
+		async (part) => {
+			const html = await render(part, true)
+			expect(html).toContain("Publicar experiencia")
+			expect(html).toContain("data-tour-publication-correction")
+			expect(html).toContain("Guardar y volver")
+			expect(html).not.toContain("Dejar para más tarde")
+			expect(html).toContain("Volver a publicación")
+			expect(html).not.toContain("data-tour-stage-id")
+			expect(html).not.toContain("Ver etapas")
+			expect(html).not.toContain("comprobaciones cumplidas")
+		}
+	)
 	it("does not fabricate saved profile fields when an existing option has no profile", async () => {
 		const container = await AstroContainer.create()
 		const html = await container.renderToString(Editor, {
