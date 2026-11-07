@@ -10,6 +10,32 @@ Related code/tests: `src/lib/commercial-policy/`, `src/lib/provider-documents.ts
 Review trigger: cambio regulatorio, nueva actividad, jurisdicción, modalidad de cobro o firma de la versión
 Supersedes: docs/onboarding/phase-4-policy-annex-bo-draft.md
 
+## Alcance inicial de beta seleccionado
+
+Selección del titular: recorridos urbanos/culturales a pie, propios o de equipo, con
+pago directo. Es alcance de borrador, no ratificación ni permiso de publicación/reserva.
+
+- Formato propuesto: `guided_tour`; operación `self` o `team`, con actividad
+  `urban_cultural` y guía declarado. Validar el contexto completo, no sólo una etiqueta.
+- Territorio concreto mediante `GeoPlace`, pendiente de confirmar con la ruta real;
+  no inferirlo por nombre comercial ni habilitar todo Bolivia.
+- Sin naturaleza, aventura, agua, aire, transporte incluido ni ejecución por terceros.
+  Excluir también preparación y servicio de alimentos para esta primera certificación;
+  una visita gastronómica requiere revisar su clasificación antes de admitirla.
+- Cobro `property_collect`. Forma jurídica, país del titular, fiscalidad y permisos
+  aplicables siguen sujetos a revisión; no presumirlos por el alcance de beta.
+
+Excluir del piloto no significa prohibición legal. Mezclas con actividades excluidas o
+datos ambiguos quedan pendientes. No cambiar declaraciones reales para hacerlas encajar.
+
+Antes de cargar: comprobar contexto real, fuentes vigentes y expresividad del selector
+de admisión; una condición documental no sustituye una exclusión de operación.
+Preparar versiones con familias, sujetos y vigencia explícitos. Probar en aislamiento:
+caso cubierto; territorio ajeno; mezcla de actividades excluidas; datos incompletos;
+versión futura/vencida; firmas/familias faltantes; evidencia vencida. Distinguir cobertura
+de verificación y conservar las puertas de acuerdo/preparación. Registrar resultados y
+aprobaciones antes de autorizar carga. Todo ello sigue pendiente; no habilita este tour.
+
 > **Estado de decisión.** Esta es la matriz v1.0 lista para ratificación, no una política publicada.
 > Hasta que Políticas, Finanzas y Operaciones Tours registren las tres aprobaciones, ninguna fila
 > nueva puede sembrarse como `published` ni exigir un documento que aún no está en producción.
