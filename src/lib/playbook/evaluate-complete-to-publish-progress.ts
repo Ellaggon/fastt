@@ -1,6 +1,11 @@
 import { experienceJourneyPresentation } from "@/lib/tours/experienceFormatPresentation"
 import { evaluateTourContentReadiness } from "@/lib/tours/tourContentReadiness"
 import { readTourRequestData } from "@/lib/tours/tourRequestReads"
+import {
+	createServerTimingRecorder,
+	type ServerTimingRecorder,
+} from "@/lib/observability/serverTiming"
+import { logRoutePerformance } from "@/lib/observability/performanceLog"
 import { projectTourLogisticsObservation } from "@/lib/tours/tourPreparationRequirements"
 import { getTourLaunchStepById } from "./launch-tour"
 import { tourContextSelectionHint } from "@/lib/tours/resolveTourCommercialContext"
@@ -216,71 +221,38 @@ export function loadCompleteToPublishState(
 async function evaluateCompleteToPublishState(
 	params: CompleteToPublishInput
 ): Promise<CompleteToPublishState | null> {
+	const startedAt = performance.now()
+	const timing = createServerTimingRecorder()
+	try {
+		return await evaluateMeasuredPublishState(params, timing)
+	} finally {
+		timing.addTotal()
+		logRoutePerformance({ name: "product.publication.diagnostic", startedAt, timing })
+	}
+}
+
+async function evaluateMeasuredPublishState(
+	params: CompleteToPublishInput,
+	timing: ServerTimingRecorder
+): Promise<CompleteToPublishState | null> {
 	const { productId, providerId } = params
-	const aggregate = await readTourRequestData(
-		params.request,
-		`aggregate:${providerId}:${productId}`,
-		() => getProductFullAggregate(productId, providerId)
+	const aggregate = await timing.time("productAggregate", () =>
+		readTourRequestData(params.request, `aggregate:${providerId}:${productId}`, () =>
+			getProductFullAggregate(productId, providerId)
+		)
 	)
 	if (!aggregate) return null
 
 	const vertical = getProductVerticalEntry(aggregate.productType)
 	const verticalLabel = vertical.labels.singular.toLowerCase()
 	const isHotel = vertical.vertical === "hotel"
-	const repositoryAggregate = await readTourRequestData(
-		params.request,
-		`repository-aggregate:${providerId}:${productId}`,
-		() => productRepository.getProductAggregate(productId)
-	)
-	const tourReadiness =
-		repositoryAggregate?.verticalReadiness?.kind === "tour"
-			? repositoryAggregate.verticalReadiness.tour
-			: null
-	const contentReadiness = evaluateTourContentReadiness(aggregate, tourReadiness)
-
-	const tourContext =
-		vertical.vertical === "tour" ? await loadTourCommercialContext(params) : undefined
-	if (tourContext?.status === "not_found") return null
-	const tourCommercialContext = {
-		variantId: tourContext && "variantId" in tourContext ? tourContext.variantId : null,
-		ratePlanId: tourContext && "ratePlanId" in tourContext ? tourContext.ratePlanId : null,
-	}
-	const selectedOption = tourContext?.status === "resolved" ? tourContext.option : null
-	const selectedActiveSlotCount =
-		selectedOption?.salesEnabled && selectedOption.lifecycleState === "ready" ? 1 : 0
-	let commercialReadFailed = false
-	const [commercial, variantReadiness] =
-		tourContext?.status === "resolved"
-			? await Promise.all([
-					validateRatePlanPublication({
-						productId,
-						variantId: tourContext.variantId!,
-						ratePlanId: tourContext.ratePlanId!,
-						request: params.request,
-					}).catch(() => {
-						commercialReadFailed = true
-						return null
-					}),
-					evaluateVariantReadiness(
-						{
-							repo: variantManagementRepository,
-							pricingReadRepo: ratePlanPricingReadRepository,
-							persist: false,
-						},
-						{ variantId: tourContext.variantId!, ratePlanId: tourContext.ratePlanId! }
-					).catch(() => null),
-				])
-			: [null, undefined]
-
-	const readinessHas = (code: string) =>
-		Boolean(variantReadiness?.validationErrors.some((error) => error.code === code))
-
-	const authorization =
+	// Authorization is independent of content and rate readiness; keep its failure closed.
+	const authorizationPromise =
 		vertical.vertical === "tour"
-			? await readTourRequestData(params.request, `authorization:${providerId}:${productId}`, () =>
-					loadTourAuthorization({ productId, providerId })
-				).catch(() => {
-					return {
+			? timing.time("authorization", () =>
+					readTourRequestData(params.request, `authorization:${providerId}:${productId}`, () =>
+						loadTourAuthorization({ productId, providerId })
+					).catch(() => ({
 						provider_authorization: {
 							ready: false,
 							message: "No se pudo verificar la cuenta.",
@@ -291,9 +263,70 @@ async function evaluateCompleteToPublishState(
 							message: "No se pudo verificar la experiencia.",
 							code: "read_failed",
 						},
-					}
-				})
+					}))
+				)
+			: Promise.resolve(null)
+	const tourContextPromise =
+		vertical.vertical === "tour"
+			? timing.time("commercialContext", () => loadTourCommercialContext(params))
+			: Promise.resolve(undefined)
+	let commercialReadFailed = false
+	// Rate checks need a validated selection, not the editorial readiness aggregate.
+	const commercialReadinessPromise = tourContextPromise.then((tourContext) =>
+		tourContext?.status === "resolved"
+			? Promise.all([
+					timing.time("ratePlanPublication", () =>
+						validateRatePlanPublication({
+							productId,
+							variantId: tourContext.variantId!,
+							ratePlanId: tourContext.ratePlanId!,
+							request: params.request,
+						}).catch(() => {
+							commercialReadFailed = true
+							return null
+						})
+					),
+					timing.time("variantReadiness", () =>
+						evaluateVariantReadiness(
+							{
+								repo: variantManagementRepository,
+								pricingReadRepo: ratePlanPricingReadRepository,
+								persist: false,
+							},
+							{ variantId: tourContext.variantId!, ratePlanId: tourContext.ratePlanId! }
+						).catch(() => null)
+					),
+				])
+			: ([null, undefined] as const)
+	)
+	const [repositoryAggregate, tourContext, [commercial, variantReadiness]] = await Promise.all([
+		timing.time("repositoryAggregate", () =>
+			readTourRequestData(params.request, `repository-aggregate:${providerId}:${productId}`, () =>
+				productRepository.getProductAggregate(productId)
+			)
+		),
+		tourContextPromise,
+		commercialReadinessPromise,
+	])
+	const tourReadiness =
+		repositoryAggregate?.verticalReadiness?.kind === "tour"
+			? repositoryAggregate.verticalReadiness.tour
 			: null
+	const contentReadiness = evaluateTourContentReadiness(aggregate, tourReadiness)
+
+	if (tourContext?.status === "not_found") return null
+	const tourCommercialContext = {
+		variantId: tourContext && "variantId" in tourContext ? tourContext.variantId : null,
+		ratePlanId: tourContext && "ratePlanId" in tourContext ? tourContext.ratePlanId : null,
+	}
+	const selectedOption = tourContext?.status === "resolved" ? tourContext.option : null
+	const selectedActiveSlotCount =
+		selectedOption?.salesEnabled && selectedOption.lifecycleState === "ready" ? 1 : 0
+
+	const readinessHas = (code: string) =>
+		Boolean(variantReadiness?.validationErrors.some((error) => error.code === code))
+
+	const authorization = await authorizationPromise
 	const futureAvailableDateCount = commercial?.observations.availableDateCount ?? 0
 	const description = String(aggregate.content.description ?? "").trim()
 	const highlights = Array.isArray(aggregate.content.highlights) ? aggregate.content.highlights : []

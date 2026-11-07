@@ -79,6 +79,8 @@ const initialTickets = tickets.map((t) => ({
 	active={playbook.active}
 	stepId={playbook.stepId ?? "tickets"}
 	productId={productId}
+	productDisplayName={product.displayName}
+	hidePublicationCorrections
 	isHotel={false}
 	playbookVertical="tour"
 	continueFormId={playbook.active ? "ticketsPlaybookForm" : null}

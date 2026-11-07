@@ -21,21 +21,13 @@ export class ProviderRepository implements ProviderRepositoryPort {
 		if (!userId) return null
 		if (!(User as any)?.id || !(ProviderUser as any)?.providerId || !(ProviderUser as any)?.userId)
 			return null
-		try {
-			const link = await db
-				.select({ providerId: ProviderUser.providerId })
-				.from(ProviderUser)
-				.where(eq(ProviderUser.userId, userId))
-				.then(first)
-			if (!link?.providerId) return null
-			return await db
-				.select({ id: Provider.id })
-				.from(Provider)
-				.where(eq(Provider.id, link.providerId))
-				.then(first)
-		} catch {
-			return null
-		}
+		return db
+			.select({ id: Provider.id })
+			.from(ProviderUser)
+			.innerJoin(Provider, eq(Provider.id, ProviderUser.providerId))
+			.where(eq(ProviderUser.userId, userId))
+			.limit(1)
+			.then((rows) => first(rows) ?? null)
 	}
 
 	async getProviderByUserEmail(email: string) {
@@ -45,29 +37,14 @@ export class ProviderRepository implements ProviderRepositoryPort {
 		if (!normalizedEmail) return null
 		if (!(User as any)?.id || !(ProviderUser as any)?.providerId || !(ProviderUser as any)?.userId)
 			return null
-		try {
-			const linkedUser = await db
-				.select({ id: User.id })
-				.from(User)
-				.where(sql`lower(${User.email}) = ${normalizedEmail}`)
-				.then(first)
-			if (!linkedUser?.id) return null
-
-			const link = await db
-				.select({ providerId: ProviderUser.providerId })
-				.from(ProviderUser)
-				.where(eq(ProviderUser.userId, linkedUser.id))
-				.then(first)
-			if (!link?.providerId) return null
-
-			return await db
-				.select({ id: Provider.id })
-				.from(Provider)
-				.where(eq(Provider.id, link.providerId))
-				.then(first)
-		} catch {
-			return null
-		}
+		return db
+			.select({ id: Provider.id })
+			.from(User)
+			.innerJoin(ProviderUser, eq(ProviderUser.userId, User.id))
+			.innerJoin(Provider, eq(Provider.id, ProviderUser.providerId))
+			.where(sql`lower(${User.email}) = ${normalizedEmail}`)
+			.limit(1)
+			.then((rows) => first(rows) ?? null)
 	}
 
 	async createProviderAndAssignToUser(params: {

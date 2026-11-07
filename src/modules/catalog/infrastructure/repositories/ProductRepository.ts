@@ -877,33 +877,33 @@ export class ProductRepository implements ProductRepositoryPort {
 
 		if (!product) return null
 
-		const content = await db
-			.select({
-				productId: ProductContent.productId,
-				description: ProductContent.description,
-				highlightsJson: ProductContent.highlightsJson,
-				seoJson: ProductContent.seoJson,
-			})
-			.from(ProductContent)
-			.where(eq(ProductContent.productId, productId))
-			.then(first)
-
-		const location = await db
-			.select({
-				productId: ProductLocation.productId,
-				address: ProductLocation.address,
-				lat: ProductLocation.lat,
-				lng: ProductLocation.lng,
-			})
-			.from(ProductLocation)
-			.where(eq(ProductLocation.productId, productId))
-			.then(first)
-
-		const images = await db
-			.select({ id: Image.id })
-			.from(ProductImage)
-			.innerJoin(Image, eq(Image.id, ProductImage.imageId))
-			.where(eq(ProductImage.productId, productId))
+		const [content, location, images] = await Promise.all([
+			db
+				.select({
+					productId: ProductContent.productId,
+					description: ProductContent.description,
+					highlightsJson: ProductContent.highlightsJson,
+					seoJson: ProductContent.seoJson,
+				})
+				.from(ProductContent)
+				.where(eq(ProductContent.productId, productId))
+				.then(first),
+			db
+				.select({
+					productId: ProductLocation.productId,
+					address: ProductLocation.address,
+					lat: ProductLocation.lat,
+					lng: ProductLocation.lng,
+				})
+				.from(ProductLocation)
+				.where(eq(ProductLocation.productId, productId))
+				.then(first),
+			db
+				.select({ id: Image.id })
+				.from(ProductImage)
+				.innerJoin(Image, eq(Image.id, ProductImage.imageId))
+				.where(eq(ProductImage.productId, productId)),
+		])
 
 		const pt = String(product.productType || "")
 			.trim()

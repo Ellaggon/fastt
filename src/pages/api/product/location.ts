@@ -95,7 +95,7 @@ export const POST: APIRoute = async ({ request }) => {
 					})()
 		let refreshPending = false
 		try {
-			await invalidateProduct(raw.productId)
+			await invalidateProduct(raw.productId, { refreshOperationalSurface: false })
 			await refreshProductOperationalSurfaceAfterMutation({
 				productId: raw.productId,
 				providerId,

@@ -8,21 +8,46 @@ import { commercialAgreementStatus } from "@/modules/financial/commercial-agreem
 import { projectAuthorizationDecisions } from "./tourPublicationDecisions"
 import { classifyCommercialFinding } from "@/lib/commercial-policy/findings"
 import { commercialReadOnce, withCommercialReadScope } from "@/lib/commercial-policy/read-scope"
+import {
+	createServerTimingRecorder,
+	type ServerTimingRecorder,
+} from "@/lib/observability/serverTiming"
+import { logRoutePerformance } from "@/lib/observability/performanceLog"
 
 /** Uses the same product-scoped evidence and signed policy used by publication. */
 export async function loadTourAuthorization(input: { providerId: string; productId: string }) {
-	return withCommercialReadScope(() => loadAuthorization(input))
+	const startedAt = performance.now()
+	const timing = createServerTimingRecorder()
+	try {
+		return await withCommercialReadScope(() => loadAuthorization(input, timing))
+	} finally {
+		timing.addTotal()
+		logRoutePerformance({ name: "product.authorization", startedAt, timing })
+	}
 }
 
-async function loadAuthorization(input: { providerId: string; productId: string }) {
+async function loadAuthorization(
+	input: { providerId: string; productId: string },
+	timing: ServerTimingRecorder
+) {
 	const [lineRead, commercialRead, providerRead, publicationRead, agreementRead] =
 		await Promise.allSettled([
-			loadProductLineGate({ ...input, capability: "publish" }),
-			resolveProductCommercialDiagnosis(input),
-			evaluateProviderGovernance(input.providerId, { persist: false }),
-			productRepository.getProductPublicationEligibility(input.productId),
-			commercialReadOnce(`agreement:${input.providerId}`, () =>
-				commercialAgreementStatus(input.providerId)
+			timing.time("lineRequirements", () =>
+				loadProductLineGate({ ...input, capability: "publish" })
+			),
+			timing.time("commercialPolicy", () => resolveProductCommercialDiagnosis(input)),
+			timing.time("governance", () =>
+				commercialReadOnce(`governance:${input.providerId}`, () =>
+					evaluateProviderGovernance(input.providerId, { persist: false })
+				)
+			),
+			timing.time("publicationEligibility", () =>
+				productRepository.getProductPublicationEligibility(input.productId)
+			),
+			timing.time("commercialAgreement", () =>
+				commercialReadOnce(`agreement:${input.providerId}`, () =>
+					commercialAgreementStatus(input.providerId)
+				)
 			),
 		])
 	const line = lineRead.status === "fulfilled" ? lineRead.value : { allowed: false, blockers: [] }

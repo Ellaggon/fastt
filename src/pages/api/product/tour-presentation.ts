@@ -1,4 +1,6 @@
 import { safeProductWorkspaceReturn } from "@/lib/auth/returnTo"
+import { createServerTimingRecorder } from "@/lib/observability/serverTiming"
+import { logRoutePerformance } from "@/lib/observability/performanceLog"
 import type { APIRoute } from "astro"
 import { ZodError } from "zod"
 import { productRepository } from "@/container"
@@ -9,8 +11,16 @@ import { tourPreparationNextHref } from "@/lib/playbook/launch-tour"
 import { saveTourPresentation, TourPresentationError } from "@/modules/catalog/public"
 
 export const POST: APIRoute = async ({ request }) => {
-	const json = (body: unknown, status = 200) => Response.json(body, { status })
-	const session = await getProviderSessionSurfaceFromRequest(request)
+	const startedAt = performance.now()
+	const timing = createServerTimingRecorder()
+	const json = (body: unknown, status = 200) => {
+		timing.addTotal()
+		logRoutePerformance({ name: "tour.presentation.save", request, status, startedAt, timing })
+		return Response.json(body, { status, headers: timing.headers() })
+	}
+	const session = await timing.time("authProvider", () =>
+		getProviderSessionSurfaceFromRequest(request)
+	)
 	if (!session) return json({ error: "Inicia sesión para guardar." }, 401)
 	if (!session.permissions.canEditProfile)
 		return json({ error: "No tienes permiso para editar esta experiencia." }, 403)
@@ -44,22 +54,28 @@ export const POST: APIRoute = async ({ request }) => {
 			categoryIds: form.getAll("categoryId").map(String),
 			intent: form.get("playbookNav") === "exit" ? "exit" : "continue",
 		}
-		const result = await saveTourPresentation({ repo: productRepository }, input, {
-			providerId,
-			actorId: userId,
-		})
+		const result = await timing.time("persist", () =>
+			saveTourPresentation({ repo: productRepository }, input, {
+				providerId,
+				actorId: userId,
+			})
+		)
 		// Read-model refresh cannot turn a committed save into a false failure.
 		try {
-			await Promise.all([
-				invalidateProduct(result.productId, { refreshOperationalSurface: false }),
-				invalidateProvider(providerId),
-			])
-			await refreshProductOperationalSurfaceAfterMutation({
-				productId: result.productId,
-				providerId,
-				request,
-				source: "tour.presentation",
-			})
+			await timing.time("invalidate", () =>
+				Promise.all([
+					invalidateProduct(result.productId, { refreshOperationalSurface: false }),
+					invalidateProvider(providerId),
+				])
+			)
+			await timing.time("surfaceRefresh", () =>
+				refreshProductOperationalSurfaceAfterMutation({
+					productId: result.productId,
+					providerId,
+					request,
+					source: "tour.presentation",
+				})
+			)
 		} catch (error) {
 			console.error("Tour presentation read-model refresh failed", error)
 		}

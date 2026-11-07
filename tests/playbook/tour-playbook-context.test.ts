@@ -5,11 +5,47 @@ import {
 	tourPublicationCorrectionHref,
 	tourPublicationReturn,
 } from "@/lib/playbook/tour-playbook-context"
-import { tourPreparationNextHref } from "@/lib/playbook/launch-tour"
+import { getTourPreviewCanonicalHref, tourPreparationNextHref } from "@/lib/playbook/launch-tour"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 const selection = { productId: "tour", variantId: "option", ratePlanId: "rate" }
 const url = (path: string) => new URL(path, "http://fastt.local")
 describe("two connected tour playbooks", () => {
+	it("builds a review return that needs no canonical redirect", () => {
+		const href = tourPublicationHref("tour", selection)
+		expect(url(href).searchParams.get("productId")).toBe("tour")
+		expect(getTourPreviewCanonicalHref(url(href), { ...selection, isTour: true })).toBeNull()
+	})
+	it.each([
+		["presentation", "create"],
+		["subtype", "subtype"],
+		["location", "location"],
+		["images", "images"],
+		["tickets", "tickets"],
+	])("returns a single %s correction to review despite a creation link", (path, step) => {
+		const params = new URLSearchParams({
+			playbook: "launch-tour",
+			flow: "create",
+			tourFlowVersion: "2",
+			variantId: selection.variantId,
+			ratePlanId: selection.ratePlanId,
+			returnTo: tourPublicationHref("tour", selection),
+		})
+		const context = resolveTourPlaybookContext(url(`/product/tour/${path}?${params}`), "tour")
+		expect(context?.part).toBe("publish")
+		expect(context?.playbookId).toBe("complete-to-publish")
+		expect(tourPreparationNextHref(params, selection, step)).toBe(
+			tourPublicationHref("tour", selection)
+		)
+	})
+	it("still advances genuine creation without a review return", () => {
+		const params = new URLSearchParams({ playbook: "launch-tour", tourFlowVersion: "2" })
+		expect(
+			resolveTourPlaybookContext(url(`/product/tour/presentation?${params}`), "tour")?.part
+		).toBe("prepare")
+		expect(url(tourPreparationNextHref(params, selection, "create")).pathname).toBe(
+			"/product/tour/subtype"
+		)
+	})
 	it("keeps legacy preparation forms in A and moves review into B", () => {
 		expect(
 			resolveTourPlaybookContext(

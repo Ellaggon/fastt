@@ -36,7 +36,7 @@ import {
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
-const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
 if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
 
 const productId = String(Astro.params.id ?? "")
@@ -163,6 +163,7 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 	productId={productId}
 	isHotel={isHotel}
 	playbookVertical={pt}
+	hidePublicationCorrections={isTour}
 	continueFormId={playbook.active ? "subtypeForm" : null}
 >
 	<section class:list={[tourPlaybookGuided ? "space-y-6" : "space-y-8"]}>

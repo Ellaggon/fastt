@@ -27,7 +27,7 @@ import "leaflet/dist/leaflet.css"
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
-const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
 if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
 
 const productId = String(Astro.params.id ?? "")
@@ -90,6 +90,8 @@ const tourLocationPanelClass = "space-y-5 bg-white"
 	active={playbook.active}
 	stepId={playbook.stepId ?? "location"}
 	productId={productId}
+	productDisplayName={product.displayName}
+	hidePublicationCorrections={isTour}
 	isHotel={isHotel}
 	playbookVertical={vertical.vertical}
 	continueFormId={playbook.active ? "locationForm" : null}
