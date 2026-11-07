@@ -27,6 +27,7 @@ artifacts/
 # jetbrains setting folder
 .idea/
 .vercel/
+.netlify/
 
 # Obsidian vault metadata (personal UI/workspace; docs markdown stays tracked)
 .obsidian/

@@ -1,5 +1,6 @@
 import { defineConfig, passthroughImageService } from "astro/config"
 import vercel from "@astrojs/vercel"
+import netlify from "@astrojs/netlify"
 import node from "@astrojs/node"
 import dotenv from "dotenv"
 import path from "path"
@@ -12,6 +13,8 @@ import tailwindcss from "@tailwindcss/vite"
 dotenv.config()
 
 const isVercel = process.env.VERCEL === "1"
+const isNetlify = process.env.NETLIFY === "true"
+if (isVercel && isNetlify) throw new Error("Select only one deployment platform")
 const reactDevelopmentRuntime = {
 	name: "fastt:react-development-runtime",
 	configResolved(config) {
@@ -27,9 +30,9 @@ const reactDevelopmentRuntime = {
 // https://astro.build/config
 export default defineConfig({
 	integrations: [react()],
-	site: "https://fastt-five.vercel.app",
+	site: isNetlify ? process.env.URL : "https://fastt-five.vercel.app",
 	output: "server",
-	adapter: isVercel ? vercel() : node({ mode: "standalone" }),
+	adapter: isVercel ? vercel() : isNetlify ? netlify({ imageCDN: false }) : node({ mode: "standalone" }),
 	image: {
 		service: passthroughImageService(),
 	},

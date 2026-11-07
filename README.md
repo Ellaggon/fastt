@@ -34,6 +34,34 @@ pnpm dev
 Servidor local: `http://localhost:4321`
 
 Usar pnpm (versión declarada en `packageManager`) para respetar el lockfile y los parches de dependencias.
+
+### Evaluacion de compilacion Netlify
+
+En una copia limpia, sin `.env` ni credenciales operativas:
+
+```sh
+pnpm install --frozen-lockfile
+NETLIFY=true FASTT_DOCUMENT_PIPELINE_ENABLED=false pnpm run build
+```
+
+El adaptador Netlify conserva el servicio de imagenes passthrough existente;
+no activa Image CDN. Vercel sigue seleccionado por `VERCEL=1` y el build local
+sin flags conserva el adaptador Node. No definir ambos hosts simultaneamente.
+`netlify.toml` solo configura compilacion y deja documentos apagados; no replica
+los cron ni secretos de Vercel. Una compilacion correcta no certifica sesiones,
+Netlify Blobs, conexiones de datos, permisos, reservas o rendimiento hospedado.
+No ejecutar `netlify deploy` ni copiar credenciales de produccion para esta prueba.
+
+Una evaluacion posterior puede compartir la base beta solo con autorizacion expresa.
+Configurar `FASTT_DATA_ENV=production` si ese es el plano compartido y
+`FASTT_HOSTING_EVALUATION_READ_ONLY=true` en el runtime de Netlify. Este control
+bloquea comandos HTTP y cron, salvo inicio/cierre de sesion; no es un rol SQL de
+solo lectura y no impide las materializaciones internas que ocurran durante GET.
+No usar esa modalidad para pruebas destructivas ni asumir aislamiento entre hosts.
+El escaner de Netlify excluye solo `FASTT_DATA_ENV`: su valor es una etiqueta
+publica, no una credencial, y produce falsos positivos si se importa como secreto.
+El escaneo de las conexiones, claves y demas variables permanece habilitado.
+
 Astro 6.1.9 incorpora mediante `patches/astro@6.1.9.patch` la [corrección oficial de recarga SSR](https://github.com/withastro/astro/pull/17685): el identificador interno necesita el prefijo `virtual:` para que Vite no le añada `.js`.
 Retirar el parche y su entrada `pnpm.patchedDependencies` al actualizar a una versión que incluya esa corrección (verificada en 7.2.3; 6.4.8 aún no la incluye), regenerar el lockfile y comprobar una recarga SSR completa. La migración a Astro 7 requiere revisar adaptadores y Vite 8.
 

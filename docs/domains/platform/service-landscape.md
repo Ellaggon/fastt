@@ -53,7 +53,8 @@ siendo parciales; reverificar antes de una decision economica.
 
 ### Evidencia y rutas de codigo
 
-- Hosting: `astro.config.mjs`, `vercel.json`; Netlify solo en rama de evaluacion.
+- Hosting: `astro.config.mjs`, `vercel.json`, `netlify.toml`; adaptador segun plataforma,
+  sin cambio de hosting productivo por incorporar soporte Netlify.
 - Datos/storage: `src/shared/infrastructure/db/client.ts`, `src/container/shared.container.ts`.
 - Cache/email: `src/lib/cache/persistentCache.ts`, `src/lib/email/sendTransactionalEmail.ts`.
 - Documentos: `services/`, `src/lib/documents/document-processing.ts`.
