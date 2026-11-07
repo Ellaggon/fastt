@@ -556,6 +556,8 @@ const panelClass = playbookVisual ? "space-y-5" : "space-y-5"
 				}
 				status.textContent = "Presentación guardada."
 				mode.value = "edit"
+				delete form.dataset.saving
+				setPlaybookSubmitBusy(form, false)
 				draft.clear()
 				try {
 					sessionStorage.removeItem(creationKey)

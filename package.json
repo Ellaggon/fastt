@@ -4,6 +4,8 @@
   "version": "0.0.1",
   "packageManager": "pnpm@9.15.4",
   "scripts": {
+    "ops:services:inventory": "node scripts/service-inventory.mjs",
+    "test:services:inventory": "node --test scripts/service-inventory.test.mjs",
     "dev": "astro dev",
     "seed:room-types": "tsx src/scripts/seed-room-types.ts",
     "seed:geo:bolivia": "node --import dotenv/config --import tsx src/scripts/seed-bolivia-geo-places.ts",

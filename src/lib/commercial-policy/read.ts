@@ -1,5 +1,10 @@
 import { normalizeContextSelector, parsePolicyRequirement } from "./contract-parser"
 import { commercialReadOnce } from "./read-scope"
+import {
+	createServerTimingRecorder,
+	type ServerTimingRecorder,
+} from "@/lib/observability/serverTiming"
+import { logRoutePerformance } from "@/lib/observability/performanceLog"
 import { readHistoricalTerritoryMap, readTerritoryAncestors } from "@/lib/tours/operating-geography"
 import {
 	and,
@@ -25,7 +30,24 @@ export async function diagnoseCommercialPolicy(params: {
 	context: CommercialPolicyContext
 	verifiedEvidence?: string[]
 	evidence?: CommercialEvidence[]
-}) {
+}): Promise<ReturnType<typeof evaluateCommercialPolicy>> {
+	const startedAt = performance.now()
+	const timing = createServerTimingRecorder()
+	try {
+		return await diagnoseMeasuredCommercialPolicy(params, timing)
+	} finally {
+		timing.addTotal()
+		logRoutePerformance({ name: "commercial.policy.evaluate", startedAt, timing })
+	}
+}
+
+async function diagnoseMeasuredCommercialPolicy(
+	params: Parameters<typeof diagnoseCommercialPolicy>[0],
+	timing: ServerTimingRecorder
+) {
+	function readOnce<T>(key: string, load: () => Promise<T>): Promise<T> {
+		return commercialReadOnce(key, () => timing.time(key.split(":")[0], load))
+	}
 	const key = JSON.stringify([
 		params.context.vertical,
 		params.context.holderType,
@@ -39,52 +61,65 @@ export async function diagnoseCommercialPolicy(params: {
 			.filter(Boolean)
 			.sort(),
 	])
-	const rows = await commercialReadOnce(`policies:${key}`, async () =>
-		db
-			.select({
-				id: CompliancePolicyVersion.id,
-				policySetId: CompliancePolicyVersion.policySetId,
-				status: CompliancePolicyVersion.status,
-				effectiveFrom: CompliancePolicyVersion.effectiveFrom,
-				effectiveTo: CompliancePolicyVersion.effectiveTo,
-				approvedBy: CompliancePolicyVersion.approvedBy,
-				approvedAt: CompliancePolicyVersion.approvedAt,
-				approvalReference: CompliancePolicyVersion.approvalReference,
-				contextJson: CompliancePolicyVersion.contextJson,
-				country: CompliancePolicySet.country,
-				vertical: CompliancePolicySet.vertical,
-				collectionModel: CompliancePolicySet.collectionModel,
-				holderType: CompliancePolicySet.holderType,
-				jurisdictionRole: CompliancePolicySet.jurisdictionRole,
-			})
-			.from(CompliancePolicyVersion)
-			.innerJoin(
-				CompliancePolicySet,
-				eq(CompliancePolicyVersion.policySetId, CompliancePolicySet.id)
-			)
-			.where(
-				and(
-					inArray(CompliancePolicySet.country, [
-						...new Set(
-							[
-								params.context.holderCountry,
-								params.context.productCountry,
-								params.context.taxCountry,
-								params.context.payoutCountry,
-							].filter((country): country is string => Boolean(country))
-						),
-					]),
-					eq(CompliancePolicySet.policyScope, "commercial"),
-					eq(CompliancePolicySet.status, "active"),
-					eq(CompliancePolicySet.vertical, params.context.vertical),
-					eq(CompliancePolicySet.holderType, params.context.holderType),
-					eq(CompliancePolicySet.collectionModel, params.context.collectionModel)
+	const [rows, [historical, territoryAncestors]] = await Promise.all([
+		readOnce(`policies:${key}`, async () =>
+			db
+				.select({
+					id: CompliancePolicyVersion.id,
+					policySetId: CompliancePolicyVersion.policySetId,
+					status: CompliancePolicyVersion.status,
+					effectiveFrom: CompliancePolicyVersion.effectiveFrom,
+					effectiveTo: CompliancePolicyVersion.effectiveTo,
+					approvedBy: CompliancePolicyVersion.approvedBy,
+					approvedAt: CompliancePolicyVersion.approvedAt,
+					approvalReference: CompliancePolicyVersion.approvalReference,
+					contextJson: CompliancePolicyVersion.contextJson,
+					country: CompliancePolicySet.country,
+					vertical: CompliancePolicySet.vertical,
+					collectionModel: CompliancePolicySet.collectionModel,
+					holderType: CompliancePolicySet.holderType,
+					jurisdictionRole: CompliancePolicySet.jurisdictionRole,
+				})
+				.from(CompliancePolicyVersion)
+				.innerJoin(
+					CompliancePolicySet,
+					eq(CompliancePolicyVersion.policySetId, CompliancePolicySet.id)
 				)
-			)
-	)
+				.where(
+					and(
+						inArray(CompliancePolicySet.country, [
+							...new Set(
+								[
+									params.context.holderCountry,
+									params.context.productCountry,
+									params.context.taxCountry,
+									params.context.payoutCountry,
+								].filter((country): country is string => Boolean(country))
+							),
+						]),
+						eq(CompliancePolicySet.policyScope, "commercial"),
+						eq(CompliancePolicySet.status, "active"),
+						eq(CompliancePolicySet.vertical, params.context.vertical),
+						eq(CompliancePolicySet.holderType, params.context.holderType),
+						eq(CompliancePolicySet.collectionModel, params.context.collectionModel)
+					)
+				)
+		),
+		Promise.all([
+			readOnce("historical-territories", () => readHistoricalTerritoryMap()),
+			readOnce(
+				`ancestors:${JSON.stringify(params.context.jurisdictionCodes ?? params.context.jurisdictionCode)}`,
+				() =>
+					readTerritoryAncestors(
+						params.context.jurisdictionCodes ??
+							(params.context.jurisdictionCode ? [params.context.jurisdictionCode] : [])
+					)
+			),
+		]),
+	])
 	const ids = rows.map((row) => row.id)
 	const [rules, approvals] = ids.length
-		? await commercialReadOnce(`policy-details:${JSON.stringify([...ids].sort())}`, () =>
+		? await readOnce(`policy-details:${JSON.stringify([...ids].sort())}`, () =>
 				Promise.all([
 					db
 						.select({
@@ -144,17 +179,6 @@ export async function diagnoseCommercialPolicy(params: {
 			.filter((rule) => rule.policyVersionId === row.id)
 			.map(parsePolicyRequirement),
 	}))
-	const [historical, territoryAncestors] = await Promise.all([
-		commercialReadOnce("historical-territories", () => readHistoricalTerritoryMap()),
-		commercialReadOnce(
-			`ancestors:${JSON.stringify(params.context.jurisdictionCodes ?? params.context.jurisdictionCode)}`,
-			() =>
-				readTerritoryAncestors(
-					params.context.jurisdictionCodes ??
-						(params.context.jurisdictionCode ? [params.context.jurisdictionCode] : [])
-				)
-		),
-	])
 	for (const version of versions) {
 		if (version.context?.jurisdictionCodes)
 			version.context.jurisdictionCodes = version.context.jurisdictionCodes.map(
@@ -167,11 +191,14 @@ export async function diagnoseCommercialPolicy(params: {
 				)
 		}
 	}
-	return evaluateCommercialPolicy({
+	const cpuStartedAt = performance.now()
+	const result = evaluateCommercialPolicy({
 		now: params.now,
 		context: { ...params.context, territoryAncestors },
 		versions,
 		verifiedEvidence: params.verifiedEvidence,
 		evidence: params.evidence,
 	})
+	timing.add("decisionCpu", performance.now() - cpuStartedAt)
+	return result
 }

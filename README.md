@@ -71,6 +71,35 @@ Empieza en [`docs/README.md`](docs/README.md). Las instrucciones específicas pa
 
 ## Tests y calidad
 
+Inventario de servicios, sin llamadas de red ni valores de credenciales:
+
+Mapa canonico de servicios actuales y futuros, estado por entorno y decisiones de
+hosting: [Servicios de Fastt](docs/domains/platform/service-landscape.md).
+
+```sh
+pnpm ops:services:inventory
+pnpm test:services:inventory
+pnpm ops:services:inventory --billing artifacts/service-billing.private.json
+```
+
+La evidencia de facturacion es un array JSON local, excluido de Git bajo `artifacts/`.
+Cada recurso declara `service`, `resource` (alias), `environment`, `plan`, `owner`,
+`currency` (ISO de tres letras), `monthlyFixed`, `variableAccrued`, `periodStart`,
+`periodEnd`, `verifiedAt`, `renewal`, `quotaUsed`, `quotaLimit` y `source` (etiqueta).
+Fechas: `YYYY-MM-DD`; costos/cuotas desconocidos y renovacion no aplicable: `null`.
+No incluir tokens, URLs, datos de pago, identificadores de cuenta ni exportaciones crudas.
+Usar los IDs de servicio del reporte y entornos development/test/staging/production/shared.
+Opcionalmente, registrar `consumers` como un array de objetos con `component`,
+`environment` y `source` (etiquetas no sensibles). Declarar el enlace solo tras
+comparar el recurso del panel con la configuracion efectiva del consumidor.
+La fecha `verifiedAt` aplica tambien a esos enlaces. Usar una lista vacia cuando
+no se haya comprobado el vinculo. No deducirlo por el nombre del proveedor.
+Registrar una factura compartida una sola vez, no por cada consumidor. Revisar semanalmente
+y antes de activar integraciones, planes o funciones publicas. Evidencia mayor de siete dias
+no entra en costos confirmados; monedas y periodos se mantienen separados. Alertas al 70%
+de cuota y renovaciones dentro de catorce dias no son limites de gasto. El comando no
+consulta paneles, certifica despliegues, cancela servicios ni extrapola consumo mensual.
+
 ```sh
 npm test
 npm run lint

@@ -492,7 +492,11 @@ logRoutePerformance({
 })
 ---
 
-<Layout {...layoutProps} productType={String(row.productType)}>
+<Layout
+	{...layoutProps}
+	hidePublicationCorrections={isTourContext}
+	productType={String(row.productType)}
+>
 	<div class="space-y-5">
 		<header
 			class:list={[

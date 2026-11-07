@@ -48,6 +48,10 @@ Compatibilidad de enlaces de tours sin marcador:
 - Preview, una acción explícita Publicar o una corrección con retorno válido a preview se
   interpreta como B. Una sesión compatible puede aportar intención; no puede sustituir una
   selección explícita incompatible de opción/tarifa.
+- Un retorno validado a revisión prevalece incluso sobre `launch-tour`: guardar una
+  corrección vuelve a revisión con la misma opción/tarifa y muestra «Guardar y volver».
+  Sin ese retorno, creación mantiene su avance secuencial. No aceptar retornos ajenos,
+  externos o anidados para decidir el destino.
 - Si no se puede determinar el paso, abrir un destino seguro del mismo tour. Si falta contexto
   comercial, mostrar selección o creación pertinente; no elegir arbitrariamente otra oferta.
 - Tras resolver, emitir únicamente URL canónica con versión. Aceptar entradas antiguas mediante
@@ -93,6 +97,12 @@ retorno desde verificación, cambio de dispositivo y opción/tarifa eliminada. N
 la restricción SQL ni crear migraciones mientras los IDs y columnas existentes cubran el contrato.
 
 ## 3. Eficiencia y eliminación de código residual
+
+La reconstrucción posterior al commit abre un ámbito efímero de lecturas de tours:
+comparte promesas del agregado durante esa proyección, nunca observaciones previas a la
+mutación ni datos entre comandos. Preparación comienza tras leer el estado sin esperar
+las variantes. Se conservan las validaciones y el refresco antes de responder. Pruebas:
+`tests/unit/tour-projection-reads.test.ts` (aislamiento, concurrencia y errores).
 
 Cargar una vez el contexto y diagnóstico por render y pasarlos a las proyecciones consumidoras.
 No volver a consultar la misma oferta para header, etapas, tareas y preview independientemente.

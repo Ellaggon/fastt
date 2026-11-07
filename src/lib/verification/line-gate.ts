@@ -8,6 +8,7 @@
  */
 
 import { resolveCommercialPolicyRollout } from "@/lib/commercial-policy/rollout"
+import { commercialReadOnce } from "@/lib/commercial-policy/read-scope"
 import { readTourOperation } from "@/shared/domain/tour-operation"
 import { listProviderDocuments, type ProviderDocumentActivityClass } from "@/lib/provider-documents"
 import { evaluateProviderGovernance } from "@/lib/provider-governance"
@@ -377,10 +378,18 @@ export async function loadProductLineGate(params: {
 	}
 	const line = commercialLineForProductType(product?.productType)
 	const [lineState, holder, governance, documents] = await Promise.all([
-		readProviderCommercialLineState(params.providerId),
-		readProviderHolderProfile(params.providerId).catch(() => null),
-		evaluateProviderGovernance(params.providerId, { persist: false }),
-		listProviderDocuments(params.providerId).catch(() => []),
+		commercialReadOnce(`lines:${params.providerId}`, () =>
+			readProviderCommercialLineState(params.providerId)
+		),
+		commercialReadOnce(`holder:${params.providerId}`, () =>
+			readProviderHolderProfile(params.providerId)
+		).catch(() => null),
+		commercialReadOnce(`governance:${params.providerId}`, () =>
+			evaluateProviderGovernance(params.providerId, { persist: false })
+		),
+		commercialReadOnce(`documents:${params.providerId}`, () =>
+			listProviderDocuments(params.providerId)
+		).catch(() => []),
 	])
 	if (!line) {
 		return {

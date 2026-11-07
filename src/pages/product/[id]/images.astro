@@ -24,7 +24,7 @@ import { getProductFullAggregate } from "@/modules/catalog/public"
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
-const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
 if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
 
 const productId = String(Astro.params.id ?? "")
@@ -62,6 +62,8 @@ const tourPlaybookGuided = isTour && playbook.active
 	active={playbook.active}
 	stepId={playbook.stepId ?? "images"}
 	productId={productId}
+	productDisplayName={product.displayName}
+	hidePublicationCorrections={isTour}
 	isHotel={isHotel}
 	playbookVertical={vertical.vertical}
 	continueFormId={playbook.active ? "imagesForm" : null}

@@ -30,6 +30,8 @@ const highlights = Array.isArray(aggregate.content.highlights)
 	active={Boolean(flow)}
 	stepId={flow?.part === "publish" ? "content" : "create"}
 	productId={productId}
+	productDisplayName={aggregate.displayName}
+	hidePublicationCorrections
 	isHotel={false}
 	playbookVertical="tour"
 	continueFormId={flow ? "tourPresentationForm" : null}

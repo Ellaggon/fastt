@@ -37,8 +37,29 @@ vi.mock("@/lib/commercial-policy/enforcement", () => ({
 }))
 import { loadTourAuthorization } from "@/lib/tours/loadTourAuthorization"
 import * as lineGate from "@/lib/verification/line-gate"
+import * as governance from "@/lib/provider-governance"
+import { commercialReadOnce } from "@/lib/commercial-policy/read-scope"
+vi.mock("@/lib/observability/performanceLog", () => ({ logRoutePerformance: vi.fn() }))
 
 describe("authorization copy uses the same responsibility as the diagnosis", () => {
+	it("shares governance within authorization but reloads it for the next operation", async () => {
+		const governanceSpy = vi.spyOn(governance, "evaluateProviderGovernance")
+		const lineSpy = vi.spyOn(lineGate, "loadProductLineGate").mockImplementation(async (input) => {
+			await commercialReadOnce(`governance:${input.providerId}`, () =>
+				governance.evaluateProviderGovernance(input.providerId, { persist: false })
+			)
+			return { enforced: true, allowed: true, blockers: [] }
+		})
+		try {
+			await loadTourAuthorization({ providerId: "provider", productId: "tour" })
+			expect(governanceSpy).toHaveBeenCalledTimes(1)
+			await loadTourAuthorization({ providerId: "provider", productId: "tour" })
+			expect(governanceSpy).toHaveBeenCalledTimes(2)
+		} finally {
+			lineSpy.mockRestore()
+			governanceSpy.mockRestore()
+		}
+	})
 	it("isolates a failed line read and never marks authorization ready", async () => {
 		const spy = vi
 			.spyOn(lineGate, "loadProductLineGate")

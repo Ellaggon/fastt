@@ -29,7 +29,7 @@ import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { db, eq, first, Product, Variant } from "@/shared/infrastructure/db/compat"
+import { and, db, eq, first, Product, Variant } from "@/shared/infrastructure/db/compat"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import {
 	ADD_ROOM_PLAYBOOK_TITLE,
@@ -240,7 +240,7 @@ if (isOptionWizard && optionSession) {
 } else if (isTourPublication) {
 	playbookTitle = "Publicar experiencia"
 	currentStepKnown = true
-	if (productId) {
+	if (productId && (stepId === "preview" || !hidePublicationCorrections)) {
 		const user = await getUserFromRequest(Astro.request)
 		const providerId = user ? await getProviderIdFromRequest(Astro.request, user) : null
 		if (providerId) {
@@ -599,9 +599,12 @@ if (!productDisplayName && active && productId) {
 	const user = await getUserFromRequest(Astro.request)
 	const providerId = user ? await getProviderIdFromRequest(Astro.request, user) : null
 	if (providerId) {
-		const { getProductFullAggregate } = await import("@/modules/catalog/public")
-		const aggregate = await getProductFullAggregate(productId, providerId)
-		productDisplayName = String(aggregate?.displayName ?? "").trim()
+		const product = await db
+			.select({ name: Product.name })
+			.from(Product)
+			.where(and(eq(Product.id, productId), eq(Product.providerId, providerId)))
+			.then(first)
+		productDisplayName = String(product?.name ?? "").trim()
 	}
 }
 if (isOptionWizard && productId && !productDisplayName) {

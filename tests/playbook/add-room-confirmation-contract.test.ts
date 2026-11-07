@@ -26,14 +26,14 @@ describe("add-room completion contract", () => {
 		const controls = read("src/lib/rates/calendarControlCatalog.ts")
 		const finalizer = read("src/lib/playbook/finalize-add-room.ts")
 
-		expect(calendar).toContain("Verificación de disponibilidad")
+		expect(calendar).toContain("!isGuidedAvailability || selectedExternalDays.length > 0")
+		expect(calendar).toContain('label="Mes anterior"')
+		expect(calendar).toContain('label="Mes siguiente"')
 		expect(calendar).toContain("inventario inicial")
 		expect(calendar).not.toContain("Calendario de apoyo")
 		expect(calendar).not.toContain("Desglose activo")
 		expect(calendar).toContain("disabled={day.isPast || isGuidedAvailability}")
-		expect(calendar).toMatch(
-			/showInventoryDetail \|\| isGuidedAvailability\s*\? "block"\s*: "hidden sm:block"/
-		)
+		expect(calendar).toMatch(/showInventoryDetail\s*\? "block"\s*: "hidden sm:block"/)
 		expect(controls).toContain('label: "Mostrar reservas y retenidos"')
 		expect(finalizer).toContain("Configura inventario inicial para al menos 30 noches.")
 	})

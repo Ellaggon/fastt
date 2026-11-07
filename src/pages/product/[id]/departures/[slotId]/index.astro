@@ -113,6 +113,8 @@ const layoutProps = playbook.active
 			ratePlanId: String(Astro.url.searchParams.get("ratePlanId") ?? ""),
 			isHotel: false,
 			playbookVertical: "tour",
+			hidePublicationCorrections: true,
+			productDisplayName: owned.name,
 			hideFooter: true,
 			lightweight: true,
 		}
