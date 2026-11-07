@@ -1,4 +1,5 @@
-# Build evaluation only. No production data or scheduled tasks are configured.
+# Evaluation site uses explicitly authorized shared beta DB/Auth credentials.
+# Application command guards are not SQL read-only; scheduled tasks stay disabled.
 [build]
 command = "pnpm run build"
 publish = "dist"
