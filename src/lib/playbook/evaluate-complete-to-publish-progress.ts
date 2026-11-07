@@ -266,13 +266,18 @@ async function evaluateMeasuredPublishState(
 					}))
 				)
 			: Promise.resolve(null)
-	const tourContextPromise =
+	const tourContextPromise: Promise<LoadedTourContext | undefined> =
 		vertical.vertical === "tour"
 			? timing.time("commercialContext", () => loadTourCommercialContext(params))
 			: Promise.resolve(undefined)
 	let commercialReadFailed = false
 	// Rate checks need a validated selection, not the editorial readiness aggregate.
-	const commercialReadinessPromise = tourContextPromise.then((tourContext) =>
+	const commercialReadinessPromise = tourContextPromise.then<
+		[
+			Awaited<ReturnType<typeof validateRatePlanPublication>> | null,
+			Awaited<ReturnType<typeof evaluateVariantReadiness>> | null | undefined,
+		]
+	>((tourContext) =>
 		tourContext?.status === "resolved"
 			? Promise.all([
 					timing.time("ratePlanPublication", () =>
@@ -297,7 +302,7 @@ async function evaluateMeasuredPublishState(
 						).catch(() => null)
 					),
 				])
-			: ([null, undefined] as const)
+			: [null, undefined]
 	)
 	const [repositoryAggregate, tourContext, [commercial, variantReadiness]] = await Promise.all([
 		timing.time("repositoryAggregate", () =>

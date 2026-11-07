@@ -128,7 +128,13 @@ try {
 			}
 		)
 	}
-	const plans = []
+	const plans: Array<{
+		name: string
+		clientMs: number
+		planningMs: number
+		executionMs: number
+		nodes: unknown[]
+	}> = []
 	await sql.begin(async (tx) => {
 		await tx`set transaction read only`
 		for (const query of queries) {

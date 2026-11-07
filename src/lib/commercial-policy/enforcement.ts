@@ -313,6 +313,7 @@ async function resolveMeasuredCommercialDiagnosis(
 				),
 			}
 	}
+	const productCountry = place.countryCode
 	const diagnosis = await timing.time("policyDecision", () =>
 		diagnoseCommercialPolicy({
 			now: params.policyEvaluationAt,
@@ -334,12 +335,12 @@ async function resolveMeasuredCommercialDiagnosis(
 				operation,
 				taxCountry: holder.taxResidenceCountry,
 				payoutCountry: holder.payoutCountry,
-				productCountry: place.countryCode,
+				productCountry,
 				vertical: vertical as "hotel" | "tour" | "whole_home",
 				collectionModel,
 				productId: params.productId,
 				experienceFormat: format?.experienceFormat as ExperienceFormat | null,
-				formatContractVersion: format?.formatContractVersion,
+				formatContractVersion: format?.formatContractVersion ?? undefined,
 				jurisdictionCode: tourContext?.jurisdictionCode ?? null,
 				jurisdictionCodes: tourContext?.jurisdictionCodes ?? undefined,
 				operatingRole:
