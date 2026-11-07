@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto"
-import { expect, it, vi } from "vitest"
+import { afterEach, beforeEach, expect, it, vi } from "vitest"
+beforeEach(() => vi.stubEnv("FASTT_DOCUMENT_PIPELINE_ENABLED", "true"))
+afterEach(() => vi.unstubAllEnvs())
 import { submitProviderDocument } from "@/lib/provider-documents"
 import * as storage from "@/lib/provider-document-storage"
 import * as audit from "@/lib/provider-audit"

@@ -16,6 +16,12 @@ Supersedes: docs/onboarding/phase-4-policy-annex-bo-draft.md
 > El alojamiento no espera esta firma: tiene su propio anexo en
 > [policy-annex.md](../lodging/policy-annex.md).
 
+> **Revisión pendiente antes de ratificar.** Las categorías de esta matriz son propuestas
+> históricas, no un catálogo ejecutable. Contrastarlas con `tourOperationSchema`, `GeoPlace`
+> y las definiciones documentales versionadas; separar agua/aire y transporte operado/externo.
+> No inferir equivalencias de forma jurídica ni copiar estas filas a versiones publicadas.
+> La certificación multinacional técnica no constituye aprobación de esta matriz.
+
 ## Alcance y límites
 
 Aplica cuando el producto es un `tour` con ubicación principal en Bolivia. La matriz distingue

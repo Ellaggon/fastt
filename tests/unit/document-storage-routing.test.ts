@@ -14,6 +14,7 @@ afterEach(() => {
 	vi.clearAllMocks()
 })
 function configure() {
+	vi.stubEnv("FASTT_DOCUMENT_PIPELINE_ENABLED", "true")
 	for (const [key, value] of Object.entries({
 		R2_DOCUMENTS_ACCOUNT_ID: "account",
 		R2_DOCUMENTS_BUCKET_NAME: "private",

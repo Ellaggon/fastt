@@ -1,7 +1,8 @@
 import { tourComplianceActivityClasses } from "@/shared/domain/tour-operation"
+import { assertDocumentPipelineEnabled } from "@/lib/documents/activation"
 import { documentIntegrity } from "@/lib/documents/object-integrity"
+import { documentSubmissionId } from "@/lib/documents/upload-contract"
 import { registerDocumentWithRetry } from "@/lib/documents/registration-retry"
-import { createHash } from "node:crypto"
 import {
 	commandPayloadHash,
 	reserveCommandIdempotency,
@@ -53,6 +54,8 @@ import {
 	isR2DocumentStorageConfigured,
 	inspectProviderDocumentPreview,
 	uploadProviderDocumentObject,
+	buildProviderDocumentObjectKey,
+	toProviderDocumentFileRef,
 } from "@/lib/provider-document-storage"
 import { providerRepository } from "@/container"
 import { resolveProviderPermissions } from "@/lib/provider-permissions"
@@ -1330,14 +1333,18 @@ type SubmitProviderDocumentParams = {
 	replacesDocumentId?: unknown
 	/** When set with R2 configured, uploads bytes and stores an r2: ref. */
 	fileBytes?: Uint8Array | Buffer | null
+	/** Internal route only: canonical object has been downloaded and verified by the server. */
+	directUploadVerified?: boolean
 }
 
 export async function submitProviderDocument(params: SubmitProviderDocumentParams) {
+	assertDocumentPipelineEnabled()
 	await assertCanManageDocuments(params.providerId, params.actorUserId)
 	const key = normalizeCommandIdempotencyKey(params.idempotencyKey ?? crypto.randomUUID())
 	const scope = `provider.document.submit:${params.providerId}`
 	const { fileBytes, ...input } = params
 	delete input.idempotencyKey
+	delete input.directUploadVerified
 	const payload = JSON.parse(
 		JSON.stringify({
 			...input,
@@ -1345,7 +1352,7 @@ export async function submitProviderDocument(params: SubmitProviderDocumentParam
 		})
 	)
 	const fingerprint = commandPayloadHash(payload)
-	const id = `upload_${createHash("sha256").update(`${scope}:${key}`).digest("hex").slice(0, 48)}`
+	const id = documentSubmissionId(params.providerId, key)
 	const readCommitted = async () => {
 		const [row] = await db
 			.select(documentColumns)
@@ -1574,7 +1581,11 @@ async function submitProviderDocumentAttempt(
 	let fileUrl = fileUrlRaw
 	if (hasBytes) {
 		if (!fileName) throw Object.assign(new Error("document_file_meta_required"), { status: 400 })
-		if (isR2DocumentStorageConfigured()) {
+		if (params.directUploadVerified && isR2DocumentStorageConfigured()) {
+			fileUrl = toProviderDocumentFileRef(
+				buildProviderDocumentObjectKey({ providerId: params.providerId, documentId: id, fileName })
+			)
+		} else if (isR2DocumentStorageConfigured()) {
 			try {
 				const uploaded = await uploadProviderDocumentObject({
 					providerId: params.providerId,

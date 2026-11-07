@@ -1,4 +1,8 @@
 ---
+import {
+	documentPipelineEnabled,
+	documentPipelineUnavailableMessage,
+} from "@/lib/documents/activation"
 import ProviderKycCaptureCoach from "@/components/provider/ProviderKycCaptureCoach.astro"
 import ProviderKycFileField from "@/components/provider/ProviderKycFileField.astro"
 import Button from "@/components/ui/Button.astro"
@@ -35,84 +39,96 @@ const uploadAction = copyVerificationNavigationQuery(
 )
 ---
 
-<form
-	id="kyc-inline-upload-form"
-	class="space-y-4"
-	method="post"
-	action={`${uploadAction.pathname}${uploadAction.search}`}
-	enctype="multipart/form-data"
-	data-astro-reload
-	data-kyc-inline-upload-form
-	data-kyc-upload-type={documentType}
-	data-kyc-capture-timing="v1"
-	data-funnel-domain="documents"
-	data-funnel-surface="verification"
->
-	<input type="hidden" name="action" value="submit" />
-	<input
-		type="hidden"
-		name="idempotencyKey"
-		value={documentSubmissionKey(Astro.url, `kyc-${documentType}`)}
-	/>
-	<input type="hidden" name="submissionForm" value={`kyc-${documentType}`} />
-	{
-		Astro.url.searchParams.get("documentSubmissionForm") === `kyc-${documentType}` && (
-			<Button href={newDocumentSubmissionHref(Astro.url)} variant="ghost" size="sm" reload>
-				Enviar otro archivo
-			</Button>
-		)
-	}
-	<input type="hidden" name="type" value={documentType} />
-
-	{
-		optionalConstancia ? (
-			<p class="text-sm font-semibold text-slate-800" data-kyc-optional-constancia>
-				Adjuntar constancia (solo si te la pedimos)
-			</p>
-		) : null
-	}
-
-	<ProviderKycFileField documentType={documentType} />
-
-	<details
-		class="fastt-notice rounded-xl border border-slate-200 bg-slate-50"
-		data-kyc-submission-notes
+{
+	!documentPipelineEnabled() && (
+		<p role="status" class="text-sm text-slate-600">
+			{documentPipelineUnavailableMessage}
+		</p>
+	)
+}
+<fieldset disabled={!documentPipelineEnabled()} class="min-w-0 border-0 p-0">
+	<form
+		id="kyc-inline-upload-form"
+		class="space-y-4"
+		method="post"
+		action={`${uploadAction.pathname}${uploadAction.search}`}
+		enctype="multipart/form-data"
+		data-astro-reload
+		data-kyc-inline-upload-form
+		data-kyc-upload-type={documentType}
+		data-kyc-capture-timing="v1"
+		data-funnel-domain="documents"
+		data-funnel-surface="verification"
 	>
-		<summary
-			class="cursor-pointer touch-manipulation px-4 py-3 text-sm font-semibold text-slate-900"
-		>
-			Notas de envío (opcional)
-			<span class="mt-0.5 block text-xs font-normal text-slate-500">
-				Versión vigente / dato actualizado
-			</span>
-		</summary>
-		<label
-			class="grid gap-2 border-t border-slate-200 px-4 py-3 text-sm font-medium text-slate-700"
-		>
-			<span class="sr-only">Notas de envío</span>
-			<Input name="submissionNotes" placeholder="Versión vigente / dato actualizado" />
-		</label>
-	</details>
-
-	<ProviderKycCaptureCoach documentType={documentType} payoutBlocks={payoutBlocks} />
-
-	{
-		showSubmitButton ? (
-			<div class="fastt-form-submit-footer" data-kyc-upload-actions>
-				<Button
-					type="submit"
-					variant="selection"
-					size="md"
-					class="w-full sm:w-auto"
-					data-kyc-submit
-				>
-					Enviar a revisión
+		<input type="hidden" name="action" value="submit" />
+		<input
+			type="hidden"
+			name="idempotencyKey"
+			value={documentSubmissionKey(Astro.url, `kyc-${documentType}`)}
+		/>
+		<input type="hidden" name="submissionForm" value={`kyc-${documentType}`} />
+		{
+			Astro.url.searchParams.get("documentSubmissionForm") === `kyc-${documentType}` && (
+				<Button href={newDocumentSubmissionHref(Astro.url)} variant="ghost" size="sm" reload>
+					Enviar otro archivo
 				</Button>
-			</div>
-		) : (
-			<button type="submit" class="fastt-button sr-only" data-kyc-submit-fallback tabindex="-1">
-				Enviar a revisión
-			</button>
-		)
-	}
-</form>
+			)
+		}
+		<input type="hidden" name="type" value={documentType} />
+
+		{
+			optionalConstancia ? (
+				<p class="text-sm font-semibold text-slate-800" data-kyc-optional-constancia>
+					Adjuntar constancia (solo si te la pedimos)
+				</p>
+			) : null
+		}
+
+		<ProviderKycFileField documentType={documentType} />
+
+		<details
+			class="fastt-notice rounded-xl border border-slate-200 bg-slate-50"
+			data-kyc-submission-notes
+		>
+			<summary
+				class="cursor-pointer touch-manipulation px-4 py-3 text-sm font-semibold text-slate-900"
+			>
+				Notas de envío (opcional)
+				<span class="mt-0.5 block text-xs font-normal text-slate-500">
+					Versión vigente / dato actualizado
+				</span>
+			</summary>
+			<label
+				class="grid gap-2 border-t border-slate-200 px-4 py-3 text-sm font-medium text-slate-700"
+			>
+				<span class="sr-only">Notas de envío</span>
+				<Input name="submissionNotes" placeholder="Versión vigente / dato actualizado" />
+			</label>
+		</details>
+
+		<ProviderKycCaptureCoach documentType={documentType} payoutBlocks={payoutBlocks} />
+
+		{
+			showSubmitButton ? (
+				<div class="fastt-form-submit-footer" data-kyc-upload-actions>
+					<Button
+						type="submit"
+						variant="selection"
+						size="md"
+						class="w-full sm:w-auto"
+						data-kyc-submit
+					>
+						Enviar a revisión
+					</Button>
+				</div>
+			) : (
+				<button type="submit" class="fastt-button sr-only" data-kyc-submit-fallback tabindex="-1">
+					Enviar a revisión
+				</button>
+			)
+		}
+	</form>
+</fieldset>
+<script>
+	import "@/lib/ui/direct-document-upload"
+</script>

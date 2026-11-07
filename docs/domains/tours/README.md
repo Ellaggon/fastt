@@ -27,6 +27,8 @@ Review trigger: cambio del contrato o de las superficies públicas y del proveed
 
 ## Operación y evidencia
 
+- [Certificación multinacional técnica](../../certifications/tours/multinational-compliance-2026-10-31.md): BO/CL sintéticos, conservación de registros y archivo documental; no habilita países ni ratifica normativa.
+
 - [Preparación y sesiones v2](../../certifications/tours/preparation-parity-2026-10-01.md): paridad local en escritorio/móvil y persistencia por producto en producción; revalidación de las últimas correcciones en producción y caso HTTP negativo pendientes.
 - [Reparación de políticas incompatibles](../../runbooks/tour-policy-remediation.md).
 - [Certificación de políticas](../../certifications/tours/policies-2026-09-21.md).

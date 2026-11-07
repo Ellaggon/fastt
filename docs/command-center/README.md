@@ -14,5 +14,6 @@ Orden de lectura:
 2. [Contrato operativo](./phase-0-contract.md).
 3. [Fundaciones de seguridad](./phase-1-security-foundations.md).
 4. [Validación y adopción](./phase-5-validation-adoption.md).
+5. [Despliegue documental](../runbooks/document-processing-deployment.md).
 
 La numeración salta de Fase 1 a Fase 5 porque no existen documentos canónicos separados para 2–4. No inferir que faltan archivos: consultar el contrato y el historial de Git antes de crear nuevas fases.

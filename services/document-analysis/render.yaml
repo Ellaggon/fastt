@@ -1,0 +1,31 @@
+# Preparation only: select/approve region, cost and production secrets before deploying.
+services:
+  - type: web
+    name: fastt-document-analysis
+    runtime: docker
+    plan: pro
+    dockerfilePath: ./services/document-analysis/Dockerfile
+    dockerContext: ./services/document-analysis
+    healthCheckPath: /readyz
+    disk:
+      name: antivirus-definitions
+      mountPath: /var/lib/clamav
+      sizeGB: 2
+    envVars:
+      - key: DOCUMENT_ANALYSIS_GATEWAY_TOKEN
+        sync: false
+      - key: DOCUMENT_ANALYSIS_SOURCE_ORIGIN
+        sync: false
+      - key: DOCUMENT_ANALYSIS_SOURCE_PATH_PREFIX
+        sync: false
+  - type: worker
+    name: fastt-document-dispatcher
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./services/document-dispatcher/Dockerfile
+    dockerContext: ./services/document-dispatcher
+    envVars:
+      - key: DOCUMENT_PROCESSING_APP_ORIGIN
+        sync: false
+      - key: DOCUMENT_PROCESSING_WORKER_TOKEN
+        sync: false

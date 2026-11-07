@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+beforeEach(() => vi.stubEnv("FASTT_DOCUMENT_PIPELINE_ENABLED", "true"))
+afterEach(() => vi.unstubAllEnvs())
 import {
 	db,
 	eq,

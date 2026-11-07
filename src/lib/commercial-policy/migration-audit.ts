@@ -6,6 +6,7 @@ export type CommercialEvidenceMigrationClass =
 	| "expired_requires_renewal"
 	| "legacy_generic_requires_scope"
 	| "scoped_requires_policy_match"
+	| "invalid_expiry_requires_review"
 
 export type MigrationEvidenceInput = {
 	status: string
@@ -25,6 +26,7 @@ export function classifyCommercialEvidenceMigration(
 	if (input.status === "pending") return "pending_review"
 	if (input.status !== "verified") return "historical_non_granting"
 	const expiresAt = input.expiresAt ? new Date(input.expiresAt) : null
+	if (expiresAt && !Number.isFinite(expiresAt.getTime())) return "invalid_expiry_requires_review"
 	if (isProviderDocumentExpired(expiresAt, now)) return "expired_requires_renewal"
 	if (input.scopeCount <= 0) return "legacy_generic_requires_scope"
 	return "scoped_requires_policy_match"

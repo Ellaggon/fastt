@@ -1,6 +1,15 @@
 import { experimental_AstroContainer as AstroContainer } from "astro/container"
-import { describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import Evidence from "@/components/provider/ProviderVerificationOptionals.astro"
+beforeEach(() => vi.stubEnv("FASTT_DOCUMENT_PIPELINE_ENABLED", "true"))
+afterEach(() => vi.unstubAllEnvs())
+
+it("shows unavailability instead of accepting uploads when disabled", async () => {
+	vi.stubEnv("FASTT_DOCUMENT_PIPELINE_ENABLED", "false")
+	const html = await render("operating_license::tour.guide_credential")
+	expect(html).toContain("recepción de documentos está temporalmente deshabilitada")
+	expect(html).not.toContain("data-optional-upload-form")
+})
 
 async function render(
 	value: string,
@@ -80,7 +89,9 @@ describe("requirement-specific tour evidence", () => {
 	it("preserves the archival generic editor", async () => {
 		const html = await render("operating_license", "archive")
 		expect(html).toContain("Referencia del titular")
-		expect(html).toContain('placeholder="BO-LP o código de permiso"')
+		expect(html).toContain("Territorios cubiertos (opcional)")
+		expect(html).toContain('placeholder="Buscar país, región o ciudad"')
+		expect(html).toContain("data-territory-picker")
 	})
 })
 
