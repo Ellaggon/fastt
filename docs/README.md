@@ -37,6 +37,11 @@ Review trigger: incorporación, reemplazo o retiro de una fuente documental
 
 ## Contratos técnicos transversales
 
+- Infraestructura: [servicios actuales, beta y futuros](./domains/platform/service-landscape.md).
+
+- Piloto comercial seleccionado; apertura pendiente de certificación:
+  [liberación de beta privada](./runbooks/private-beta-release.md).
+
 - UI: [sistema de diseño](./design-system-governance.md) y
   [playbooks](./engineering/playbook-contract.md).
 - Formularios con pestañas: [navegación local y conservación de
