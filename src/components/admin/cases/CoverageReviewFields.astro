@@ -1,0 +1,87 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import { insuranceReviewFields } from "@/lib/documents/coverage-review"
+interface Props {
+	kind: "insurance" | "route"
+}
+const { kind } = Astro.props
+---
+
+<fieldset data-coverage-fields class="space-y-4 border-t border-slate-200 pt-4" hidden disabled>
+	<legend class="text-sm font-semibold"
+		>{kind === "insurance" ? "Revision de cobertura" : "Permisos del itinerario"}</legend
+	>
+	{
+		kind === "insurance" ? (
+			Object.entries(insuranceReviewFields).map(([key, label]) => (
+				<label class="block text-sm font-medium">
+					{label}
+					<Textarea
+						name={`coverage.${key}`}
+						required
+						minlength={key === "evidenceReference" ? 3 : 10}
+						maxlength="2000"
+						rows="2"
+						class="mt-1"
+					/>
+				</label>
+			))
+		) : (
+			<>
+				<label class="block text-sm font-medium">
+					Referencia del itinerario
+					<Input name="coverage.itineraryReference" required minlength="3" class="mt-1" />
+				</label>
+				<div data-route-places class="space-y-4">
+					<fieldset data-route-place class="space-y-3 border-b border-slate-200 pb-4">
+						<label class="block text-sm font-medium">
+							Municipio o sitio
+							<Input name="coverage.places.0.placeReference" required minlength="3" class="mt-1" />
+						</label>
+						<label class="block text-sm font-medium">
+							Aplicabilidad
+							<Select name="coverage.places.0.outcome" required class="mt-1">
+								<>
+									<option value="">Selecciona</option>
+									<option value="required">Permiso requerido</option>
+									<option value="not_applicable">No aplica, con fundamento</option>
+								</>
+							</Select>
+						</label>
+						<label class="block text-sm font-medium">
+							Fundamento verificable
+							<Textarea
+								name="coverage.places.0.basis"
+								required
+								minlength="10"
+								rows="2"
+								class="mt-1"
+							/>
+						</label>
+						<label class="block text-sm font-medium">
+							Referencia del permiso
+							<Input name="coverage.places.0.permitReference" minlength="3" class="mt-1" />
+						</label>
+						<label class="block text-sm font-medium">
+							Vigencia del permiso
+							<Input type="date" name="coverage.places.0.validUntil" class="mt-1" />
+						</label>
+						<Button type="button" data-remove-route-place variant="ghost" size="sm">
+							Quitar sitio
+						</Button>
+					</fieldset>
+				</div>
+				<Button type="button" data-add-route-place variant="secondary" size="sm">
+					Agregar municipio o sitio
+				</Button>
+			</>
+		)
+	}
+	<label class="block text-sm font-medium"
+		>Proxima revision
+		<Input type="date" name="coverage.nextReview" required class="mt-1" />
+	</label>
+</fieldset>

@@ -26,6 +26,42 @@ const fiscal: CaseEvidenceReadModel = {
 	},
 }
 describe("review evidence navigation", () => {
+	it("lists prior holder documents and only offers original access with permission", async () => {
+		const container = await AstroContainer.create()
+		const evidence: CaseEvidenceReadModel = {
+			...fiscal,
+			domain: "verification",
+			reveal: null,
+			holderDocuments: [
+				{
+					id: "identity-a",
+					label: "Identidad",
+					fileName: "identidad.pdf",
+					status: "Verificado",
+					hasFile: true,
+				},
+				{
+					id: "registration-a",
+					label: "Registro de empresa",
+					fileName: null,
+					status: "Pendiente",
+					hasFile: false,
+				},
+			],
+		}
+		const render = (canReveal: boolean) =>
+			container.renderToString(CaseEvidencePanel, {
+				props: { evidence, caseId: "holder-a", canReveal },
+			})
+		const html = await render(true)
+		expect(html).toContain('name="documentId"')
+		expect(html).toContain('value="identity-a"')
+		expect(html).toContain("Registro de empresa")
+		expect(html).not.toContain('value="registration-a"')
+		const readOnly = await render(false)
+		expect(readOnly).toContain("identidad.pdf")
+		expect(readOnly).not.toContain("data-evidence-reveal")
+	})
 	it("opens each actual review directly instead of sending the reviewer to a queue", async () => {
 		const container = await AstroContainer.create()
 		const html = await container.renderToString(CaseRelatedReviews, {

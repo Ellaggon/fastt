@@ -5,14 +5,20 @@ import {
 	db,
 	eq,
 	ProviderAuditLog,
+	ProviderHolderProfile,
+	ComplianceCase,
 	ProviderVerification,
 	User,
 } from "@/shared/infrastructure/db/compat"
 import {
 	loadProviderComplianceConsole,
+	loadProviderComplianceDetail,
+	listPendingProviderVerificationsForAdmin,
 	parseProviderComplianceQueueFilter,
 } from "@/lib/provider-admin-compliance"
 import { submitProviderDocument } from "@/lib/provider-documents"
+import { saveProviderHolderProfile } from "@/lib/provider-holder-profile"
+import { getCaseWorkspace, getCaseEvidence } from "@/modules/casework/public"
 import { createProviderPaymentAccount } from "@/lib/provider-payment-accounts"
 import { upsertProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
 import { GET as complianceGet } from "@/pages/api/admin/providers/compliance"
@@ -78,6 +84,72 @@ function makeAuthedRequest(path: string, token: string, body?: string): Request 
 }
 
 describe("provider admin unified compliance console", () => {
+	it("reopens the verification queue for an edited holder without removing the prior approval", async () => {
+		const providerId = `provider_holder_review_${crypto.randomUUID()}`
+		await upsertProvider({
+			id: providerId,
+			displayName: "Holder review",
+			legalName: "Holder review S.R.L.",
+			ownerEmail: "holder-review@example.com",
+		})
+		await db.insert(ProviderVerification).values({
+			id: crypto.randomUUID(),
+			providerId,
+			status: "approved",
+		})
+		await db.insert(ProviderHolderProfile).values({
+			providerId,
+			holderType: "persona_natural",
+			holderCountry: "BO",
+			legalFormCode: "BO:individual",
+			declarationStatus: "verified",
+		})
+		const declaration = {
+			holderType: "entidad",
+			holderCountry: "BO",
+			legalFormCode: "BO:company",
+			taxResidenceCountry: null,
+			payoutCountry: null,
+			collectionModel: "undecided",
+		} as const
+		const userId = `holder_owner_${crypto.randomUUID()}`
+		await db.insert(User).values({ id: userId, email: `${userId}@fastt.test` })
+		await saveProviderHolderProfile({ providerId, userId, declaration })
+		await saveProviderHolderProfile({ providerId, userId, declaration })
+		const cases = await db
+			.select()
+			.from(ComplianceCase)
+			.where(eq(ComplianceCase.providerId, providerId))
+		expect(cases).toHaveLength(1)
+		expect(cases[0]).toMatchObject({ status: "open", sourceType: "ProviderVerification" })
+		const workspace = await getCaseWorkspace(cases[0]!.id)
+		expect(workspace).not.toBeNull()
+		expect((await getCaseEvidence(workspace!)).facts).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ key: "holder_previous_legal_form", value: "Persona natural" }),
+				expect.objectContaining({ key: "holder_legal_form", value: "Sociedad comercial" }),
+				expect.objectContaining({ key: "holder_declaration_status", value: "En revisión" }),
+			])
+		)
+		expect((await getCaseEvidence(workspace!)).description).toContain(
+			"Las verificaciones previas se conservan"
+		)
+		const queued = await listPendingProviderVerificationsForAdmin()
+		expect(queued.find((row) => row.providerId === providerId)).toMatchObject({
+			verificationStatus: "pending",
+			holderReviewPending: true,
+			holderLegalFormCode: "BO:company",
+		})
+		expect((await loadProviderComplianceDetail(providerId))?.verification).toMatchObject({
+			holderReviewPending: true,
+		})
+		const [previous] = await db
+			.select()
+			.from(ProviderVerification)
+			.where(eq(ProviderVerification.providerId, providerId))
+		expect(previous?.status).toBe("approved")
+	})
+
 	it("parses queue filters including legacy pending alias", () => {
 		expect(parseProviderComplianceQueueFilter("all")).toBe("all")
 		expect(parseProviderComplianceQueueFilter("verification")).toBe("verification")

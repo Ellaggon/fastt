@@ -8,6 +8,10 @@ const {
 	caseId,
 	canReveal = false,
 }: { evidence: CaseEvidenceReadModel; caseId: string; canReveal?: boolean } = Astro.props
+const holderFiles = evidence.holderDocuments?.filter((doc) => doc.hasFile) ?? []
+const reveal =
+	evidence.reveal ??
+	(holderFiles.length ? { kind: "document", label: "Consultar archivo original" } : null)
 const signalLabel = {
 	pass: "Verificado",
 	review: "Revisar",
@@ -112,7 +116,7 @@ const processingErrorMessages: Record<string, string> = {
 				timeStyle: "short",
 				timeZone: "America/La_Paz",
 			}).format(new Date(evidence.observedAt))
-		} (hora de Bolivia). Compara cada criterio antes de elegir un resultado.
+		} (hora de Bolivia).
 	</p>
 
 	<dl class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -144,16 +148,39 @@ const processingErrorMessages: Record<string, string> = {
 		)
 	}
 	{
-		evidence.reveal && canReveal && (
+		evidence.holderDocuments && (
+			<section aria-label="Respaldos del titular">
+				<h3 class="text-sm font-semibold">Respaldos del titular</h3>
+				<p class="mt-1 text-sm text-slate-600">
+					El estado corresponde a la revisión del archivo. No confirma que acredite al titular
+					actual ni a su representante.
+				</p>
+				{evidence.holderDocuments.length ? (
+					<ul class="divide-y text-sm">
+						{evidence.holderDocuments.map((doc) => (
+							<li class="py-2 break-words">
+								{doc.label} · {doc.fileName ?? "Sin nombre"} · {doc.status}
+								{!doc.hasFile && " · Sin archivo"}
+							</li>
+						))}
+					</ul>
+				) : (
+					<p class="text-sm">No hay respaldos de identidad o registro de empresa.</p>
+				)}
+			</section>
+		)
+	}
+	{
+		reveal && canReveal && (
 			<form
 				class="fastt-notice space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4"
 				data-evidence-reveal
 				data-endpoint={`/api/admin/v1/cases/${caseId}/evidence/reveal`}
 			>
 				<h3 class="text-sm font-semibold">
-					{evidence.reveal.kind === "document"
+					{reveal.kind === "document"
 						? "Consultar archivo original"
-						: evidence.reveal.kind === "tax_registration"
+						: reveal.kind === "tax_registration"
 							? "Consultar registro fiscal completo"
 							: "Consultar datos de la cuenta"}
 				</h3>
@@ -161,7 +188,20 @@ const processingErrorMessages: Record<string, string> = {
 					Indica el motivo de acceso. Se solicitará MFA si hace falta y la consulta quedará
 					registrada.
 				</p>
-				<input type="hidden" name="kind" value={evidence.reveal.kind} />
+				<input type="hidden" name="kind" value={reveal.kind} />
+				{holderFiles.length > 0 && (
+					<label class="block text-xs font-medium">
+						Archivo
+						<select name="documentId" required class="fastt-field block w-full">
+							<option value="">Seleccionar archivo</option>
+							{holderFiles.map((doc) => (
+								<option value={doc.id}>
+									{doc.label}: {doc.fileName ?? "Sin nombre"}
+								</option>
+							))}
+						</select>
+					</label>
+				)}
 				<label class="block text-xs font-medium text-slate-700">
 					Motivo de acceso
 					<Input
@@ -174,7 +214,7 @@ const processingErrorMessages: Record<string, string> = {
 					/>
 				</label>
 				<Button type="submit" size="sm" variant="secondary">
-					{evidence.reveal.label}
+					{reveal.label}
 				</Button>
 				<div
 					class="fastt-notice hidden rounded-lg border border-slate-200 bg-white p-3 text-sm"
@@ -186,7 +226,7 @@ const processingErrorMessages: Record<string, string> = {
 		)
 	}
 	{
-		evidence.reveal && !canReveal && (
+		reveal && !canReveal && (
 			<p class="text-sm text-amber-800">
 				Tu cuenta puede consultar el resumen, pero necesita permiso de acceso a información
 				protegida para abrir el contenido completo.
@@ -403,11 +443,6 @@ const processingErrorMessages: Record<string, string> = {
 		<summary class="cursor-pointer py-2">Referencias técnicas de la evidencia</summary>
 		<footer class="text-xs text-slate-500 break-all">
 			Fuente canónica: <span class="font-mono">{evidence.sourceType} · {evidence.sourceRef}</span>.
-			Observada {
-				new Intl.DateTimeFormat("es-BO", { dateStyle: "medium", timeStyle: "short" }).format(
-					new Date(evidence.observedAt)
-				)
-			}.
 		</footer>
 	</details>
 </section>

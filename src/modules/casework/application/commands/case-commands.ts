@@ -330,6 +330,7 @@ async function applyCanonicalDomainDecision(params: {
 			documentId: caseRow.sourceRef,
 			status: decision === "approved" ? "verified" : "rejected",
 			reviewNotes: comment ?? undefined,
+			withdrawVerification: decision === "rejected",
 		})
 	} else if (caseRow.domain === "payments") {
 		if (decision === "request_information") return { deferred: true }

@@ -1,7 +1,7 @@
 import { db, eq, first, Provider, ProviderHolderProfile } from "@/shared/infrastructure/db/compat"
 import { writeProviderAuditLog } from "@/lib/provider-audit"
 import { legalFormForCountry } from "@/shared/domain/legal-forms"
-import { withPostgresTransaction } from "@/shared/infrastructure/db/client"
+import { afterPostgresCommit, withPostgresTransaction } from "@/shared/infrastructure/db/client"
 
 export type HolderType = "persona_natural" | "entidad"
 export type HolderDeclaration = {
@@ -234,6 +234,29 @@ export async function saveProviderHolderProfile(params: {
 			afterJson: params.declaration,
 			riskLevel: changed ? "high" : "medium",
 		})
-		return { changed, status: changed ? "in_review" : (previous?.declarationStatus ?? "declared") }
+		const status = changed ? "in_review" : (previous?.declarationStatus ?? "declared")
+		if (status === "in_review") {
+			await afterPostgresCommit(async () => {
+				try {
+					const holder = await readProviderHolderProfile(params.providerId)
+					if (holder?.declarationStatus !== "in_review") return
+					const { synchronizeComplianceCaseCompat } =
+						await import("@/lib/casework/compliance-casework")
+					await synchronizeComplianceCaseCompat({
+						providerId: params.providerId,
+						domain: "verification",
+						sourceType: "ProviderVerification",
+						sourceRef: params.providerId,
+						summary: "Revisión de la declaración del titular",
+					})
+				} catch (error) {
+					console.error("casework.holder_declaration_sync_failed", {
+						providerId: params.providerId,
+						error,
+					})
+				}
+			})
+		}
+		return { changed, status }
 	})
 }

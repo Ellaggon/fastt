@@ -13,6 +13,7 @@ import {
 } from "@/lib/commands/command-idempotency"
 import { readPublishedDocumentDefinition } from "@/lib/documents/document-definitions"
 import { validateDocumentCapture } from "@/shared/domain/document-definition"
+import { validateCoverageReviewNotes } from "@/lib/documents/coverage-review"
 import { withPostgresTransaction } from "@/shared/infrastructure/db/client"
 import {
 	assertOperatingPlaces,
@@ -35,6 +36,8 @@ import {
 	Booking,
 	Product,
 	ProviderDocument,
+	DocumentDefinition,
+	DocumentDefinitionVersion,
 	ProviderDocumentInspection,
 	ProviderDocumentProcessingJob,
 	ProviderDocumentScope,
@@ -173,7 +176,7 @@ export function isTaxDocumentSatisfiedByFiscal(params: {
 }
 
 export function evaluateRequiredKycDocumentsComplete(
-	documents: Array<{ type: string; status: string }>,
+	documents: Array<{ type: string; status: string; expiresAt?: Date | null }>,
 	options?: {
 		taxDocumentSatisfiedByFiscal?: boolean
 		/** Subset resolved for this account. Omitted means the historical three types. */
@@ -186,7 +189,9 @@ export function evaluateRequiredKycDocumentsComplete(
 } {
 	const required = options?.requiredTypes ?? requiredKycDocumentTypes
 	const verifiedTypes = new Set(
-		documents.filter((row) => row.status === "verified").map((row) => String(row.type))
+		documents
+			.filter((row) => row.status === "verified" && !isProviderDocumentExpired(row.expiresAt))
+			.map((row) => String(row.type))
 	)
 	if (options?.taxDocumentSatisfiedByFiscal) {
 		verifiedTypes.add("tax_document")
@@ -1775,6 +1780,7 @@ export async function reviewProviderDocument(params: {
 	documentId: string
 	status: unknown
 	reviewNotes?: unknown
+	withdrawVerification?: boolean
 }) {
 	const nextStatus = asDocumentStatus(params.status)
 	if (nextStatus !== "verified" && nextStatus !== "rejected") {
@@ -1783,7 +1789,7 @@ export async function reviewProviderDocument(params: {
 		throw error
 	}
 
-	const reviewNotes = String(params.reviewNotes ?? "").trim()
+	let reviewNotes = String(params.reviewNotes ?? "").trim()
 	if (nextStatus === "rejected" && !reviewNotes) {
 		const error = new Error("review_notes_required")
 		;(error as Error & { status?: number }).status = 400
@@ -1807,11 +1813,14 @@ export async function reviewProviderDocument(params: {
 		throw error
 	}
 
-	if (existing.status !== "pending") {
-		const error = new Error("not_pending")
-		;(error as Error & { status?: number }).status = 409
-		throw error
-	}
+	const { assertDocumentReviewTransition } = await import("@/lib/documents/review-transition")
+	assertDocumentReviewTransition({
+		currentStatus: existing.status,
+		nextStatus,
+		withdrawVerification: params.withdrawVerification === true,
+		reviewNotes,
+	})
+	const withdrawing = existing.status === "verified" && params.withdrawVerification === true
 	if (nextStatus === "verified" && isProviderDocumentExpired(existing.expiresAt)) {
 		const error = new Error("document_expired")
 		;(error as Error & { status?: number }).status = 422
@@ -1819,6 +1828,19 @@ export async function reviewProviderDocument(params: {
 	}
 
 	if (nextStatus === "verified") {
+		if (existing.definitionVersionId) {
+			const [definition] = await db
+				.select({ key: DocumentDefinition.key })
+				.from(DocumentDefinitionVersion)
+				.innerJoin(
+					DocumentDefinition,
+					eq(DocumentDefinition.id, DocumentDefinitionVersion.definitionId)
+				)
+				.where(eq(DocumentDefinitionVersion.id, existing.definitionVersionId))
+			if (!definition)
+				throw Object.assign(new Error("document_definition_missing"), { status: 422 })
+			reviewNotes = validateCoverageReviewNotes(definition.key, reviewNotes) ?? reviewNotes
+		}
 		const preview = await inspectProviderDocumentPreview({ fileUrl: existing.fileUrl })
 		if (preview.state !== "ready") {
 			throw Object.assign(new Error("document_preview_required"), { status: 422 })
@@ -1886,7 +1908,9 @@ export async function reviewProviderDocument(params: {
 				reviewedBy: params.actorUserId,
 				updatedAt: now,
 			})
-			.where(and(eq(ProviderDocument.id, existing.id), eq(ProviderDocument.status, "pending")))
+			.where(
+				and(eq(ProviderDocument.id, existing.id), eq(ProviderDocument.status, existing.status))
+			)
 			.returning({ id: ProviderDocument.id })
 		if (!changed.length) throw Object.assign(new Error("not_pending"), { status: 409 })
 		if (nextStatus === "verified" && existing.replacesDocumentId) {
@@ -1905,7 +1929,7 @@ export async function reviewProviderDocument(params: {
 		await writeProviderAuditLog({
 			providerId: params.providerId,
 			actorUserId: params.actorUserId,
-			action: "provider.document.review",
+			action: withdrawing ? "provider.document.verification_withdrawn" : "provider.document.review",
 			entityType: "ProviderDocument",
 			entityId: existing.id,
 			beforeJson: {
