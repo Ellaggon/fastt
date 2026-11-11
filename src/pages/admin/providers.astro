@@ -463,47 +463,50 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 																</td>
 																<td class="px-3 py-3 align-top">
 																	<div class="flex min-w-[340px] flex-col gap-2">
-																		{row.verificationStatus !== "approved" && (
-																			<Button
-																				variant="primary"
-																				data-approve-provider={row.providerId}
-																				className="w-fit"
-																			>
-																				Aprobar
-																			</Button>
-																		)}
-																		{row.verificationStatus === "pending" && !focusedDetail && (
-																			<form
-																				class="flex flex-col gap-2"
-																				data-reject-form
-																				data-row-reject
-																				data-provider-id={row.providerId}
-																			>
-																				<select
-																					class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
-																					data-reject-template
-																					data-domain="verification"
+																		{row.verificationStatus !== "approved" &&
+																			!row.holderReviewPending && (
+																				<Button
+																					variant="primary"
+																					data-approve-provider={row.providerId}
+																					className="w-fit"
 																				>
-																					<option value="">Plantilla de motivo…</option>
-																					{adminComplianceRejectTemplates
-																						.filter((item) => item.domain === "verification")
-																						.map((item) => (
-																							<option value={item.body}>{item.label}</option>
-																						))}
-																				</select>
-																				<Textarea
-																					name="reason"
-																					rows="2"
-																					required
-																					minlength="2"
-																					className="w-full"
-																					placeholder="Motivo del rechazo"
-																				/>
-																				<Button type="submit" variant="danger" className="w-fit">
-																					Rechazar
+																					Aprobar
 																				</Button>
-																			</form>
-																		)}
+																			)}
+																		{row.verificationStatus === "pending" &&
+																			!row.holderReviewPending &&
+																			!focusedDetail && (
+																				<form
+																					class="flex flex-col gap-2"
+																					data-reject-form
+																					data-row-reject
+																					data-provider-id={row.providerId}
+																				>
+																					<select
+																						class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+																						data-reject-template
+																						data-domain="verification"
+																					>
+																						<option value="">Plantilla de motivo…</option>
+																						{adminComplianceRejectTemplates
+																							.filter((item) => item.domain === "verification")
+																							.map((item) => (
+																								<option value={item.body}>{item.label}</option>
+																							))}
+																					</select>
+																					<Textarea
+																						name="reason"
+																						rows="2"
+																						required
+																						minlength="2"
+																						className="w-full"
+																						placeholder="Motivo del rechazo"
+																					/>
+																					<Button type="submit" variant="danger" className="w-fit">
+																						Rechazar
+																					</Button>
+																				</form>
+																			)}
 																		<AdminComplianceSlaAssign
 																			providerId={row.providerId}
 																			domain="verification"
@@ -1122,7 +1125,8 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 												)}
 
 												{sections.verification &&
-												focusedDetail.verification?.verificationStatus === "pending" ? (
+												focusedDetail.verification?.verificationStatus === "pending" &&
+												!focusedDetail.verification.holderReviewPending ? (
 													<Card
 														id="provider-review-verification"
 														variant="soft"

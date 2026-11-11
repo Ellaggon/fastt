@@ -3,7 +3,7 @@
 Status: active
 Document type: runbook
 Owner: Platform / Security
-Last verified: 2026-11-06
+Last verified: 2026-11-08
 Scope: preparación, activación y certificación de gateway y dispatcher
 Source of truth: services/document-analysis, services/document-dispatcher y endpoints documentales
 Related code/tests: src/lib/provider-document-storage.ts, tests/unit/document-direct-upload.test.ts, tests/integration/document-gateway-live.test.ts
@@ -140,7 +140,110 @@ no está implementada; antivirus/OCR no certifican autenticidad. Revisión human
 siendo necesaria. Respaldos independientes y conservación se rigen por el contrato
 documental, no por el disco de firmas antivirus.
 
-## Referencias
+## Recorrido de renovacion y retirada de validacion
+
+Usar archivos sinteticos y una base desechable para el recorrido autenticado completo.
+No sembrar expedientes, firmas o decisiones en la base compartida para aparentar certificacion.
+Conservar el control de produccion apagado; la certificacion local puede habilitarlo solo
+en su proceso hijo. No se despliega ni contrata un servicio por seguir este recorrido.
+
+1. Carga: con el control apagado comprobar 503 sin documento nuevo. En pruebas autorizadas,
+   cargar un PDF sintetico y registrar pendiente, sujeto, alcance y huella de integridad.
+2. Inspeccion: comprobar PDF limpio/OCR, marcador antivirus inofensivo, PDF corrupto y hash
+   incorrecto. Ninguna inspeccion limpia aprueba identidad, autenticidad o habilitacion legal.
+3. Revision: usar permiso documental y autenticacion reciente. Con controles tecnicos listos,
+   aprobar mediante el flujo autorizado y comprobar actor, fecha y evidencia en auditoria.
+4. Recordatorio: evidencia verificada con vencimiento a 30 dias o menos muestra aviso en el
+   panel y enlace de renovacion, incluido el dia de vencimiento. No es correo automatico.
+   Pendientes, rechazados y sustituidos no generan ese aviso. La ventana es operativa, no ley.
+5. Renovacion anticipada: el formulario envia `replacesDocumentId` antes de vencer; mantiene
+   tipo y sujeto, exige declarar alcance sin copiarlo por suposicion. El antecedente verificado
+   no se sustituye hasta aprobar el reemplazo. Probar envio duplicado y reemplazos concurrentes.
+6. Retirada: abrir un expediente documental accionable para la evidencia verificada y proponer
+   rechazo con motivo explicito de al menos diez caracteres. Conservar permisos, politica de
+   razones y segundo control cuando corresponda. La aplicacion canonica habilita la transicion
+   explicita `verified -> rejected`, no reaprobar ni modificar historicos sustituidos.
+7. Auditoria: comprobar `provider.document.verification_withdrawn`, actor, motivo, estado
+   anterior/posterior y alcances. Una actualizacion concurrente no debe emitir auditoria de exito.
+   El Centro de Mando invalida gobernanza/proveedor despues del commit; comprobar denegacion
+   de capacidades afectadas y revisar salidas existentes sin alterar snapshots de reservas.
+
+No existe aun acceso especifico de reapertura desde el historial documental; preparar el
+expediente por los mecanismos administrativos existentes y verificar su politica/razones.
+No afirmar que la retirada esta disponible en todas las pantallas por existir el comando.
+
+Evidencia local del 2026-11-08: gateway Docker con ClamAV real, R2 privado configurado
+(no certificado como staging), exclusivamente objetos sinteticos temporales. PDF limpio:
+antivirus limpio y OCR completado; marcador antivirus detectado; PDF invalido y hash
+incorrecto rechazados. Extraccion avanzada: no soportada. No prueba formulario autenticado,
+registro/revision en PostgreSQL, correo, continuidad hospedada ni apertura de la beta.
+Las pruebas unitarias de transicion/auditoria usan dobles de DB; no equivalen a ese recorrido.
+
+### Base local desechable para continuar
+
+Base del 2026-11-08: contenedor `fastt-document-certification-postgres`, PostgreSQL 16,
+DB `fastt_document_certification`, usuario `certifier`, `127.0.0.1:55439`, datos tmpfs.
+Baseline `db/postgres/0001_initial_schema.sql`. Trust solo local: no exponer ni alojar
+datos reales. Es desechable, no respaldo ni servicio de beta.
+
+Verificar nombre, puerto y esquema antes de retomar; recrear vacia si falta. Vitest:
+`FASTT_DATA_ENV=test`, ambas URLs
+`FASTT_TEST_DATABASE_URL` y `FASTT_TEST_DIRECT_URL` apuntando a esta base, y huella
+`FASTT_TEST_DATABASE_FINGERPRINT=dbfp_ddef7a8846da2890ef82`. Vaciar las cuatro
+variables de conexion operativa; no cargar `.env`. Conservar huellas operativas prohibidas.
+No modificar `.env.test`, que puede apuntar a respaldo.
+
+Pasaron paridad de esquema y diecinueve pruebas en PostgreSQL limpio:
+`tests/integration/provider-documents.test.ts`, `document-renewal-withdrawal.test.ts`
+y `casework-gap-recovery.test.ts` del mismo directorio. Cubren renovacion sin perder
+historial, bloqueo sin inspeccion, retirada con motivo/auditoria, permisos (403),
+sesion reciente (401), rollback, reintento y segundo control. Identidad, archivo e
+inspeccion son fixtures en esas suites; no certifican login ni antivirus reales.
+Reiniciar solo esta base entre suites con IDs fijos para evitar auditorias acumuladas.
+
+Brave, 2026-11-08: login Supabase real compartido y MFA del titular; datos locales.
+Roles temporales autorizados, revision limitada al proveedor sintetico y luego revocados.
+Retirada desde expediente fixture: `verified -> rejected`, caso resuelto, nuevas
+decisiones bloqueadas y `provider.document.verification_withdrawn` con actor/motivo
+confirmado en PostgreSQL. Politica historica de alojamiento usada solo como fixture:
+no acredita cobertura Tours. No se activaron cargas reales.
+
+Renovacion parcial adicional en Brave: aviso a quince dias, enlace de renovacion,
+alcance declarado y envio del PDF sintetico del repositorio mediante selector nativo.
+La extension no permitio `setFiles`; no se ampliaron sus permisos. Se uso S3rver 3.7.1
+solo como simulador temporal en `127.0.0.1:59039`, sin claves R2 operativas; no certifica
+compatibilidad completa con R2 ni sus precondiciones. El envio devolvio exito y PostgreSQL
+confirmo reemplazo `pending` con `replacesDocumentId` correcto y antecedente `verified`.
+Se resolvio la conexion del procesador con un puente HTTPS local: certificados confiados
+solo por los procesos de certificacion mediante `NODE_EXTRA_CA_CERTS`, sin instalarlos en
+macOS ni desactivar TLS. El puente restringe origen/ruta y conserva la firma S3 al reenviar
+al simulador. Contenedor separado, firmas ClamAV existentes en lectura y origen HTTPS fijo.
+El worker completo un trabajo sin reintentos: malware `clean`, OCR `completed`, extraccion
+`not_supported`. No equivale a autenticar una licencia ni certificar R2 hospedado.
+Con permisos temporales autorizados, MFA vencido detuvo la aprobacion; tras confirmarlo,
+Brave aprobo el fixture conocido con nota tecnica. SQL confirmo reemplazo `verified`,
+antecedente `superseded` y auditoria con actor; UI mostro historial sin aviso anterior y
+caso resuelto. Sin revelado protegido ni autenticidad documental certificada.
+Se revocaron los permisos temporales al finalizar. Regresion posterior detecto y corrigio
+que gobernanza KYC ignoraba vencimientos: ahora lee `expiresAt` y excluye vencidos.
+Prueba PostgreSQL: bloqueo/recuperacion de pagos e integraciones; publicar/reservar conserva
+sus controles independientes. Prueba del motor Tours: evidencia exigida vencida, retirada,
+sustituida o ajena bloquea publicar/reservar; renovacion vigente recupera solo lo aplicable.
+Brave local 2026-11-09: revision estructurada de seguro/ruta con sesion real y MFA;
+dos PDF sinteticos reinspeccionados (antivirus/OCR), sin extraccion avanzada. Vacio y
+permiso vencido bloqueados; dos sitios restaurados y luego decision aplicada por caso.
+SQL confirmo actor, notas JSON y auditoria pending/verified. Sin revelado protegido,
+poliza/permiso autenticos ni firmas; accesos revocados y servicios temporales detenidos.
+No certifica endpoints de publicacion/reserva ni activa cobertura. Pendiente: reapertura
+desde historial y certificacion hospedada. La primera puerta comercial sigue en borrador.
+Para retirar solo este recurso: `docker rm -f fastt-document-certification-postgres`.
+No usar limpieza global de Docker ni eliminar el procesador documental por este paso.
+
+Pruebas: `document-renewal-notice`, `document-review-transition`,
+`document-verification-withdrawal`, `provider-document-review-evidence`,
+`case-command-recovery`, `case-second-control-evidence` y `provider-document-renewal`.
+
+## Referencias externas
 
 - [R2: URLs firmadas](https://developers.cloudflare.com/r2/api/s3/presigned-urls/).
 - [R2: CORS](https://developers.cloudflare.com/r2/buckets/cors/).

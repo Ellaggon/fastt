@@ -7,6 +7,8 @@ import {
 	type ProviderDocumentInspectionReadModel,
 } from "@/lib/documents/document-processing"
 import { getLatestProviderVerificationStatus } from "@/lib/provider-admin-compliance"
+import { readProviderHolderProfile } from "@/lib/provider-holder-profile"
+import { legalFormForCountry } from "@/shared/domain/legal-forms"
 import { listProviderDocuments } from "@/lib/provider-documents"
 import { listProviderPaymentAccounts } from "@/lib/provider-payment-accounts"
 import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
@@ -14,11 +16,38 @@ import {
 	inspectProviderDocumentPreview,
 	type ProviderDocumentPreviewState,
 } from "@/lib/provider-document-storage"
-import { db, eq, Provider } from "@/shared/infrastructure/db/compat"
+import { and, db, desc, eq, Provider, ProviderAuditLog } from "@/shared/infrastructure/db/compat"
 
 import type { getCaseWorkspace } from "./command-center"
 
 type Workspace = NonNullable<Awaited<ReturnType<typeof getCaseWorkspace>>>
+
+type HolderDeclarationSnapshot = {
+	holderType: string | null
+	holderCountry: string | null
+	legalFormCode: string | null
+}
+
+function holderDeclarationSnapshot(value: unknown): HolderDeclarationSnapshot | null {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return null
+	const snapshot = value as Record<string, unknown>
+	return {
+		holderType: typeof snapshot.holderType === "string" ? snapshot.holderType : null,
+		holderCountry: typeof snapshot.holderCountry === "string" ? snapshot.holderCountry : null,
+		legalFormCode: typeof snapshot.legalFormCode === "string" ? snapshot.legalFormCode : null,
+	}
+}
+
+function holderDeclarationLabel(snapshot: HolderDeclarationSnapshot | null) {
+	if (!snapshot) return "No registrada"
+	const legalForm = snapshot.legalFormCode
+		? legalFormForCountry(snapshot.legalFormCode, snapshot.holderCountry ?? "")
+		: null
+	if (legalForm) return legalForm.label
+	if (snapshot.holderType === "persona_natural") return "Persona natural"
+	if (snapshot.holderType === "entidad") return "Entidad"
+	return "No informada"
+}
 
 export type EvidenceFact = {
 	key: string
@@ -43,6 +72,13 @@ export type CaseEvidenceReadModel = {
 	sourceRef: string
 	revision: string
 	observedAt: string
+	holderDocuments?: {
+		id: string
+		label: string
+		fileName: string | null
+		status: string
+		hasFile: boolean
+	}[]
 	facts: EvidenceFact[]
 	signals: EvidenceSignal[]
 	artifact: null | {
@@ -78,13 +114,35 @@ function revisionOf(value: unknown) {
 
 export async function getCaseEvidence(workspace: Workspace): Promise<CaseEvidenceReadModel> {
 	const providerId = workspace.case.providerId
-	const [providerRows, verification, fiscal, documents, payments] = await Promise.all([
-		db.select().from(Provider).where(eq(Provider.id, providerId)).limit(1),
-		getLatestProviderVerificationStatus(providerId),
-		getProviderTaxConfiguration(providerId),
-		listProviderDocuments(providerId),
-		listProviderPaymentAccounts(providerId),
-	])
+	const [providerRows, verification, fiscal, documents, payments, holder, holderChange] =
+		await Promise.all([
+			db.select().from(Provider).where(eq(Provider.id, providerId)).limit(1),
+			getLatestProviderVerificationStatus(providerId),
+			getProviderTaxConfiguration(providerId),
+			listProviderDocuments(providerId),
+			listProviderPaymentAccounts(providerId),
+			workspace.case.sourceType === "ProviderVerification"
+				? readProviderHolderProfile(providerId)
+				: null,
+			workspace.case.sourceType === "ProviderVerification"
+				? db
+						.select({
+							beforeJson: ProviderAuditLog.beforeJson,
+							createdAt: ProviderAuditLog.createdAt,
+						})
+						.from(ProviderAuditLog)
+						.where(
+							and(
+								eq(ProviderAuditLog.providerId, providerId),
+								eq(ProviderAuditLog.entityType, "ProviderHolderProfile"),
+								eq(ProviderAuditLog.action, "provider.holder_declaration_changed")
+							)
+						)
+						.orderBy(desc(ProviderAuditLog.createdAt))
+						.limit(1)
+						.then((rows) => rows[0] ?? null)
+				: null,
+		])
 	const provider = providerRows[0]
 	const sourceDocument = documents.find((item) => item.id === workspace.case.sourceRef) ?? null
 	const sourceDocumentPreview = sourceDocument
@@ -351,10 +409,25 @@ export async function getCaseEvidence(workspace: Workspace): Promise<CaseEvidenc
 				: null,
 		}
 	} else {
+		const previousHolderDeclaration = holderDeclarationSnapshot(holderChange?.beforeJson)
+		const reviewingHolderChange = holder?.declarationStatus === "in_review"
 		model = {
 			domain: "verification",
-			title: "Identidad del negocio",
-			description: "Identidad legal y corroboraciones entre documentos, fiscalidad y payout.",
+			holderDocuments: reviewingHolderChange
+				? documents
+						.filter((doc) => doc.type === "government_id" || doc.type === "business_registration")
+						.map((doc) => ({
+							id: doc.id,
+							label: doc.typeLabel,
+							fileName: doc.fileName,
+							status: doc.statusLabel,
+							hasFile: Boolean(doc.fileUrl),
+						}))
+				: undefined,
+			title: reviewingHolderChange ? "Cambio de identidad del titular" : "Identidad del negocio",
+			description: reviewingHolderChange
+				? "Compara la declaración anterior y la nueva. Las verificaciones previas se conservan y no se vuelven a aprobar automáticamente."
+				: "Identidad legal y corroboraciones entre documentos, fiscalidad y payout.",
 			sourceType: workspace.case.sourceType,
 			sourceRef: workspace.case.sourceRef,
 			facts: [
@@ -367,24 +440,66 @@ export async function getCaseEvidence(workspace: Workspace): Promise<CaseEvidenc
 				{
 					key: "provider_status",
 					label: "Estado del proveedor",
-					value: provider?.status ?? "No informado",
+					value: provider?.status === "draft" ? "Borrador" : (provider?.status ?? "No informado"),
 				},
 				{
 					key: "purpose",
 					label: "Propósito de cuenta",
-					value: provider?.accountPurpose ?? "No informado",
+					value:
+						provider?.accountPurpose === "commercial"
+							? "Comercial"
+							: (provider?.accountPurpose ?? "No informado"),
 				},
 				{
 					key: "verification",
-					label: "Última verificación",
-					value: verification?.status ?? "pending",
+					label: reviewingHolderChange ? "Verificación documental previa" : "Última verificación",
+					value:
+						verification?.status === "approved"
+							? "Aprobada"
+							: verification?.status === "rejected"
+								? "Rechazada"
+								: "Pendiente",
 				},
+				...(reviewingHolderChange && holderChange
+					? [
+							{
+								key: "holder_previous_country",
+								label: "País declarado anteriormente",
+								value: previousHolderDeclaration?.holderCountry ?? "No registrado",
+							},
+							{
+								key: "holder_previous_legal_form",
+								label: "Forma jurídica anterior",
+								value: holderDeclarationLabel(previousHolderDeclaration),
+							},
+						]
+					: []),
+				...(holder
+					? [
+							{ key: "holder_country", label: "País del titular", value: holder.holderCountry },
+							{
+								key: "holder_legal_form",
+								label: "Forma jurídica declarada",
+								value:
+									legalFormForCountry(holder.legalFormCode, holder.holderCountry)?.label ??
+									"No informada",
+							},
+							{
+								key: "holder_declaration_status",
+								label: "Estado actual de la declaración",
+								value:
+									holder.declarationStatus === "in_review"
+										? "En revisión"
+										: holder.declarationStatus,
+							},
+						]
+					: []),
 			],
 			signals: [
 				...commonSignals,
 				{
 					key: "payout_holder",
-					label: "Titular de payout",
+					label: "Titular de la cuenta de desembolso",
 					status: paymentHolderMatches.some((item) => item.level === "exact")
 						? "pass"
 						: payments.length
@@ -396,7 +511,7 @@ export async function getCaseEvidence(workspace: Workspace): Promise<CaseEvidenc
 							? "Existe una coincidencia probable; requiere corroboración humana"
 							: payments.length
 								? "Existe cuenta, pero la titularidad no coincide de forma suficiente"
-								: "No existe cuenta de payout",
+								: "No hay cuenta de desembolso registrada",
 				},
 			],
 			artifact: null,
@@ -412,6 +527,7 @@ export async function getCaseEvidence(workspace: Workspace): Promise<CaseEvidenc
 		model,
 		provider: provider ? { id: provider.id, createdAt: provider.createdAt } : null,
 		verification,
+		holder: holder ? { updatedAt: holder.updatedAt, status: holder.declarationStatus } : null,
 		fiscal: fiscal
 			? {
 					status: fiscal.status,

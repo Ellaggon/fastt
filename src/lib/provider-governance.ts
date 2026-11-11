@@ -380,6 +380,7 @@ export async function evaluateProviderGovernance(
 					id: ProviderDocument.id,
 					status: ProviderDocument.status,
 					type: ProviderDocument.type,
+					expiresAt: ProviderDocument.expiresAt,
 				})
 				.from(ProviderDocument)
 				.where(eq(ProviderDocument.providerId, id))

@@ -85,6 +85,61 @@ describe("provider compliance documents", () => {
 	afterEach(() => vi.unstubAllEnvs())
 	beforeAll(ensureOperatingGeographyFixtures)
 
+	it("rejects internal document review without a recent security session", async () => {
+		const id = crypto.randomUUID()
+		const email = `${id}@example.invalid`
+		const token = `synthetic-${id}`
+		await upsertProvider({ id: "cert-security-provider", accountPurpose: "internal_qa" })
+		await db.insert(User).values({ id, email })
+		await withSupabaseAuthStub(
+			{ [token]: { id, email } },
+			async () => {
+				const response = await adminDocumentsPost({
+					request: makeAuthedRequest(
+						"/api/admin/providers/documents",
+						token,
+						JSON.stringify({
+							providerId: "cert-security-provider",
+							documentId: "cert-security-document",
+							status: "rejected",
+							reviewNotes: "Synthetic security check",
+						})
+					),
+				} as any)
+				expect(response.status).toBe(401)
+				expect(await response.json()).toMatchObject({ error: "reauthentication_required" })
+			},
+			{ adminEmails: email }
+		)
+	})
+
+	it("rejects internal document review by an ordinary authenticated user", async () => {
+		const id = crypto.randomUUID()
+		const email = `${id}@example.invalid`
+		const token = `synthetic-${id}`
+		await upsertProvider({ id: "cert-security-provider", accountPurpose: "internal_qa" })
+		await db.insert(User).values({ id, email })
+		await withSupabaseAuthStub(
+			{ [token]: { id, email } },
+			async () => {
+				const response = await adminDocumentsPost({
+					request: makeAuthedRequest(
+						"/api/admin/providers/documents",
+						token,
+						JSON.stringify({
+							providerId: "cert-security-provider",
+							documentId: "cert-security-document",
+							status: "rejected",
+							reviewNotes: "Synthetic security check",
+						})
+					),
+				} as any)
+				expect(response.status).toBe(403)
+			},
+			{ adminEmails: "nobody@example.invalid" }
+		)
+	})
+
 	it("confirms direct uploads without re-uploading and replays the same registration", async () => {
 		const providerId = "provider_direct_upload_flow"
 		const ownerEmail = "direct.upload@example.com"

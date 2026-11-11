@@ -11,8 +11,10 @@ import { createProviderDocumentPreviewUrl } from "@/lib/provider-document-storag
 import { assertProviderDocumentSafeToReveal } from "@/lib/documents/document-processing"
 import { readAccountIdentifierFromMetadata } from "@/lib/provider-payment-secrets"
 import { requestIdFromRequest, withRequestId } from "@/lib/http/request-context"
+import { readProviderHolderProfile } from "@/lib/provider-holder-profile"
 import { getCaseWorkspace } from "@/modules/casework/public"
 import {
+	inArray,
 	and,
 	db,
 	eq,
@@ -48,7 +50,14 @@ export const POST: APIRoute = async ({ request, params }) => {
 			return withRequestId(noStore({ error: "access_reason_required" }, 422), requestId)
 		const workspace = await getCaseWorkspace(caseId)
 		if (!workspace) return withRequestId(noStore({ error: "case_not_found" }, 404), requestId)
-		if (allowedKindByDomain[workspace.case.domain] !== requestedKind)
+		const holderDocument =
+			workspace.case.domain === "verification" &&
+			workspace.case.sourceType === "ProviderVerification" &&
+			requestedKind === "document"
+		const documentId = holderDocument
+			? String(body.documentId ?? "").trim()
+			: workspace.case.sourceRef
+		if (!holderDocument && allowedKindByDomain[workspace.case.domain] !== requestedKind)
 			return withRequestId(noStore({ error: "evidence_kind_not_allowed" }, 409), requestId)
 
 		const audit: SensitiveCommandAudit = {
@@ -80,6 +89,13 @@ export const POST: APIRoute = async ({ request, params }) => {
 				await requireRecentInternalAuthentication({ request, user: principal.user })
 			},
 			execute: async () => {
+				if (
+					holderDocument &&
+					(!documentId ||
+						(await readProviderHolderProfile(workspace.case.providerId))?.declarationStatus !==
+							"in_review")
+				)
+					throw Object.assign(new Error("evidence_not_found"), { status: 404 })
 				let response: Record<string, unknown>
 				let resourceType: string
 				let fields: string[]
@@ -89,7 +105,10 @@ export const POST: APIRoute = async ({ request, params }) => {
 						.from(ProviderDocument)
 						.where(
 							and(
-								eq(ProviderDocument.id, workspace.case.sourceRef),
+								eq(ProviderDocument.id, documentId),
+								holderDocument
+									? inArray(ProviderDocument.type, ["government_id", "business_registration"])
+									: undefined,
 								eq(ProviderDocument.providerId, workspace.case.providerId)
 							)
 						)
@@ -155,7 +174,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 					actorUserId: audit.actorUserId,
 					providerId: workspace.case.providerId,
 					resourceType,
-					resourceId: workspace.case.sourceRef,
+					resourceId: requestedKind === "document" ? documentId : workspace.case.sourceRef,
 					accessType: "reveal",
 					reason,
 					fields,

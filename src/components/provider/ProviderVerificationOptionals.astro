@@ -13,6 +13,7 @@ import {
 	documentPipelineUnavailableMessage,
 } from "@/lib/documents/activation"
 import { documentTechnicalPresentation } from "@/lib/documents/inspection-presentation"
+import { documentRenewalNotice } from "@/lib/provider-document-validity"
 import { isProviderDocumentExpired, type ProviderDocumentRecord } from "@/lib/provider-documents"
 import {
 	tourComplianceActivityClasses,
@@ -85,11 +86,10 @@ const rejectedCount = documents.filter((doc) => doc.status === "rejected").lengt
 const expiredDocuments = documents.filter(
 	(doc) => doc.status === "verified" && isProviderDocumentExpired(doc.expiresAt)
 )
+const expiringDocuments = documents.filter((doc) => documentRenewalNotice(doc)?.kind === "due_soon")
 const renewalDocument = documents.find((document) => document.id === renewalDocumentId) ?? null
-const renewalIsExpired = Boolean(
-	renewalDocument?.status === "verified" && isProviderDocumentExpired(renewalDocument.expiresAt)
-)
-const uploadTypes = renewalIsExpired
+const renewalAvailable = Boolean(renewalDocument && documentRenewalNotice(renewalDocument))
+const uploadTypes = renewalAvailable
 	? documentTypes.filter(
 			(item) =>
 				item.value === renewalDocument?.type || item.value.startsWith(`${renewalDocument?.type}::`)
@@ -98,7 +98,7 @@ const uploadTypes = renewalIsExpired
 			const id = item.value.split("::")[1]
 			return !tourSurface || !id || !["ready", "in_review"].includes(requirementStates[id])
 		})
-const selectedType = renewalIsExpired
+const selectedType = renewalAvailable
 	? uploadTypes.some((item) => item.value === defaultUploadType)
 		? defaultUploadType
 		: uploadTypes.length === 1
@@ -154,6 +154,17 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 	data-verification-optionals-page={surface === "archive" ? true : undefined}
 	data-tour-evidence-area={tourSurface ? surface : undefined}
 >
+	{
+		expiringDocuments.length ? (
+			<Notice variant="warning" title="Documentos próximos a vencer">
+				{expiringDocuments.length === 1
+					? "Una evidencia vence en los próximos 30 días."
+					: `${expiringDocuments.length} evidencias vencen en los próximos 30 días.`}
+				Puedes enviar su renovación antes del vencimiento; el reemplazo quedará pendiente de
+				revisión.
+			</Notice>
+		) : null
+	}
 	{
 		expiredDocuments.length ? (
 			<Notice variant="warning" title="Renovación necesaria">
@@ -281,7 +292,7 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 						) : null}
 						{!readOnlyArchive &&
 						doc.status === "verified" &&
-						isProviderDocumentExpired(doc.expiresAt) &&
+						documentRenewalNotice(doc) &&
 						(!tourSurface || doc.scopes.some((scope) => scope.productId === scopeProductId)) ? (
 							<a
 								href={renewalHref(doc.id)}
@@ -310,11 +321,11 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 		) : !readOnlyArchive && canManageDocuments && uploadTypes.length ? (
 			<details
 				class="space-y-3"
-				open={!tourSurface || Boolean(defaultUploadType) || renewalIsExpired}
+				open={!tourSurface || Boolean(defaultUploadType) || renewalAvailable}
 				data-evidence-editor
 			>
 				<summary class="cursor-pointer text-sm font-semibold text-slate-900">
-					{renewalIsExpired ? "Renovar documento" : "Subir documento"}
+					{renewalAvailable ? "Renovar documento" : "Subir documento"}
 				</summary>
 				<form
 					class="fastt-notice space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
@@ -365,7 +376,7 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 								: surface
 						}
 					/>
-					{renewalIsExpired ? (
+					{renewalAvailable ? (
 						<input type="hidden" name="replacesDocumentId" value={renewalDocument!.id} />
 					) : null}
 					{playbookReturnTo ? (
@@ -380,14 +391,14 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 					<div class="flex flex-wrap items-start justify-between gap-3">
 						<div>
 							<h3 class="text-base font-semibold text-slate-950">
-								{renewalIsExpired
+								{renewalAvailable
 									? `Renovar ${renewalDocument?.typeLabel}`
 									: tourSurface
 										? "Enviar evidencia de esta experiencia"
 										: "Enviar evidencia"}
 							</h3>
 							<p class="mt-1 text-sm leading-6 text-slate-600">
-								{renewalIsExpired
+								{renewalAvailable
 									? "La evidencia anterior queda en el historial. Declara de nuevo el alcance real de la renovación; no se copiará por suposición."
 									: tourSurface
 										? "Adjunta el respaldo que corresponde a esta actividad. Se revisará su titular, territorio y vigencia antes de habilitarla."
@@ -607,7 +618,7 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 					</div>
 				</form>
 			</details>
-		) : !readOnlyArchive && renewalIsExpired && canManageDocuments ? (
+		) : !readOnlyArchive && renewalAvailable && canManageDocuments ? (
 			<Notice variant="warning" title="Esta evidencia requiere revisión de alcance">
 				Su tipo ya no aparece entre los requisitos de esta línea. Revisa la actividad declarada
 				antes de renovarla.

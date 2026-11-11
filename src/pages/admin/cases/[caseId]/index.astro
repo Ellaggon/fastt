@@ -1,5 +1,7 @@
 ---
 import Button from "@/components/ui/Button.astro"
+import CoverageReviewFields from "@/components/admin/cases/CoverageReviewFields.astro"
+import { readCoverageReviewContext } from "@/lib/documents/coverage-review-context"
 import Card from "@/components/ui/Card.astro"
 import Select from "@/components/ui/Select.astro"
 import Textarea from "@/components/ui/Textarea.astro"
@@ -33,6 +35,10 @@ try {
 const caseId = String(Astro.params.caseId ?? "")
 const workspace = principal ? await getCaseWorkspace(caseId) : null
 if (principal && !workspace) return new Response("Caso no encontrado", { status: 404 })
+const coverageContext =
+	workspace?.case.domain === "documents"
+		? await readCoverageReviewContext(workspace.case.providerId, workspace.case.sourceRef)
+		: null
 const decisionPermissionByDomain: Record<
 	string,
 	| "provider.verification.review"
@@ -113,6 +119,14 @@ const decisionLabels: Record<string, string> = {
 	request_information: "Solicitar información",
 	requires_attention: "Marcar para corrección",
 }
+const latestOutcome = workspace?.decisions
+	.filter((decision) => decision.status === "applied")
+	.sort(
+		(a, b) => (b.appliedAt ?? b.createdAt).getTime() - (a.appliedAt ?? a.createdAt).getTime()
+	)[0]
+const reconciliation = workspace?.activities.find(
+	(event) => event.eventType === "source_reconciled"
+)
 const allowedDecisionValues = workspace
 	? (workspace.case.sourceType === "ProviderCommercialAgreement"
 			? []
@@ -245,7 +259,7 @@ const noticeMessage =
 									</h1>
 									<p class="mt-1 text-sm text-slate-400">
 										{workspace.case.providerName || workspace.case.providerLegalName || "Proveedor"}{" "}
-										· {domainLabels[workspace.case.domain]} · versión {workspace.case.version}
+										· {domainLabels[workspace.case.domain]}
 									</p>
 								</>
 							</div>
@@ -269,12 +283,6 @@ const noticeMessage =
 									>
 										Auditoría
 									</a>
-									<a
-										href={legacyHref}
-										class="px-3 py-3 text-sm text-slate-300 underline underline-offset-4"
-									>
-										Panel anterior
-									</a>
 								</>
 							</div>
 						</div>
@@ -289,23 +297,40 @@ const noticeMessage =
 											<div>
 												<>
 													<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-														Por qué se abrió
+														{caseActionable ? "Revisión pendiente" : "Resultado del expediente"}
 													</p>
-													<h2 class="mt-2 text-lg font-semibold">{workspace.case.summary}</h2>
+													<h2 class="mt-2 text-lg font-semibold">
+														{caseActionable
+															? "Qué revisar"
+															: reconciliation
+																? "Cerrado automáticamente"
+																: "Expediente cerrado"}
+													</h2>
 													<p class="mt-2 text-sm text-slate-600">
-														Revisa los datos y la evidencia de {domainLabels[workspace.case.domain]}{" "}
-														antes de registrar un resultado.
+														{caseActionable
+															? `Revisa la evidencia de ${domainLabels[workspace.case.domain]} antes de registrar un resultado.`
+															: reconciliation
+																? `El sistema cerró el expediente el ${fmt.format(reconciliation.createdAt)}, sin registrar una nueva decisión humana.`
+																: latestOutcome
+																	? `Última decisión aplicada: ${decisionLabels[latestOutcome.decision] ?? latestOutcome.decision}.`
+																	: "No hay una decisión aplicada registrada en este expediente."}
 													</p>
 												</>
 											</div>
-											<CaseStatusBadge value={workspace.case.stage} />
+											{caseActionable && <CaseStatusBadge value={workspace.case.stage} />}
 										</>
 									</div>
+									{!caseActionable && evidence?.holderDocuments && (
+										<p class="mt-3 border-l-2 border-amber-400 pl-3 text-sm text-slate-700">
+											La declaración actual del titular sigue en revisión. Este expediente cerrado
+											no permite registrar una decisión sobre ella.
+										</p>
+									)}
 									<dl class="mt-5 grid gap-4 text-sm break-words sm:grid-cols-2">
 										<>
 											<div>
 												<>
-													<dt class="text-slate-500">Abierto</dt>
+													<dt class="text-slate-500">Fecha de apertura</dt>
 													<dd class="mt-1 font-medium">{fmt.format(workspace.case.openedAt)}</dd>
 												</>
 											</div>
@@ -413,21 +438,25 @@ const noticeMessage =
 												<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
 													Resultado de la revisión
 												</p>
-												<h2 class="mt-1 text-lg font-semibold">Preparar decisión</h2>
+												<h2 class="mt-1 text-lg font-semibold">
+													{caseActionable ? "Preparar decisión" : "Decisiones del expediente"}
+												</h2>
 											</>
 										</div>
-										<span
-											class:list={[
-												"rounded-full px-3 py-1 text-xs font-semibold",
-												commandsEnabled && caseInPilot && canProposeDecision
-													? "bg-emerald-100 text-emerald-800"
-													: "bg-amber-100 text-amber-800",
-											]}
-										>
-											{commandsEnabled && caseInPilot && canProposeDecision
-												? "Comandos habilitados"
-												: "Solo lectura"}
-										</span>
+										{caseActionable && (
+											<span
+												class:list={[
+													"rounded-full px-3 py-1 text-xs font-semibold",
+													commandsEnabled && caseInPilot && canProposeDecision
+														? "bg-emerald-100 text-emerald-800"
+														: "bg-amber-100 text-amber-800",
+												]}
+											>
+												{commandsEnabled && caseInPilot && canProposeDecision
+													? "Puede registrar una propuesta"
+													: "Solo lectura"}
+											</span>
+										)}
 									</>
 								</div>
 								{commandsEnabled &&
@@ -477,6 +506,7 @@ const noticeMessage =
 												))}
 											</Select>
 										</label>
+										{coverageContext?.kind && <CoverageReviewFields kind={coverageContext.kind} />}
 										<label class="block text-sm font-medium">
 											Comentario{" "}
 											<span data-comment-requirement class="text-slate-500">
@@ -535,8 +565,9 @@ const noticeMessage =
 									>
 										<p class="font-semibold">Caso cerrado: no admite nuevas decisiones</p>
 										<p class="mt-1">
-											Consulta la cronología o la auditoría para conocer el resultado registrado y
-											su fecha.
+											{latestOutcome
+												? `Última decisión aplicada: ${decisionLabels[latestOutcome.decision] ?? latestOutcome.decision}, el ${fmt.format(latestOutcome.appliedAt ?? latestOutcome.createdAt)}.`
+												: "No hay una decisión aplicada en este expediente. El cierre no equivale a una aprobación."}
 										</p>
 										<div class="mt-3">
 											<Button
@@ -544,7 +575,7 @@ const noticeMessage =
 												variant="secondary"
 												size="sm"
 											>
-												Ver auditoría de la decisión
+												Ver auditoría del expediente
 											</Button>
 										</div>
 									</div>
@@ -605,9 +636,7 @@ const noticeMessage =
 										{workspace.activities.map((event) => (
 											<li class="border-l-2 border-slate-200 pl-4">
 												<p class="text-sm font-medium">{event.summary}</p>
-												<p class="mt-1 text-xs text-slate-500">
-													{fmt.format(event.createdAt)} · {event.eventType}
-												</p>
+												<p class="mt-1 text-xs text-slate-500">{fmt.format(event.createdAt)}</p>
 											</li>
 										))}
 									</ol>
@@ -656,7 +685,10 @@ const noticeMessage =
 													: timer.status
 											}
 										/>
-										<p class="mt-2 text-sm text-slate-600">Vence {fmt.format(timer.dueAt)}</p>
+										<p class="mt-2 text-sm text-slate-600">
+											{timer.status === "running" ? "Vence" : "Plazo original:"}{" "}
+											{fmt.format(timer.dueAt)}
+										</p>
 									</div>
 								))}
 							</Card>
@@ -1066,6 +1098,9 @@ const noticeMessage =
 			storage.setItem(
 				draftKey,
 				JSON.stringify({
+					...Object.fromEntries(
+						Object.entries(values).filter(([key]) => key.startsWith("coverage."))
+					),
 					decision: values.decision || "",
 					reasonCode: values.reasonCode || "",
 					comment: values.comment || "",
@@ -1080,6 +1115,11 @@ const noticeMessage =
 			const effect = composer.querySelector<HTMLElement>("[data-decision-effect]")
 			const requirement = composer.querySelector<HTMLElement>("[data-comment-requirement]")
 			if (!decision || !reason || !comment || !effect || !requirement) return
+			const coverageFields = composer.querySelector<HTMLFieldSetElement>("[data-coverage-fields]")
+			if (coverageFields) {
+				coverageFields.hidden = decision.value !== "approved"
+				coverageFields.disabled = decision.value !== "approved"
+			}
 			for (const option of [...reason.options]) {
 				const allowed = !option.dataset.decision || option.dataset.decision === decision.value
 				option.hidden = !allowed
@@ -1103,13 +1143,52 @@ const noticeMessage =
 			effect.innerHTML = `<strong>Efecto antes de decidir:</strong> ${decision.selectedOptions[0]?.dataset.effect || "selecciona un resultado para ver qué fuente cambiará."} La propuesta quedará ligada a la versión ${composer.querySelector<HTMLInputElement>("[name='caseVersion']")?.value || "actual"}.`
 		}
 		if (composer) {
+			const addRoutePlace = () => {
+				const container = composer.querySelector("[data-route-places]")
+				const first = container?.querySelector<HTMLElement>("[data-route-place]")
+				if (!container || !first || container.children.length >= 100) return
+				const copy = first.cloneNode(true) as HTMLElement
+				for (const field of copy.querySelectorAll<
+					HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+				>("[name]")) {
+					field.name = field.name.replace(/places\.\d+\./, `places.${container.children.length}.`)
+					field.value = ""
+				}
+				container.append(copy)
+			}
+			composer.querySelector("[data-add-route-place]")?.addEventListener("click", addRoutePlace)
+			composer.addEventListener("click", (event) => {
+				const target =
+					event.target instanceof Element ? event.target.closest("[data-remove-route-place]") : null
+				const container = composer.querySelector("[data-route-places]")
+				if (!target || !container || container.children.length <= 1) return
+				target.closest("[data-route-place]")?.remove()
+				Array.from(container.children).forEach((row, index) => {
+					for (const field of row.querySelectorAll<HTMLInputElement>("[name]"))
+						field.name = field.name.replace(/places\.\d+\./, `places.${index}.`)
+				})
+				saveDraft()
+			})
 			const draft = readDraft()
 			if (draft) {
+				const lastIndex = Math.min(
+					99,
+					Math.max(
+						0,
+						...Object.keys(draft).map((key) =>
+							Number(/^coverage\.places\.(\d+)\./.exec(key)?.[1] ?? 0)
+						)
+					)
+				)
+				for (let index = 0; index < lastIndex; index++) addRoutePlace()
 				for (const [name, value] of Object.entries(draft)) {
 					const field = composer.querySelector<
 						HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
 					>(`[name='${name}']`)
-					if (field) field.value = value
+					if (field) {
+						field.value = value
+						field.dispatchEvent(new Event("change", { bubbles: true }))
+					}
 				}
 			}
 			composer.addEventListener("input", saveDraft)
@@ -1129,6 +1208,8 @@ const noticeMessage =
 					"No se puede aprobar hasta completar o corroborar la evidencia requerida.",
 				approval_evidence_review_comment_required:
 					"Explica la coincidencia probable de titularidad antes de proponer la aprobación.",
+				coverage_structured_review_required:
+					"Completa los criterios de cobertura o ruta, sus referencias y fechas vigentes antes de aprobar.",
 				payment_review_evidence_required:
 					"Describe el respaldo bancario y la titularidad que sustentan la aprobación.",
 				reason_required: "Explica qué debe corregir el proveedor antes de registrar el resultado.",

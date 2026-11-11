@@ -201,6 +201,45 @@ describe("integration/provider governance", () => {
 		expect(state?.canAcceptBookings).toBe(true)
 		expect(state?.canCollectPayments).toBe(true)
 		expect(state?.canUseIntegrations).toBe(true)
+
+		// Account KYC gates payments/integrations; tour publication has its own policy gate.
+		const identityId = `document_governance_ready_gov_${fixtureSuffix}`
+		for (const change of [
+			{ status: "verified", expiresAt: new Date("2000-01-01") },
+			{ status: "rejected", expiresAt: null },
+		]) {
+			await db.update(ProviderDocument).set(change).where(eq(ProviderDocument.id, identityId))
+			const blocked = await evaluateProviderGovernance(providerId, {
+				currentUserId: ownerId,
+				persist: true,
+			})
+			expect(blocked.capabilities).toMatchObject({
+				publish: true,
+				booking: true,
+				payments: false,
+				integrations: false,
+			})
+			await expect(
+				assertProviderCapability({ providerId, currentUserId: ownerId, capability: "payments" })
+			).rejects.toThrow("PROVIDER_CONFIGURATION_BLOCKED:payments")
+			const persisted = await db
+				.select()
+				.from(ProviderConfigurationState)
+				.where(eq(ProviderConfigurationState.providerId, providerId))
+				.then((rows) => rows[0])
+			expect(persisted?.canCollectPayments).toBe(false)
+			expect(persisted?.canUseIntegrations).toBe(false)
+		}
+		await db
+			.update(ProviderDocument)
+			.set({ status: "verified", expiresAt: new Date("2099-01-01") })
+			.where(eq(ProviderDocument.id, identityId))
+		const restored = await assertProviderCapability({
+			providerId,
+			currentUserId: ownerId,
+			capability: "payments",
+		})
+		expect(restored.capabilities).toEqual(summary.capabilities)
 	})
 
 	it("keeps roles simple while honoring granular permission overrides", async () => {

@@ -9,12 +9,14 @@ import {
 	or,
 	ComplianceCase,
 	Provider,
+	ProviderHolderProfile,
 	ProviderAuditLog,
 	ProviderVerification,
 	User,
 } from "@/shared/infrastructure/db/compat"
 
 import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
+import { readProviderHolderProfile } from "@/lib/provider-holder-profile"
 import {
 	assessExpiredDocumentOperationalImpact,
 	listExpiredProviderDocumentsForAdmin,
@@ -74,6 +76,9 @@ export type ProviderComplianceVerificationRow = {
 	legalName: string
 	providerStatus: string
 	verificationStatus: "pending" | "approved" | "rejected"
+	holderReviewPending: boolean
+	holderCountry: string | null
+	holderLegalFormCode: string | null
 	verificationReason: string | null
 	verificationUpdatedAt: Date | null
 }
@@ -177,8 +182,12 @@ export async function listPendingProviderVerificationsForAdmin(): Promise<
 			displayName: Provider.displayName,
 			legalName: Provider.legalName,
 			status: Provider.status,
+			holderStatus: ProviderHolderProfile.declarationStatus,
+			holderCountry: ProviderHolderProfile.holderCountry,
+			holderLegalFormCode: ProviderHolderProfile.legalFormCode,
 		})
 		.from(Provider)
+		.leftJoin(ProviderHolderProfile, eq(ProviderHolderProfile.providerId, Provider.id))
 		.orderBy(desc(Provider.createdAt), desc(Provider.id))
 
 		.catch(() => [])
@@ -205,16 +214,19 @@ export async function listPendingProviderVerificationsForAdmin(): Promise<
 	return providers
 		.map((provider) => {
 			const latest = latestByProvider.get(provider.id)
-			const verificationStatus = (latest?.status ?? "pending") as
-				| "pending"
-				| "approved"
-				| "rejected"
+			const holderReviewPending = provider.holderStatus === "in_review"
+			const verificationStatus = (
+				holderReviewPending ? "pending" : (latest?.status ?? "pending")
+			) as "pending" | "approved" | "rejected"
 			return {
 				providerId: provider.id,
 				displayName: provider.displayName ?? "Sin nombre",
 				legalName: provider.legalName ?? "Sin razón social",
 				providerStatus: provider.status ?? "draft",
 				verificationStatus,
+				holderReviewPending,
+				holderCountry: provider.holderCountry,
+				holderLegalFormCode: provider.holderLegalFormCode,
 				verificationReason: latest?.reason ?? null,
 				verificationUpdatedAt: latest?.createdAt ?? null,
 			}
@@ -472,25 +484,37 @@ export async function loadProviderComplianceDetail(providerId: string) {
 		.catch(() => null)
 	if (!provider?.id) return null
 
-	const [latestVerification, allDocuments, taxConfiguration, paymentAccounts, assignments, audit] =
-		await Promise.all([
-			getLatestProviderVerificationStatus(id),
-			listProviderDocuments(id),
-			getProviderTaxConfiguration(id),
-			listProviderPaymentAccounts(id),
-			listOpenComplianceAssignments({ providerId: id }),
-			listRecentProviderComplianceAudit({ providerId: id, limit: 20 }),
-		])
+	const [
+		latestVerification,
+		allDocuments,
+		taxConfiguration,
+		paymentAccounts,
+		assignments,
+		audit,
+		holder,
+	] = await Promise.all([
+		getLatestProviderVerificationStatus(id),
+		listProviderDocuments(id),
+		getProviderTaxConfiguration(id),
+		listProviderPaymentAccounts(id),
+		listOpenComplianceAssignments({ providerId: id }),
+		listRecentProviderComplianceAudit({ providerId: id, limit: 20 }),
+		readProviderHolderProfile(id),
+	])
+	const holderReviewPending = holder?.declarationStatus === "in_review"
 	const assignmentFor = (domain: string, entityId: string) =>
 		assignments.find((row) => row.domain === domain && row.entityId === entityId) ?? null
 	const verification =
-		latestVerification?.status === "pending" || !latestVerification
+		holderReviewPending || latestVerification?.status === "pending" || !latestVerification
 			? {
 					providerId: id,
 					displayName: provider.displayName ?? "Sin nombre",
 					legalName: provider.legalName ?? "Sin razón social",
 					providerStatus: provider.status ?? "draft",
 					verificationStatus: "pending" as const,
+					holderReviewPending,
+					holderCountry: holder?.holderCountry ?? null,
+					holderLegalFormCode: holder?.legalFormCode ?? null,
 					verificationReason: latestVerification?.reason ?? null,
 					verificationUpdatedAt: latestVerification?.createdAt ?? null,
 					assignment: assignmentFor("verification", id),

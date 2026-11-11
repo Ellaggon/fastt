@@ -1,4 +1,9 @@
 import type { APIRoute } from "astro"
+import { readCoverageReviewContext } from "@/lib/documents/coverage-review-context"
+import {
+	coverageReviewFromForm,
+	validateCoverageReviewNotes,
+} from "@/lib/documents/coverage-review"
 
 import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
 import { requireInternalPermission } from "@/lib/auth/internal-authorization"
@@ -43,6 +48,9 @@ export const POST: APIRoute = async ({ request, params, redirect }) => {
 			reasonCode: String(body.reasonCode ?? ""),
 			comment: String(body.comment ?? "").trim() || null,
 			evidenceRevision: String(body.evidenceRevision ?? ""),
+			coverageFields: Object.fromEntries(
+				Object.entries(body).filter(([key]) => key.startsWith("coverage."))
+			),
 		}
 		if (!caseId || !Number.isInteger(input.expectedVersion) || input.expectedVersion < 1)
 			return Response.json({ error: "invalid_case_command" }, { status: 400 })
@@ -91,6 +99,16 @@ export const POST: APIRoute = async ({ request, params, redirect }) => {
 				const workspace = await getCaseWorkspace(caseId)
 				if (!workspace) throw Object.assign(new Error("case_not_found"), { status: 404 })
 				const evidence = await getCaseEvidence(workspace)
+				if (input.decision === "approved" && workspace.case.domain === "documents") {
+					const coverage = await readCoverageReviewContext(
+						workspace.case.providerId,
+						workspace.case.sourceRef
+					)
+					if (coverage?.kind) {
+						const notes = coverageReviewFromForm(coverage.kind, body)
+						input.comment = validateCoverageReviewNotes(coverage.key, notes)!
+					}
+				}
 				if (!input.evidenceRevision || evidence.revision !== input.evidenceRevision)
 					throw Object.assign(new Error("case_evidence_changed"), { status: 409 })
 				if (input.decision === "approved" && evidence.approvalBlockers.length)

@@ -11,6 +11,43 @@ it("shows unavailability instead of accepting uploads when disabled", async () =
 	expect(html).not.toContain("data-optional-upload-form")
 })
 
+it.each([true, false])("shows advance reminders while upload activation is %s", async (enabled) => {
+	vi.stubEnv("FASTT_DOCUMENT_PIPELINE_ENABLED", String(enabled))
+	const container = await AstroContainer.create()
+	const html = await container.renderToString(Evidence, {
+		props: {
+			surface: "tour-activity",
+			canManageDocuments: true,
+			scopeProductId: "tour-a",
+			renewalDocumentId: "renew-soon",
+			defaultUploadType: "operating_license::tour.guide_credential",
+			documentTypes: [{ value: "operating_license::tour.guide_credential", label: "Credencial" }],
+			requirementStates: { "tour.guide_credential": "ready" },
+			documents: [
+				{
+					id: "renew-soon",
+					type: "operating_license",
+					typeLabel: "Credencial",
+					status: "verified",
+					expiresAt: new Date(Date.now() + 15 * 86_400_000),
+					subjectType: "person",
+					subjectReference: "guide-a",
+					scopes: [{ scopeType: "product", productId: "tour-a" }],
+				},
+			],
+			guideResources: [{ id: "guide-a", name: "Guia sintetico" }],
+		},
+	})
+	expect(html).toContain("Documentos próximos a vencer")
+	expect(html).toContain("Renovar esta evidencia")
+	if (enabled) {
+		expect(html).toContain('name="replacesDocumentId" value="renew-soon"')
+		expect(html).toContain("data-optional-upload-form")
+	} else {
+		expect(html).not.toContain("data-optional-upload-form")
+	}
+})
+
 async function render(
 	value: string,
 	surface: "archive" | "tour-activity" | "tour-safety" = "tour-activity"
