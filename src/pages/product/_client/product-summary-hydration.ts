@@ -421,9 +421,18 @@ export function initProductSummaryHydration(): void {
 			}
 
 			if (config.isTour) {
-				const guideLanguages = Array.isArray(subtypeDetails.guideLanguages)
-					? subtypeDetails.guideLanguages.filter(Boolean).join(", ")
-					: ""
+				const languageValue = subtypeDetails.guide?.languages ?? subtypeDetails.guideLanguages
+				const guideLanguages = (
+					Array.isArray(languageValue)
+						? languageValue
+						: typeof languageValue === "string"
+							? languageValue.split(/[,;\n]/)
+							: []
+				)
+					.filter((value): value is string => typeof value === "string")
+					.map((value) => value.trim())
+					.filter(Boolean)
+					.join(", ")
 				const duration = String(subtypeDetails.duration || "").trim()
 				const difficulty = String(subtypeDetails.difficultyLevel || "").trim()
 				const includes = String(subtypeDetails.includes || "").trim()
