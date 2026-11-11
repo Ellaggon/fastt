@@ -1,0 +1,185 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Checkbox from "@/components/ui/Checkbox.astro"
+import Dialog from "@/components/ui/Dialog.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+interface Props {
+	versions: Array<{
+		id: string
+		label: string
+		version: number
+		status: string
+		holderType: string | null
+	}>
+	canApprove: boolean
+}
+const { versions, canApprove } = Astro.props
+const drafts = versions.filter((version) => version.status === "draft")
+const pathways = [
+	{ type: "entidad", label: "Empresa con equipo" },
+	{ type: "persona_natural", label: "Guía independiente" },
+]
+const unassignedPathwayCount = versions.filter((version) => !version.holderType).length
+---
+
+<section
+	data-policy-package
+	class="space-y-4 border-y border-slate-700 py-5"
+	aria-labelledby="policy-package-heading"
+>
+	<div class="flex flex-wrap items-center justify-between gap-3">
+		<h2 id="policy-package-heading" class="text-lg font-semibold">Ratificación del paquete</h2>
+		<p class="text-sm text-slate-300" data-package-summary>
+			{versions.filter((version) => version.status === "published").length} versiones publicadas · {
+				drafts.length
+			} borradores
+		</p>
+	</div>
+	<div class="grid gap-3 sm:grid-cols-2">
+		{
+			pathways.map((pathway) => (
+				<div class="min-w-0 border-l-2 border-emerald-600 pl-3">
+					<>
+						<h3 class="text-sm font-semibold">{pathway.label}</h3>
+						<p class="text-sm text-slate-300">
+							{
+								versions.filter(
+									(version) => version.holderType === pathway.type && version.status === "published"
+								).length
+							}{" "}
+							publicadas ·{" "}
+							{
+								versions.filter(
+									(version) => version.holderType === pathway.type && version.status === "draft"
+								).length
+							}{" "}
+							borradores
+						</p>
+					</>
+				</div>
+			))
+		}
+		{
+			unassignedPathwayCount > 0 && (
+				<div class="min-w-0 border-l-2 border-amber-500 pl-3">
+					<h3 class="text-sm font-semibold">Sin vía asignada</h3>
+					<p class="text-sm text-slate-300">
+						{unassignedPathwayCount} versión(es) requieren clasificación.
+					</p>
+				</div>
+			)
+		}
+	</div>
+	{
+		drafts.length === 0 ? (
+			<p role="status" class="text-sm font-medium text-emerald-300">
+				Sin borradores pendientes de ratificación.
+			</p>
+		) : (
+			<>
+				<fieldset class="grid gap-3 sm:grid-cols-2">
+					<legend class="mb-3 text-sm font-semibold">Versiones del paquete</legend>
+					{drafts.map((version) => (
+						<Checkbox
+							class="[&_span]:text-slate-200"
+							name="packageVersion"
+							value={version.id}
+							label={`${version.label} · versión ${version.version}`}
+						/>
+					))}
+				</fieldset>
+				<div class="flex flex-wrap items-center gap-3">
+					<>
+						<Button data-package-preview variant="secondary" disabled>
+							Revisar paquete
+						</Button>
+						<span data-package-count class="text-sm text-slate-300">
+							0 seleccionadas
+						</span>
+					</>
+				</div>
+			</>
+		)
+	}
+	<p role="status" aria-live="polite" data-package-feedback class="text-sm text-slate-300"></p>
+	{
+		drafts.length > 0 && (
+			<Dialog
+				data-package-dialog
+				aria-labelledby="package-review-title"
+				class="max-h-[90vh] w-[min(48rem,calc(100vw-2rem))] overflow-y-auto rounded-lg"
+			>
+				<div class="space-y-5 p-5 sm:p-6">
+					<div class="flex flex-wrap items-center justify-between gap-3">
+						<>
+							<h2 id="package-review-title" class="text-lg font-semibold">
+								Revisión del paquete exacto
+							</h2>
+							<Button data-package-close variant="ghost" size="sm">
+								Cerrar
+							</Button>
+						</>
+					</div>
+					<p data-package-preview-summary class="text-sm font-semibold" />
+					<ol data-package-versions class="space-y-3" />
+					<form data-package-approval class="space-y-4 border-t border-slate-200 pt-4">
+						<fieldset class="space-y-3">
+							<legend class="mb-3 font-semibold">Revisiones del responsable</legend>
+							<Checkbox
+								name="reviewedAreas"
+								value="policy"
+								label="Políticas revisadas"
+								required
+								disabled={!canApprove}
+							/>
+							<Checkbox
+								name="reviewedAreas"
+								value="finance"
+								label="Finanzas revisadas"
+								required
+								disabled={!canApprove}
+							/>
+							<Checkbox
+								name="reviewedAreas"
+								value="tour_operations"
+								label="Operaciones Tours revisadas"
+								required
+								disabled={!canApprove}
+							/>
+						</fieldset>
+						<FormField for="package-approval-reference" label="Referencia de revisión" required>
+							<Textarea
+								id="package-approval-reference"
+								name="approvalReference"
+								required
+								minlength="8"
+								maxlength="500"
+								disabled={!canApprove}
+							/>
+						</FormField>
+						{!canApprove && (
+							<p class="text-sm text-amber-800">
+								Pendiente de permisos del responsable de las tres áreas.
+							</p>
+						)}
+						<Button type="submit" data-package-submit disabled={!canApprove}>
+							Aprobar y publicar paquete
+						</Button>
+						<p
+							role="status"
+							aria-live="polite"
+							data-package-decision-feedback
+							class="text-sm text-slate-700"
+						/>
+					</form>
+				</div>
+			</Dialog>
+		)
+	}
+</section>
+<script>
+	import { bindPolicyPackageReview } from "@/lib/commercial-policy/package-review-client"
+	bindPolicyPackageReview()
+	document.addEventListener("astro:page-load", bindPolicyPackageReview)
+</script>

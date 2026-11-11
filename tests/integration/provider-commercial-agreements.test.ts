@@ -254,7 +254,7 @@ describe("provider commercial agreement lifecycle", () => {
 		await expect(
 			ratifyCommercialTourPolicy({
 				policyVersionId: row.id,
-				approvalArea: "finance",
+				approvalArea: "policy",
 				approverUserId: reviewer,
 				approvalReference: "fixture-finance-review",
 			})
@@ -262,13 +262,13 @@ describe("provider commercial agreement lifecycle", () => {
 		await ratifyCommercialTourPolicy({
 			policyVersionId: row.id,
 			approvalArea: "finance",
-			approverUserId: manager,
+			approverUserId: reviewer,
 			approvalReference: "fixture-finance-review",
 		})
 		const result = await ratifyCommercialTourPolicy({
 			policyVersionId: row.id,
 			approvalArea: "tour_operations",
-			approverUserId: signer,
+			approverUserId: reviewer,
 			approvalReference: "fixture-operations-review",
 		})
 		expect(result.status).toBe("published")

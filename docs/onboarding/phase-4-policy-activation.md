@@ -3,13 +3,15 @@
 Status: active
 Document type: runbook
 Owner: Provider Policy / Finance / Tours
-Last verified: 2026-10-25
+Last verified: 2026-11-10
 Scope: ratificación, activación controlada y reversión de políticas comerciales de tours BO v1
 Source of truth: `CompliancePolicyVersion`, `CommercialPolicyApproval` y la [matriz BO v1](../domains/tours/policy-annex.md)
 Related code/tests: `src/lib/commercial-policy/ratification.ts`, `src/pages/api/admin/commercial-policies/[versionId]/approvals.ts`, `db/migrations/2026-11-08_commercial_tour_policy_ratification.sql`, `tests/unit/commercial-policy-evaluate.test.ts`
 Review trigger: incorporación de revisores, firma de una versión, cambio regulatorio o cambio de la modalidad de cobro
 
-La matriz BO v1 sigue siendo un borrador hasta que **Políticas**, **Finanzas** y **Operaciones Tours** aprueben cada combinación de titular, jurisdicción, actividad y modelo de cobro. Este documento no sustituye esa aprobación. Las reglas de alojamiento que ya están en producción viven en el [anexo de alojamiento](../domains/lodging/policy-annex.md) y no se activan por esta cohorte.
+BO v1 requiere aprobar Políticas, Finanzas y Operaciones por combinación de titular,
+territorio, actividad y cobro. Este documento no firma. El [anexo de alojamiento](../domains/lodging/policy-annex.md)
+conserva sus reglas, fuera de esta cohorte.
 
 ## Decisión de producto implementada
 
@@ -70,7 +72,8 @@ cobros ni genera por sí solo una comisión cobrable.
 ## Transición del acuerdo versionado
 
 Responsable de decisión y rollout: `adm1n`. La asignación no habilita a firmar por un proveedor
-ni sustituye las tres identidades independientes requeridas para ratificar la política general.
+ni firma por un proveedor. La politica general conserva tres revisiones por area,
+que puede registrar el mismo responsable autorizado segun la decision siguiente.
 
 | Variable | Valor y alcance |
 | --- | --- |
@@ -116,22 +119,60 @@ Por cada una de las combinaciones BO v1, Políticas, Finanzas y Operaciones Tour
 3. Fecha de inicio, fecha de término si aplica, responsable que aprueba y referencia del expediente.
 4. Criterio de revisión para cambios de titular, país, actividad y modelo de cobro.
 
-La referencia no es opcional. El SIN distingue requisitos de registro según persona natural y jurídica, y asocia la actividad declarada con el registro tributario; por ello Fastt no infiere reglas regulatorias desde una etiqueta de producto. Las fuentes operativas son las guías vigentes del SIN y deben revisarse antes de publicar una versión: [persona natural](https://siatinfo.impuestos.gob.bo/index.php/requisitos-para-la-inscripcion/requisitos-para-obtener-el-nit-para-personas), [persona jurídica](https://siatanexo.impuestos.gob.bo/index.php/requisitos-para-la-inscripcion/procedimientos-y-requisitos-para-obtener-el-nit-para-personas-juridicas) y [actividades económicas](https://siatinfo.impuestos.gob.bo/index.php/actividades-economicas).
+Referencia obligatoria; no inferir fiscalidad desde el producto. Revisar guias SIN:
+[persona natural](https://siatinfo.impuestos.gob.bo/index.php/requisitos-para-la-inscripcion/requisitos-para-obtener-el-nit-para-personas),
+[juridica](https://siatanexo.impuestos.gob.bo/index.php/requisitos-para-la-inscripcion/procedimientos-y-requisitos-para-obtener-el-nit-para-personas-juridicas)
+y [actividad](https://siatinfo.impuestos.gob.bo/index.php/actividades-economicas).
 
 ## Operación mientras haya una sola persona
 
-La decisión vigente es conservar BO v1 en `draft` mientras Fastt opere con una sola persona.
-Esa persona puede preparar la versión, reunir fuentes, definir reglas y ejecutar el diagnóstico en
-modo sombra, pero no puede ratificarla ni publicarla por sí misma. La ratificación exige tres
-identidades distintas, con permisos separados para `policy`, `finance` y `tour_operations`; el
-modelo rechaza que un mismo usuario firme dos áreas de una versión.
+Decision expresa del titular del 2026-11-08: un responsable puede revisar las tres areas.
+Se conservan tres registros (`policy`, `finance`, `tour_operations`), cada uno con permiso,
+MFA reciente, fecha y referencia. No hay firma automatica ni cuentas ficticias. La ultima
+revision publica atomicamente solo un contrato completo; la primera congela su contenido.
+Esto sustituye exigir tres identidades distintas, no una revision externa exigida por ley o
+contrato ni el segundo control de otros comandos. No ratifica BO v1 ni habilita ventas.
 
-No se crean cuentas, roles ni referencias ficticias para completar la separación. Cuando haya
-capacidad de revisión, se deben designar tres personas concretas —internas o asesoras con mandato
-verificable—, asignarles sólo el permiso de su área y registrar su referencia de expediente. Hasta
-entonces no se piden documentos nuevos de tours por esta matriz ni se habilitan capacidades nuevas
-por una firma parcial. Las reglas vigentes de alojamiento y las reservas ya confirmadas permanecen
-sin cambios.
+### Roadmap de la primera puerta
+
+Beta compartida 2026-11-10: siete definiciones tecnicas y dieciocho versiones publicadas,
+dieciseis reglas y 54 aprobaciones del titular mediante sesion real/MFA. Inicio 10/11;
+no se cambiaron flags, cohortes ni estado del tour. Publicacion no equivale a rollout.
+
+1. **Admision:** empresa/equipo o persona/guia propio; paseo urbano cultural a pie,
+   departamento La Paz, cobro directo; excluir transporte, alimentos y mezclas.
+2. **Aplicabilidad:** seis familias por via, con fuente, sujeto, alcance y accion.
+3. **Selectores:** admision unica, sin vacios ni solapamientos.
+4. **Versiones:** referencias publicadas exactas; separar pais titular/fiscal/producto.
+5. **Certificacion aislada:** ambas vias en La Paz ciudad/El Alto; rechazar otro departamento,
+   pais, ruta mixta, excluidos, datos/firmas/familias faltantes y fechas fuera de vigencia.
+   Salida: motor, simulacion y comandos coinciden; documentos pendientes no son falta de cobertura.
+6. **Ratificacion completada; rollout pendiente:** corregido el guard SQL heredado mediante
+   `2026-11-10_versioned_policy_publication_guard.sql`, probado con las 18 piezas en base
+   desechable. Solo lectura en beta: ambas vias cubiertas en La Paz/El Alto; fuera de alcance
+   bloquea. Tour ficticio: forma juridica guardada, en revision; sin acreditar. Rollout pendiente.
+
+Cierre: ambas vias reconocen cobertura sin conflictos; fuera de alcance falla con motivo;
+UI y servidor coinciden. No exige aprobar documentos ficticios ni firmar acuerdos: esas
+son puertas independientes. Expandir a otro departamento/pais repite revision y aprobacion.
+
+Propuesta: aprobar el paquete en una operacion atomica
+con MFA, huella, versiones congeladas y auditoria por area/version; un cambio invalida
+la confirmacion y un fallo revierte todo. Luego cola documental por excepciones y avisos.
+Aplicar reglas y vencimientos automaticamente; no autoaprobar suficiencia de seguros,
+permisos ambiguos ni cambios de politica. PR separadas.
+
+### Migracion puntual y reversion
+
+Beta compartida autorizada 2026-11-09: respaldo privado de public (esquema/datos),
+restaurado en PostgreSQL 17 sin red con unaccent/pg_trgm y funciones auth vacias de
+compatibilidad. No respalda auth/storage ni objetos. Se probaron migracion y reversion
+en la copia; luego el runner aplico `2026-11-08_single_responsible_policy_approvals.sql`
+en beta. Conserva unicidad por area; no firmas. Evidencia privada ignorada por Git:
+`artifacts/policy-backups/pre-policy-20261109/` (dump, checksum y manifiesto del paquete).
+Reversion: `scripts/db/rollback-single-responsible-policy-approvals.sql`; bloquea escrituras
+durante la comprobacion y falla sin borrar datos si ya hay varias areas del mismo firmante.
+En ese caso no eliminar firmas: revisar compatibilidad antes de revertir codigo.
 
 ## Secuencia de activación
 

@@ -9,6 +9,7 @@ import {
 	addCommercialPolicyDraftRule,
 	removeCommercialPolicyDraftRule,
 	retireCommercialTourPolicy,
+	setCommercialPolicyDraftStart,
 } from "@/lib/commercial-policy/policy-drafts"
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -41,6 +42,11 @@ export const POST: APIRoute = async ({ request }) => {
 				)
 			else if (form.get("action") === "retire")
 				await retireCommercialTourPolicy(String(form.get("versionId") ?? ""))
+			else if (form.get("action") === "schedule")
+				await setCommercialPolicyDraftStart(
+					String(form.get("versionId") ?? ""),
+					String(form.get("effectiveFrom") ?? "")
+				)
 			else throw new Error("invalid_action")
 			await db.insert(AuditEvent).values({
 				id: crypto.randomUUID(),

@@ -36,10 +36,14 @@ export class CommercialPolicyRatificationError extends Error {
 	}
 }
 
-async function loadVersion(versionId: string): Promise<CommercialPolicyVersion | null> {
+export async function loadCommercialPolicyForRatification(
+	versionId: string
+): Promise<(CommercialPolicyVersion & { label: string; versionNumber: number }) | null> {
 	const version = await db
 		.select({
 			id: CompliancePolicyVersion.id,
+			label: CompliancePolicySet.label,
+			versionNumber: CompliancePolicyVersion.version,
 			policySetId: CompliancePolicyVersion.policySetId,
 			status: CompliancePolicyVersion.status,
 			effectiveFrom: CompliancePolicyVersion.effectiveFrom,
@@ -91,6 +95,8 @@ async function loadVersion(versionId: string): Promise<CommercialPolicyVersion |
 			.where(eq(CommercialPolicyApproval.policyVersionId, versionId)),
 	])
 	return {
+		label: version.label,
+		versionNumber: version.versionNumber,
 		id: version.id,
 		policySetId: version.policySetId,
 		status: version.status as CommercialPolicyVersion["status"],
@@ -124,6 +130,7 @@ export async function ratifyCommercialTourPolicy(params: {
 	approverUserId: string
 	approvalReference: string
 	approvedAt?: Date
+	resumePublication?: boolean
 }) {
 	return withPostgresTransaction(async () => {
 		const tx = db
@@ -133,18 +140,18 @@ export async function ratifyCommercialTourPolicy(params: {
 		await tx.execute(
 			sql`SELECT "id" FROM "CompliancePolicyVersion" WHERE "id" = ${params.policyVersionId} FOR UPDATE`
 		)
-		const version = await loadVersion(params.policyVersionId)
+		const version = await loadCommercialPolicyForRatification(params.policyVersionId)
 		if (!version) throw new CommercialPolicyRatificationError("commercial_policy_not_found")
 		if (version.vertical !== "tour")
 			throw new CommercialPolicyRatificationError("commercial_policy_not_tour")
 		if (version.status !== "draft")
 			throw new CommercialPolicyRatificationError("commercial_policy_not_draft")
+		const resumePublication = params.resumePublication === true
+		if (resumePublication && !hasRequiredTourApprovals(version))
+			throw new CommercialPolicyRatificationError("commercial_policy_not_publishable")
 		if (
-			version.signatures.some(
-				(signature) =>
-					signature.approvalArea === params.approvalArea ||
-					signature.approverUserId === params.approverUserId
-			)
+			!resumePublication &&
+			version.signatures.some((signature) => signature.approvalArea === params.approvalArea)
 		) {
 			throw new CommercialPolicyRatificationError("commercial_policy_approval_exists")
 		}
@@ -157,7 +164,9 @@ export async function ratifyCommercialTourPolicy(params: {
 			approvalReference: submittedApprovalReference,
 			approvedAt: params.approvedAt ?? new Date(),
 		}
-		const nextSignatures = [...version.signatures, approval]
+		const nextSignatures = resumePublication
+			? [...version.signatures]
+			: [...version.signatures, approval]
 		const publish = hasRequiredTourApprovals({ ...version, signatures: nextSignatures })
 		// The version-level record is a traceable bundle of the three area decisions;
 		// it is derived from their submitted references, never supplied by the API.
@@ -205,14 +214,15 @@ export async function ratifyCommercialTourPolicy(params: {
 		}
 		if (errors.length)
 			throw new CommercialPolicyRatificationError("commercial_policy_not_publishable", { errors })
-		await tx.insert(CommercialPolicyApproval).values({
-			id: crypto.randomUUID(),
-			policyVersionId: params.policyVersionId,
-			approvalArea: approval.approvalArea,
-			approverUserId: approval.approverUserId,
-			approvalReference: approval.approvalReference,
-			approvedAt: approval.approvedAt,
-		})
+		if (!resumePublication)
+			await tx.insert(CommercialPolicyApproval).values({
+				id: crypto.randomUUID(),
+				policyVersionId: params.policyVersionId,
+				approvalArea: approval.approvalArea,
+				approverUserId: approval.approverUserId,
+				approvalReference: approval.approvalReference,
+				approvedAt: approval.approvedAt,
+			})
 		if (publish) {
 			await tx
 				.update(CompliancePolicyVersion)
@@ -250,7 +260,7 @@ export async function ratifyCommercialTourPolicy(params: {
 			id: crypto.randomUUID(),
 			requestId: crypto.randomUUID(),
 			actorUserId: params.approverUserId,
-			action: "commercial_policy.ratify",
+			action: resumePublication ? "commercial_policy.publish_recovery" : "commercial_policy.ratify",
 			entityType: "CompliancePolicyVersion",
 			entityId: params.policyVersionId,
 			riskLevel: "high",

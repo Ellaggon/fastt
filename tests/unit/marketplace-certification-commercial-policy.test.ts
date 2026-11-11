@@ -44,7 +44,7 @@ function tourCertVersion(signatures: CommercialPolicyVersion["signatures"]): Com
 }
 
 describe("marketplace certification commercial policy fixture", () => {
-	it("requires three distinct approvers per tour version", () => {
+	it("requires all three area reviews but permits one responsible approver", () => {
 		const singleSigner = tourCertVersion([
 			{
 				approvalArea: "policy",
@@ -57,9 +57,9 @@ describe("marketplace certification commercial policy fixture", () => {
 		expect(tourPolicyPublicationErrors(singleSigner)).toContain("tour_policy_signatures_incomplete")
 
 		const tripleSigner = tourCertVersion(
-			(["policy", "finance", "tour_operations"] as const).map((approvalArea, index) => ({
+			(["policy", "finance", "tour_operations"] as const).map((approvalArea) => ({
 				approvalArea,
-				approverUserId: `user_marketplace_cert_approver_${index}`,
+				approverUserId: "user_marketplace_certification",
 				approvalReference: `cert-${approvalArea}`,
 				approvedAt: new Date("2026-01-01T00:00:00Z"),
 			}))

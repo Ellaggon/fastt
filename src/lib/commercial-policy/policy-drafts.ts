@@ -272,6 +272,39 @@ export async function addCommercialPolicyDraftRule(form: FormData) {
 	})
 }
 
+export async function setCommercialPolicyDraftStart(versionId: string, effectiveFrom: string) {
+	const start = new Date(`${z.iso.date().parse(effectiveFrom)}T00:00:00Z`)
+	return db.transaction(async (tx) => {
+		const [version] = await tx
+			.select()
+			.from(CompliancePolicyVersion)
+			.where(eq(CompliancePolicyVersion.id, versionId))
+			.for("update")
+		const signatures = await tx
+			.select({ id: CommercialPolicyApproval.id })
+			.from(CommercialPolicyApproval)
+			.where(eq(CommercialPolicyApproval.policyVersionId, versionId))
+		if (!version || version.status !== "draft" || signatures.length)
+			throw new Error("signed_policy_immutable")
+		const [set] = await tx
+			.select()
+			.from(CompliancePolicySet)
+			.where(
+				and(
+					eq(CompliancePolicySet.id, version.policySetId),
+					eq(CompliancePolicySet.policyScope, "commercial"),
+					eq(CompliancePolicySet.vertical, "tour")
+				)
+			)
+		if (!set) throw new Error("policy_not_editable")
+		if (version.effectiveTo && start >= version.effectiveTo) throw new Error("invalid_policy_dates")
+		await tx
+			.update(CompliancePolicyVersion)
+			.set({ effectiveFrom: start })
+			.where(eq(CompliancePolicyVersion.id, versionId))
+	})
+}
+
 export async function removeCommercialPolicyDraftRule(versionId: string, ruleId: string) {
 	return db.transaction(async (tx) => {
 		const [version] = await tx
