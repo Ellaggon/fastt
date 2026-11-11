@@ -284,6 +284,10 @@ async function main() {
 		"src/shared/infrastructure/db/schema/policy-composition-integrity.sql",
 		"utf8"
 	)
+	const commercialPolicyPublicationIntegrity = await readFile(
+		"src/shared/infrastructure/db/schema/commercial-policy-publication-integrity.sql",
+		"utf8"
+	)
 	const documentDefinitionIntegrity = await readFile(
 		"src/shared/infrastructure/db/schema/document-definition-integrity.sql",
 		"utf8"
@@ -323,6 +327,7 @@ async function main() {
 		"-- Native PostgreSQL constraints, partial indexes and triggers.",
 		integritySql.trim(),
 		policyCompositionIntegrity.trim(),
+		commercialPolicyPublicationIntegrity.trim(),
 		documentDefinitionIntegrity.trim(),
 		operatingGeographyIntegrity.trim(),
 		"",

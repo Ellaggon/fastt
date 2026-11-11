@@ -85,6 +85,67 @@ function version(
 	}
 }
 describe("commercial policy diagnosis", () => {
+	it("blocks expired or withdrawn tour evidence and restores only applicable capabilities", () => {
+		const configured = [version("holder", "CL"), version("product", "BO"), version("tax", "CL")]
+		configured[1]!.requirements = [
+			{
+				...configured[1]!.requirements[0]!,
+				key: "synthetic-tour-license",
+				acceptedEvidence: ["operating_license"],
+				condition: { evidenceScope: "product" },
+			},
+		]
+		const input = {
+			context: { ...context, productId: "synthetic-tour", subjectReferences: ["synthetic-guide"] },
+			versions: configured,
+			verifiedEvidence: ["holder-verified", "tax-verified"],
+			now: new Date("2026-11-08T12:00:00Z"),
+		}
+		const license = {
+			id: "synthetic-license",
+			type: "operating_license",
+			status: "verified" as const,
+			subjectType: "person" as const,
+			subjectReference: "synthetic-guide",
+			expiresAt: new Date("2027-01-01"),
+			scopes: [{ scopeType: "product" as const, productId: "synthetic-tour" }],
+		}
+		const evaluate = (
+			evidence:
+				| typeof license
+				| {
+						status: "rejected" | "superseded"
+						id: string
+						type: string
+						expiresAt: Date
+						scopes: typeof license.scopes
+				  }
+		) =>
+			evaluateCommercialPolicy({
+				...input,
+				evidence: [
+					{ id: "holder-evidence", type: "holder-verified", status: "verified", scopes: [] },
+					{ id: "tax-evidence", type: "tax-verified", status: "verified", scopes: [] },
+					evidence,
+				],
+			})
+		expect(evaluate(license).blockers).toEqual([])
+		expect(evaluate(license).capabilities).toMatchObject({ publish: true, booking: true })
+		for (const evidence of [
+			{ ...license, expiresAt: new Date("2026-11-07") },
+			{ ...license, status: "rejected" as const },
+			{ ...license, status: "superseded" as const },
+		])
+			expect(evaluate(evidence).capabilities).toMatchObject({ publish: false, booking: false })
+		const renewed = evaluate({ ...license, id: "synthetic-renewal" })
+		expect(renewed.capabilities).toMatchObject({ publish: true, booking: true })
+		expect(renewed.capabilityStates.collect_payment).toBe("not_applicable")
+		expect(renewed.capabilityStates.payout).toBe("not_applicable")
+		expect(
+			evaluate({ ...license, scopes: [{ scopeType: "product", productId: "another-tour" }] })
+				.capabilities.publish
+		).toBe(false)
+	})
 	it("certifies synthetic second-country configuration without mutating signed inputs", () => {
 		// Synthetic policy configuration, not Chilean legal requirements or market admission.
 		const now = new Date("2026-10-31T12:00:00Z")

@@ -1,6 +1,12 @@
 import { bindProposalReview } from "./proposal-review"
 
 const messages: Record<string, string> = {
+	commercial_policy_approval_exists:
+		"Esta área ya tiene una aprobación. Actualiza la página antes de continuar.",
+	commercial_policy_not_draft:
+		"La versión ya no está en borrador. Actualiza la página para comprobar su estado.",
+	commercial_policy_not_publishable:
+		"La versión no cumple los controles de publicación. Revisa sus requisitos antes de aprobarla.",
 	correction_reason_required: "Explica qué debe corregirse, con al menos 12 caracteres.",
 	forbidden: "Tu cuenta no tiene permiso para realizar esta acción.",
 	declare_collection_first: "Declara primero el cobro directo para Tours.",

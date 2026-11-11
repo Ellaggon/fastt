@@ -11,6 +11,10 @@ import {
 const schema = z.object({
 	approvalArea: z.enum(["policy", "finance", "tour_operations"]),
 	approvalReference: z.string().trim().min(8).max(500),
+	resumePublication: z.preprocess(
+		(value) => (value === "true" ? true : value),
+		z.boolean().optional()
+	),
 })
 
 const permissionByApprovalArea = {
@@ -46,6 +50,10 @@ export const POST: APIRoute = async ({ request, params }) => {
 			permissionByApprovalArea[body.data.approvalArea]
 		)
 		await requireRecentInternalAuthentication({ request, user: principal.user })
+		if (body.data.resumePublication) {
+			for (const permission of Object.values(permissionByApprovalArea))
+				await requireInternalPermission(request, permission)
+		}
 	} catch (error) {
 		if (error instanceof Response) return error
 		throw error
@@ -58,6 +66,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 			approvalArea: body.data.approvalArea,
 			approvalReference: body.data.approvalReference,
 			approverUserId: principal.user.id,
+			resumePublication: body.data.resumePublication,
 		})
 		return json({ ...result, ok: true }, result.status === "published" ? 201 : 202)
 	} catch (error) {

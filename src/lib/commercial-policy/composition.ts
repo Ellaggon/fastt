@@ -18,6 +18,15 @@ export const policyFamilyLabels: Record<(typeof policyFamilies)[number], string>
 	operational_resources: "Recursos operativos",
 	platform_standards: "Estándares de Fastt",
 }
+
+export function commercialPolicyVersionLabel(label: string, context: unknown): string {
+	const composition = compositionSchema.safeParse(
+		context && typeof context === "object" ? (context as Record<string, unknown>).composition : null
+	)
+	return composition.success
+		? `${composition.data.kind === "admission" ? "Admisión" : policyFamilyLabels[composition.data.family]} · ${label}`
+		: label
+}
 export const compositionSchema = z
 	.object({
 		kind: z.enum(["admission", "requirements"]),

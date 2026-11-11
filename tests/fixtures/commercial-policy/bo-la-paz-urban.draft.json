@@ -1,0 +1,278 @@
+{
+  "status": "draft",
+  "activationAuthorized": false,
+  "applicabilityDecisions": {
+    "status": "proposal_for_review_not_approval",
+    "operatorCategory": {
+      "scenario": "tourism_operator_direct_execution_with_own_team",
+      "authorityCategoryLabel": "Operadora de Turismo",
+      "notTravelAgencyByAssumption": true,
+      "realProviderMustMatchIssuedAuthorization": true
+    },
+    "insurance": {
+      "operatorTeam": "participant_and_staff_cover_for_service_activity_territory_and_dates",
+      "independentGuide": "fastt_liability_standard_accident_assistance_when_applicable",
+      "referenceModel": "getyourguide_adapted_not_copied",
+      "liabilityStandardForBothPathways": true,
+      "accidentAssistanceRequiresDocumentedApplicability": true,
+      "independentGuideSourceKind": "fastt_policy",
+      "independentGuideLegalUniversalityConfirmed": false,
+      "liabilityIsNotPersonalAccident": true,
+      "amountsOrInsurerInvented": false,
+      "sufficiencyReview": {
+        "method": "documented_risk_based_review_no_universal_amount",
+        "requiredFields": ["per_person_and_event_limits", "aggregate_limits", "deductibles", "exclusions", "itinerary_risks", "applicable_legal_minima", "reviewer", "reviewed_at", "rationale", "evidence_reference", "next_review"],
+        "materialUncertainty": "pending_blocks_new_sales",
+        "riskOrCoverageChangeRequiresReview": true
+      },
+      "activationAuthorized": false
+    },
+    "route": {
+      "scenario": "synthetic_urban_public_pedestrian_route_in_la_paz_city",
+      "indoorEntries": false,
+      "protectedAreas": false,
+      "roadClosures": false,
+      "exclusivePublicSpaceOccupation": false,
+      "structuresOrAmplifiedEvent": false,
+      "municipalPermitApplicability": "requires_confirmation_not_exempt_by_default",
+      "departmentCoverageIsNotSitePermission": true,
+      "actualRouteVerified": false,
+      "permitReview": {
+        "unit": "each_municipality_and_regulated_site_on_route",
+        "outcomes": ["required_with_valid_scoped_evidence", "not_applicable_with_verifiable_basis", "pending_blocks_new_sales"],
+        "routeChangeRequiresReview": true
+      }
+    },
+    "sources": {
+      "operatorAndAccidentCoverForm": "https://milapaztravel.lapaz.gob.bo/vista/declaraciones/ELTActualizacionJuri",
+      "municipalPublicWayPermit": "https://lapaz.bo/permiso-excepcional-para-cierre-y-uso-de-via-publica/",
+      "checkedAt": "2026-11-08"
+    },
+    "remainingForRealAdmission": [
+      "issued_operator_category_and_current_authorization",
+      "insurance_wording_risks_people_limits_and_exclusions",
+      "municipal_applicability_for_actual_route_and_group_operation"
+    ]
+  },
+  "pathwayRequirements": {
+    "status": "proposed_not_ratified",
+    "sourceCheckedAt": "2026-11-08",
+    "operatorTeam": {
+      "identity": "entity_and_authorized_representative",
+      "fiscal": "actual_entity_tax_status",
+      "tourism": "operator_authorization_for_actual_category",
+      "guides": "personal_credential_per_assigned_guide",
+      "insurance": "fastt_liability_and_applicable_operator_accident_cover",
+      "sitePermission": "only_when_route_requires_it",
+      "emergency": "fastt_operational_contact_and_protocol_proposal"
+    },
+    "independentGuide": {
+      "identity": "natural_person_identity",
+      "fiscal": "actual_individual_tax_status_no_assumed_exemption",
+      "tourism": "personal_guide_credential_not_operator_license_by_default",
+      "guides": "same_identified_person_executes_service",
+      "insurance": "fastt_liability_accident_assistance_when_applicable_no_legal_exemption",
+      "sitePermission": "only_when_route_requires_it",
+      "emergency": "fastt_operational_contact_and_protocol_proposal"
+    },
+    "notCollectedByDefault": [
+      "medical_record",
+      "blood_group",
+      "police_background",
+      "entire_authority_registration_file"
+    ],
+    "excludedFromAdmission": [
+      "transport",
+      "food",
+      "adventure",
+      "nature",
+      "water",
+      "air",
+      "external_execution"
+    ],
+    "sourceLimits": [
+      "public_forms_do_not_prove_universal_legal_requirements",
+      "operator_category_requires_confirmation",
+      "old_document_transition_not_automatically_resolved"
+    ],
+    "commercialAgreementIsSeparate": true,
+    "databaseWritesAllowed": false
+  },
+  "scenario": {
+    "purpose": "synthetic_validation_only",
+    "providerIsFictitious": true,
+    "holderType": "entidad",
+    "legalFormCode": "BO:company",
+    "operatorCategory": "operator_with_team",
+    "classificationIsAssumed": true,
+    "realCommercialEligibility": false
+  },
+  "territoryCanonicalPath": "bolivia/la-paz-department",
+  "territoryPlaceId": "geo:bo:la-paz-department",
+  "territoryResolution": {
+    "verifiedAt": "2026-11-08",
+    "country": "BO",
+    "placeType": "admin_area_1",
+    "status": "active",
+    "scope": "department_only"
+  },
+  "pendingDecisions": [
+    "real_operator_category_and_legal_registration_not_certified",
+    "current_legal_sources_and_transition",
+    "insurance_applicability_and_coverage",
+    "real_guides_and_route_permissions",
+    "identity_fiscal_and_operational_requirement_definitions",
+    "published_document_definition_ids",
+    "effective_dates_and_three_approval_areas"
+  ],
+  "loadPlan": {
+    "mode": "review_only",
+    "databaseWritesAllowed": false,
+    "steps": [
+      "revalidate_canonical_department_and_confirm_holder_classification",
+      "review_document_definitions_and_avoid_duplicates",
+      "create_document_definition_drafts_via_authorized_commands",
+      "review_and_publish_definitions_in_separate_operation",
+      "create_admission_and_requirement_family_drafts",
+      "simulate_coverage_and_exclusions_without_approvals",
+      "review_effective_dates_and_record_explicit_approval_decision"
+    ]
+  },
+  "requirementPlan": [
+    {
+      "family": "identity",
+      "subject": "holder",
+      "definitionKey": null,
+      "reviewNeeded": "Identity and authority to represent the actual entity; avoid collecting the entire state registration file."
+    },
+    {
+      "family": "fiscal",
+      "subject": "holder",
+      "definitionKey": null,
+      "reviewNeeded": "Confirm the actual taxpayer and applicable fiscal evidence; no assumed legal form."
+    },
+    {
+      "family": "tourism",
+      "subject": "operator",
+      "definitionKey": "bo.tour.operator_authorization",
+      "reviewNeeded": "Confirm operator category, competent issuer, territorial scope and current validity rules."
+    },
+    {
+      "family": "operational_resources",
+      "subject": "guides",
+      "definitionKey": "bo.tour.guide_credential",
+      "reviewNeeded": "Identify every real guide and validate personal category, territory and dates; no synthetic credentials."
+    },
+    {
+      "family": "regulated_place",
+      "subject": "operator",
+      "definitionKey": null,
+      "reviewNeeded": "Review the real route. Require site permission only when applicable; unresolved is not an exemption."
+    },
+    {
+      "family": "platform_standards",
+      "subject": "operator",
+      "definitionKey": null,
+      "reviewNeeded": "Define operational safety evidence and resolve insurance applicability, type and exclusions before approval."
+    }
+  ],
+  "admission": {
+    "jurisdictionCodes": ["geo:bo:la-paz-department"],
+    "policyCode": "la_paz_urban_team",
+    "country": "BO",
+    "jurisdictionRole": "product",
+    "holderType": "entidad",
+    "legalFormCodes": ["BO:company"],
+    "operatingRoles": ["operator"],
+    "executionModes": ["team"],
+    "foodHandlingModes": ["none"],
+    "transportProviders": [],
+    "activityClasses": ["urban_cultural"],
+    "experienceFormats": ["guided_tour"],
+    "composition": {
+      "kind": "admission",
+      "family": "platform_standards",
+      "requiredFamilies": [
+        "identity",
+        "fiscal",
+        "tourism",
+        "regulated_place",
+        "operational_resources",
+        "platform_standards"
+      ],
+      "replacesVersionIds": []
+    }
+  },
+  "independentGuideAdmission": {
+    "jurisdictionCodes": ["geo:bo:la-paz-department"],
+    "policyCode": "la_paz_urban_independent_guide",
+    "country": "BO",
+    "jurisdictionRole": "product",
+    "holderType": "persona_natural",
+    "legalFormCodes": ["BO:individual"],
+    "operatingRoles": ["guide"],
+    "executionModes": ["self"],
+    "foodHandlingModes": ["none"],
+    "transportProviders": [],
+    "activityClasses": ["urban_cultural"],
+    "experienceFormats": ["guided_tour"],
+    "composition": {
+      "kind": "admission",
+      "family": "platform_standards",
+      "requiredFamilies": [
+        "identity",
+        "fiscal",
+        "tourism",
+        "regulated_place",
+        "operational_resources",
+        "platform_standards"
+      ],
+      "replacesVersionIds": []
+    }
+  },
+  "independentGuideReview": {
+    "purpose": "synthetic_validation_only",
+    "activationAuthorized": false,
+    "personalCredentialDefinitionKey": "bo.tour.guide_credential",
+    "operatorLicenseAutomaticallyRequired": false,
+    "businessRegistrationExemptionGranted": false,
+    "pendingDecisions": [
+      "actual_registration_and_fiscal_status",
+      "credential_category_and_scope",
+      "insurance_and_route_permissions",
+      "effective_dates_and_approvals"
+    ]
+  },
+  "documentDefinitions": [
+    {
+      "key": "bo.tour.operator_authorization",
+      "label": "Habilitacion turistica del operador",
+      "description": "Propuesta: comprobar prestador, categoria y territorio. Sin aprobacion ni plazo de vigencia predeterminado.",
+      "family": "tourism",
+      "capture": {
+        "version": 1,
+        "issuer": "required",
+        "issuedAt": "required",
+        "expiresAt": "optional",
+        "allowedSubjectTypes": ["provider", "legal_entity"],
+        "issuerCountries": ["BO"],
+        "requiredScopes": ["territory", "activity"]
+      }
+    },
+    {
+      "key": "bo.tour.guide_credential",
+      "label": "Credencial personal del guia de turismo",
+      "description": "Propuesta: comprobar persona, categoria y alcance. No se sustituye por la licencia del operador.",
+      "family": "operational_resources",
+      "capture": {
+        "version": 1,
+        "issuer": "required",
+        "issuedAt": "required",
+        "expiresAt": "optional",
+        "allowedSubjectTypes": ["person"],
+        "issuerCountries": ["BO"],
+        "requiredScopes": ["territory", "activity"]
+      }
+    }
+  ]
+}

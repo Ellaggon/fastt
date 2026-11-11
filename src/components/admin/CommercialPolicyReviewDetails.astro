@@ -1,0 +1,309 @@
+---
+import {
+	normalizeContextSelector,
+	normalizeRequirementCondition,
+} from "@/lib/commercial-policy/contract-parser"
+import { coverageReviewKind, insuranceReviewFields } from "@/lib/documents/coverage-review"
+import { documentAcceptanceSchema } from "@/shared/domain/document-acceptance"
+import { documentCaptureSchema } from "@/shared/domain/document-definition"
+import { legalForms } from "@/shared/domain/legal-forms"
+import { executionLabels, tourComplianceActivityLabels } from "@/shared/domain/tour-operation"
+interface Props {
+	context: unknown
+	country: string
+	collectionModel: string
+	jurisdictionRole: string
+	effectiveFrom: Date
+	effectiveTo: Date | null
+	draft: boolean
+	territories: { id: string; name: string; kind?: string }[]
+	definitions: {
+		id: string
+		key: string
+		label: string
+		description: string
+		version: number
+		capture?: unknown
+	}[]
+	rules: {
+		id: string
+		required: boolean
+		conditionJson: unknown
+		capabilitiesJson: unknown
+		acceptedEvidenceJson: unknown
+		reviewOwner: string | null
+		sourceKind: string | null
+		sourceReference: string | null
+		sourceCheckedAt: Date | null
+	}[]
+}
+const p = Astro.props
+let selector: ReturnType<typeof normalizeContextSelector> = null
+try {
+	selector = normalizeContextSelector(p.context)
+} catch {
+	/* Keep invalid contracts visible. */
+}
+const labels = (items: string[] | undefined, lookup: Record<string, string>) =>
+	items?.length
+		? items.map((item) => lookup[item] ?? item).join(" · ")
+		: "Sin restriccion declarada"
+const date = (value: Date) =>
+	new Intl.DateTimeFormat("es-BO", { dateStyle: "medium", timeZone: "UTC" }).format(value)
+const actions: Record<string, string> = {
+	publish: "Publicar",
+	booking: "Aceptar nuevas reservas",
+	integrations: "Integraciones",
+	collect_payment: "Cobrar",
+	payout: "Desembolsar",
+}
+const subjects: Record<string, string> = {
+	holder: "Titular del proveedor",
+	operator: "Operador responsable",
+	guides: "Cada guia asignado",
+	resources: "Recursos declarados",
+}
+const scopes: Record<string, string> = {
+	provider: "Proveedor",
+	product: "Experiencia concreta",
+	operation: "Operacion",
+}
+const sources: Record<string, string> = {
+	legal: "Legal",
+	contract: "Contractual",
+	fastt_policy: "Politica propia de Fastt",
+}
+const fields = [
+	["Pais", p.country === "BO" ? "Bolivia" : p.country],
+	[
+		"Contexto",
+		(
+			{
+				holder: "Titular",
+				tax: "Fiscalidad",
+				product: "Experiencia",
+				payout: "Desembolsos",
+			} as Record<string, string>
+		)[p.jurisdictionRole] ?? p.jurisdictionRole,
+	],
+	[
+		"Forma juridica",
+		labels(
+			selector?.legalFormCodes,
+			Object.fromEntries(legalForms.map((form) => [form.code, form.label]))
+		),
+	],
+	["Ejecucion", labels(selector?.executionModes, executionLabels)],
+	[
+		"Rol",
+		labels(selector?.operatingRoles, {
+			operator: "Operador",
+			guide: "Guia",
+			intermediary: "Intermediario",
+		}),
+	],
+	["Actividad admitida", labels(selector?.activityClasses, tourComplianceActivityLabels)],
+	["Formato", labels(selector?.experienceFormats, { guided_tour: "Visita o recorrido guiado" })],
+	[
+		"Territorio",
+		selector?.jurisdictionCodes
+			?.map((id) => {
+				const place = p.territories.find((item) => item.id === id)
+				if (!place) return `Territorio sin resolver (${id})`
+				const prefix =
+					place.kind === "admin_area_1"
+						? p.country === "BO"
+							? "Departamento de "
+							: "Region de "
+						: place.kind === "city"
+							? "Ciudad de "
+							: ""
+				return prefix + place.name
+			})
+			.join(" · ") || "No declarado",
+	],
+	[
+		"Alimentos",
+		labels(selector?.foodHandlingModes, {
+			none: "No incluye",
+			visit: "Visita o degustacion",
+			serve: "Servicio",
+			prepare: "Preparacion",
+		}),
+	],
+	[
+		"Filtro de prestador de transporte",
+		labels(selector?.transportProviders, { business: "Negocio", external: "Tercero" }),
+	],
+	[
+		"Cobro",
+		p.collectionModel === "property_collect" ? "El viajero paga al proveedor" : p.collectionModel,
+	],
+	[
+		"Inicio",
+		`${date(p.effectiveFrom)}${p.draft ? " · provisional, sin efecto en borrador" : " · inclusivo"}`,
+	],
+	["Fin", p.effectiveTo ? `${date(p.effectiveTo)} · exclusivo` : "Sin fecha final declarada"],
+]
+---
+
+<section class="space-y-4 border-t border-slate-200 pt-4" aria-label="Contenido de la version">
+	<h3 class="text-sm font-semibold text-slate-900">Alcance y vigencia guardados</h3>
+	{
+		!selector && (
+			<p role="alert" class="text-sm text-amber-800">
+				Contexto incompleto o invalido: requiere revision antes de ratificar.
+			</p>
+		)
+	}
+	<dl class="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+		{
+			fields.map(([label, value]) => (
+				<div class="min-w-0">
+					<>
+						<dt class="text-slate-500">{label}</dt>
+						<dd class="mt-1 break-words text-slate-900">{value}</dd>
+					</>
+				</div>
+			))
+		}
+	</dl>
+	{
+		selector?.composition?.kind === "admission" && (
+			<div class="text-sm text-slate-700">
+				<>
+					<h3 class="font-semibold">Fuera del alcance de esta admision</h3>
+					<p class="mt-1">Actividades o modalidades que no coincidan con la seleccion.</p>
+					<p class="mt-1">
+						Actividades no admitidas:{" "}
+						{Object.entries(tourComplianceActivityLabels)
+							.filter(([key]) => !selector?.activityClasses?.includes(key))
+							.map(([, label]) => label)
+							.join(" · ")}
+						.
+					</p>
+					<p class="mt-1">
+						Transporte, agua, aire y alimentos se contrastan con la declaracion operativa. Un filtro
+						de transporte vacio no prohibe por si solo el transporte.
+					</p>
+					<p class="mt-1">
+						La admision exige las familias indicadas; no acredita documentos ni sustituye el acuerdo
+						del proveedor.
+					</p>
+				</>
+			</div>
+		)
+	}
+	{
+		p.rules.map((rule) => {
+			const condition = normalizeRequirementCondition(rule.conditionJson)
+			const acceptance = documentAcceptanceSchema.safeParse(rule.acceptedEvidenceJson)
+			const capabilities = Array.isArray(rule.capabilitiesJson)
+				? rule.capabilitiesJson.filter((v): v is string => typeof v === "string")
+				: []
+			return (
+				<section
+					class="space-y-3 border-t border-slate-200 pt-4"
+					aria-label="Detalle del requisito"
+				>
+					<dl class="grid gap-3 text-sm sm:grid-cols-2">
+						{[
+							[
+								"Sujeto de la evidencia",
+								subjects[condition?.evidenceSubjectSelector ?? ""] ??
+									"Seleccion historica; revisar contrato",
+							],
+							["Alcance de la evidencia", scopes[condition?.evidenceScope ?? ""] ?? "No declarado"],
+							["Obligatoriedad", rule.required ? "Obligatorio cuando aplica" : "No obligatorio"],
+							[
+								"Acciones afectadas",
+								capabilities.map((value) => actions[value] ?? value).join(" · ") || "No declaradas",
+							],
+							["Responsable", rule.reviewOwner ?? "Sin asignar"],
+							["Tipo de fuente", sources[rule.sourceKind ?? ""] ?? "Sin clasificar"],
+							[
+								"Referencia guardada",
+								`${rule.sourceReference ?? "No declarada"}${rule.sourceCheckedAt ? ` · revisada ${date(rule.sourceCheckedAt)}` : ""}`,
+							],
+						].map(([label, value]) => (
+							<div class="min-w-0">
+								<dt class="text-slate-500">{label}</dt>
+								<dd class="break-words">{value}</dd>
+							</div>
+						))}
+					</dl>
+					<h4 class="text-sm font-semibold">Evidencia aceptada</h4>
+					{acceptance.success ? (
+						acceptance.data.alternatives.map((alternative, index) => (
+							<div class="space-y-2 text-sm">
+								{acceptance.data.alternatives.length > 1 && (
+									<p class="font-medium">Alternativa {index + 1} · paquete completo</p>
+								)}
+								<ul class="list-disc space-y-2 pl-5">
+									{alternative.allOf.map((part) => {
+										const definition = p.definitions.find(
+											(item) => item.id === part.definitionVersionId
+										)
+										const kind = definition ? coverageReviewKind(definition.key) : null
+										const capture = definition
+											? documentCaptureSchema.safeParse(definition.capture)
+											: null
+										return (
+											<li>
+												<strong>
+													{definition
+														? `${definition.label} · version ${definition.version}`
+														: "Definicion no disponible: revisar antes de firmar"}
+												</strong>
+												{definition && <p class="mt-1 text-slate-600">{definition.description}</p>}
+												{capture?.success && (
+													<p class="mt-1 text-slate-600">
+														{[
+															["Emisor", capture.data.issuer],
+															["Emision", capture.data.issuedAt],
+															["Vencimiento", capture.data.expiresAt],
+														]
+															.map(
+																([label, value]) =>
+																	`${label}: ${{ required: "obligatorio", optional: "opcional", not_applicable: "no aplica" }[value!]}`
+															)
+															.join(" · ")}
+													</p>
+												)}
+												{kind && (
+													<details class="mt-2">
+														<summary class="cursor-pointer font-medium">
+															Criterios operativos actuales de revision
+														</summary>
+														<ul class="mt-2 list-disc space-y-1 pl-5">
+															{(kind === "insurance"
+																? Object.values(insuranceReviewFields)
+																: [
+																		"Itinerario y cada municipio o sitio",
+																		"Permiso requerido: referencia y vigencia",
+																		"No aplica: fundamento verificable",
+																		"Pendiente: no permite aprobar",
+																	]
+															).map((label) => (
+																<li>{label}</li>
+															))}
+															<li>Proxima revision, actor y auditoria</li>
+														</ul>
+													</details>
+												)}
+											</li>
+										)
+									})}
+								</ul>
+							</div>
+						))
+					) : (
+						<p class="text-sm text-amber-800">
+							Evidencia historica o contrato no interpretable; revisar antes de ratificar.
+						</p>
+					)}
+				</section>
+			)
+		})
+	}
+</section>

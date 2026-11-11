@@ -17,6 +17,7 @@ Review trigger: cambio del contrato o de las superficies públicas y del proveed
 - [Políticas comerciales de tours](./policies.md): contrato, editor, preview y compatibilidad histórica.
 - [Acuerdo económico inicial](./commercial-terms.md): propuesta de cobro directo, comisión, base, devengo y cancelaciones; pendiente de aceptación.
 - [Matriz comercial BO v1](./policy-annex.md): borrador sin firma. No exige documentos nuevos hasta que Políticas, Finanzas y Operaciones Tours la ratifiquen.
+- [Catalogo documental BO](./document-requirements-bo.md): propuesta por sujeto y departamento, fuentes, vacios de verificacion y minimo para Fastt; no habilita operaciones.
 - [Playbooks del proveedor](./tour-provider-playbooks.md): cuatro flujos de trabajo; creación/publicación separadas en dos playbooks conectados, con datos y diagnóstico compartidos.
 - [Preparar y publicar: dos playbooks](./tour-preparation-publication.md): contrato de separación, continuidad, pantallas y criterios de aceptación implementado en código local.
 - [Contrato de interfaz de playbooks](./tour-playbook-ui-contract.md): cambios por componente, estilos actuales, formularios, tareas y publicación.

@@ -15,7 +15,7 @@ type Db = typeof db
 
 const tourApprovalAreas = ["policy", "finance", "tour_operations"] as const
 
-/** One approver per `(policyVersionId, approverUserId)`; certification uses dedicated signers. */
+/** Dedicated fixture signers; production also permits one responsible person across areas. */
 const tourApproverUserIds: Record<(typeof tourApprovalAreas)[number], string> = {
 	policy: "user_marketplace_cert_approver_policy",
 	finance: "user_marketplace_cert_approver_finance",

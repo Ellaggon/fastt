@@ -3,22 +3,44 @@
 Status: draft
 Document type: canonical
 Owner: Provider Policy / Finance / Tours
-Last verified: 2026-09-26
+Last verified: 2026-11-08
 Scope: requisitos comerciales y operativos aplicables a tours ubicados en Bolivia
 Source of truth: versiones firmadas de `CompliancePolicyVersion`; normativa y expedientes enlazados abajo
 Related code/tests: `src/lib/commercial-policy/`, `src/lib/provider-documents.ts`, `src/lib/provider-document-validity.ts`, `tests/unit/commercial-policy-evaluate.test.ts`, `tests/unit/provider-document-evidence.test.ts`, `tests/ui/provider-document-renewal.test.ts`
 Review trigger: cambio regulatorio, nueva actividad, jurisdicción, modalidad de cobro o firma de la versión
 Supersedes: docs/onboarding/phase-4-policy-annex-bo-draft.md
 
-## Alcance inicial de beta seleccionado
+## Borrador de expansion nacional e internacional
 
-Selección del titular: recorridos urbanos/culturales a pie, propios o de equipo, con
-pago directo. Es alcance de borrador, no ratificación ni permiso de publicación/reserva.
+Orden de cierre, responsables y resultados: [roadmap de la primera puerta](../../onboarding/phase-4-policy-activation.md#roadmap-de-la-primera-puerta).
+Un responsable puede registrar las tres revisiones; no se presume ratificacion por ello.
+
+Decision del titular: disenar para varios paises, comenzar en Bolivia y validar primero
+el departamento de La Paz. Esta matriz sigue en borrador: no constituye ratificacion,
+alta en la base ni
+permiso de publicacion o reserva. La fecha anterior acredita revision del alcance,
+no verificacion de las fuentes regulatorias historicas citadas abajo.
+
+- Base compartida de familias, no de obligaciones legales universales. Versiones
+  separadas por pais, titular, cobro y papel jurisdiccional; no confundir pais fiscal,
+  del titular y del producto ni trasladar requisitos bolivianos a otros paises.
+- Geografia canonica: componer requisitos nacionales, departamentales y locales.
+  Una admision unica por ambito, sin prioridad implicita entre versiones solapadas.
+- Expansion gradual: departamento de La Paz; otros departamentos y paises requieren
+  revision y aprobacion propias. Sitios regulados conservan sus permisos adicionales.
+
+## Primer alcance evaluable: departamento de La Paz
 
 - Formato propuesto: `guided_tour`; operación `self` o `team`, con actividad
-  `urban_cultural` y guía declarado. Validar el contexto completo, no sólo una etiqueta.
-- Territorio concreto mediante `GeoPlace`, pendiente de confirmar con la ruta real;
-  no inferirlo por nombre comercial ni habilitar todo Bolivia.
+  `urban_cultural` y guía declarado. Roles `guide` u `operator`, nunca intermediacion
+  externa. Validar el contexto completo, no sólo una etiqueta.
+- Territorio candidato: `bolivia/la-paz-department`, lugar `geo:bo:la-paz-department`.
+  Incluye ciudades descendientes, no habilita automaticamente sitios o actividades.
+  El tour ficticio sigue declarando La Paz ciudad; no se modifico su ruta en la base.
+- Selector propuesto: contrato componible 3, admision `platform_standards`, formato
+  `guided_tour`, ejecucion `self`/`team`, alimentos `none`, actividad exclusivamente
+  `urban_cultural` y territorio anterior. Tipo y forma del titular se obtienen del
+  expediente; no crear una cobertura universal para ambas clases por conveniencia.
 - Sin naturaleza, aventura, agua, aire, transporte incluido ni ejecución por terceros.
   Excluir también preparación y servicio de alimentos para esta primera certificación;
   una visita gastronómica requiere revisar su clasificación antes de admitirla.
@@ -28,27 +50,56 @@ pago directo. Es alcance de borrador, no ratificación ni permiso de publicació
 Excluir del piloto no significa prohibición legal. Mezclas con actividades excluidas o
 datos ambiguos quedan pendientes. No cambiar declaraciones reales para hacerlas encajar.
 
-Antes de cargar: comprobar contexto real, fuentes vigentes y expresividad del selector
-de admisión; una condición documental no sustituye una exclusión de operación.
-Preparar versiones con familias, sujetos y vigencia explícitos. Probar en aislamiento:
-caso cubierto; territorio ajeno; mezcla de actividades excluidas; datos incompletos;
-versión futura/vencida; firmas/familias faltantes; evidencia vencida. Distinguir cobertura
-de verificación y conservar las puertas de acuerdo/preparación. Registrar resultados y
-aprobaciones antes de autorizar carga. Todo ello sigue pendiente; no habilita este tour.
+Antes de cargar: validar contexto, fuentes, selectores, familias y vigencia mediante el
+roadmap enlazado. Probar admitidos/excluidos en aislamiento, no sobre la base compartida.
+Una condicion documental no sustituye una exclusion; cobertura no sustituye verificacion,
+acuerdo ni preparacion. No activar sin resultados y aprobaciones registrados.
 
-> **Estado de decisión.** Esta es la matriz v1.0 lista para ratificación, no una política publicada.
-> Hasta que Políticas, Finanzas y Operaciones Tours registren las tres aprobaciones, ninguna fila
-> nueva puede sembrarse como `published` ni exigir un documento que aún no está en producción.
-> El alojamiento no espera esta firma: tiene su propio anexo en
-> [policy-annex.md](../lodging/policy-annex.md).
+El paseo ficticio sirve para simulacion, no para venta. Este borrador no aporta permisos,
+credenciales, firmas ni respaldo documental real. La politica de cobertura tampoco
+habilita por si sola el procesamiento documental ni el acuerdo comercial del proveedor.
 
-> **Revisión pendiente antes de ratificar.** Las categorías de esta matriz son propuestas
-> históricas, no un catálogo ejecutable. Contrastarlas con `tourOperationSchema`, `GeoPlace`
-> y las definiciones documentales versionadas; separar agua/aire y transporte operado/externo.
-> No inferir equivalencias de forma jurídica ni copiar estas filas a versiones publicadas.
-> La certificación multinacional técnica no constituye aprobación de esta matriz.
+### Alternativas minimas y recomendacion
+
+1. Guia independiente: `self` y `guide`; revisar titular, fiscalidad y habilitacion personal.
+   No asumir que esa credencial autoriza cualquier intermediacion o paquete turistico.
+2. Operador con equipo: `team` y `operator`; revisar autorizacion del prestador y guias
+   asignados por separado, ademas de seguro/emergencias segun categoria aplicable.
+
+Objetivo de beta: ambas vias en el departamento de La Paz. La propuesta local ya
+separa entidad/equipo de persona/ejecucion propia con ambito departamental explicito.
+No cambiar el tour de empresa para simular la otra via ni extender a otros departamentos.
+No admite terceros externos ni una admision compartida por defecto.
+La persona requiere credencial propia; no se le impone licencia empresarial automaticamente
+ni se le concede exencion de registro/fiscalidad por esta clasificacion sintetica.
+
+Para cerrar cobertura: resolver categoria y fuentes; preparar admision y familias de
+requisitos; simular casos positivos y negativos; registrar las tres aprobaciones y vigencia.
+Definir requisitos no significa acreditarlos: documentos, acuerdo y preparacion conservan
+sus puertas. La prueba sintetica nunca autoriza ventas. Esta matriz aun no esta lista
+para ratificacion. Alojamiento conserva su [anexo independiente](../lodging/policy-annex.md).
 
 ## Alcance y límites
+
+### Categoria, seguro y ruta del caso inicial
+
+Propuesta no ratificada del 2026-11-08: **Operadora de Turismo** con equipo propio,
+no agencia por conveniencia. Un prestador real debe acreditar esa categoria/alcance;
+el guia independiente conserva su via personal.
+
+Seguro: comprobar participantes/equipo, actividad, territorio, fechas, riesgos, limites y
+exclusiones. El [formulario departamental](https://milapaztravel.lapaz.gob.bo/vista/declaraciones/ELTActualizacionJuri)
+menciona accidentes personales para operadoras. Para guia independiente proponemos
+accidentes/asistencia a participantes como estandar Fastt, no ley universal demostrada.
+No inventar montos/aseguradoras ni equiparar accidentes con responsabilidad civil.
+
+Ruta sintetica: exterior peatonal en La Paz ciudad; sin interiores, areas protegidas,
+cierres, ocupacion exclusiva, estructuras ni evento amplificado. El
+[permiso municipal](https://lapaz.bo/permiso-excepcional-para-cierre-y-uso-de-via-publica/)
+tiene alcance amplio: no presumir exencion por ir a pie. Antes de venta real confirmar
+aplicabilidad para ruta/grupo/operacion; cobertura departamental no concede permisos de sitio.
+No se contacto al municipio ni compro seguro. Pendientes reales: autorizacion de categoria,
+condiciones de poliza y criterio municipal. Supuestos registrados en el paquete local.
 
 Aplica cuando el producto es un `tour` con ubicación principal en Bolivia. La matriz distingue
 el titular, quien ejecuta la actividad, la jurisdicción, el nivel de riesgo y quién cobra. No
@@ -59,9 +110,11 @@ autoriza, recauda, custodia ni reembolsa esos fondos. Por eso una cuenta de liqu
 es un requisito para publicar o aceptar reservas bajo esa modalidad. `platform_collect` sigue
 no soportado hasta que exista contrato, procesador y versión firmada.
 
-La base oficial boliviana distingue el registro departamental para operación en un departamento
-del nacional cuando se opera en más de uno; también distingue prestadores, empresas y guías.
-Las fuentes para la revisión son el [reglamento de registro turístico](https://www.turismo.produccion.gob.bo/wp-content/uploads/2023/05/REGLAMENTO-ESPECIFICO-PARA-EL-REGISTRO-CATEGORIZACION-Y-CERTIFICACION-DE-PRESTADORES-DE-SERVICIOS-TURISTICOS-2023.pdf), el [trámite de licencia turística](https://www.gob.bo/tramites/licencia-turistica-de-prestadores-de-servicios-turisticos) y las guías vigentes del [SIN para persona natural](https://siatinfo.impuestos.gob.bo/index.php/requisitos-para-la-inscripcion/requisitos-para-obtener-el-nit-para-personas) y [jurídica](https://siatanexo.impuestos.gob.bo/index.php/requisitos-para-la-inscripcion/procedimientos-y-requisitos-para-obtener-el-nit-para-personas-juridicas). La evidencia de Airbnb es una referencia de producto, no norma aplicable a Fastt.
+### Fuentes y decisiones documentales
+
+El [catalogo documental BO](./document-requirements-bo.md) mantiene el detalle de La Paz,
+comparacion departamental, fuentes y requisitos propuestos. Revisar categoria, fiscalidad,
+ruta, guias y seguro antes de cargar reglas; su estado draft no autoriza venta real.
 
 ## Contexto que debe resolver el evaluador
 
@@ -142,17 +195,9 @@ Tours deben completar este registro para cada combinación que se habilite:
 | Aprobación de Operaciones Tours | Usuario, fecha y referencia del expediente. Sin esta firma no se exige un documento nuevo de tours. |
 | Fecha de vigencia y reversión | Inicio, término si aplica, cohorte y procedimiento para retirar la versión sin reinterpretar reservas. |
 
-La implementación registra `papel operativo`, `clase de actividad`, vigencia, sujeto y alcances de
-evidencia en tablas aditivas. Las evidencias anteriores conservan alcance de proveedor hasta que se
-revisen. El evaluador compartido resuelve reglas publicadas por capacidad y aplica `conditionJson`
-sólo como condición explícita de papel, actividad, territorio, recurso o sujeto. Publicación y reserva
-de tours no pueden omitir ese diagnóstico; una política aún no ratificada sigue devolviendo bloqueo.
-
-Cada versión comercial de tours guarda además su `contextJson` con papel, actividad y jurisdicción,
-y tres firmas inmutables separadas: `policy`, `finance` y `tour_operations`. Cada regla obligatoria
-guarda fuente (`legal`, `contract` o `fastt_policy`), referencia, fecha de consulta, evidencia aceptada,
-revisor, capacidades afectadas y acción correctiva. La base y el evaluador rechazan una publicación
-que omita cualquiera de esos elementos; el estado `published` no se deduce de la etiqueta `tour`.
+El [contrato de composicion](./compliance-policy-composition.md) define persistencia,
+firmas, fuentes y evaluacion por capacidad. Esta matriz no los sustituye:
+sin ratificacion no concede publicacion ni reserva.
 
 ## Superficie del proveedor
 

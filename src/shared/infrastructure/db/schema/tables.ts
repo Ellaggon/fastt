@@ -1653,10 +1653,6 @@ export const CommercialPolicyApproval = pgTable(
 			table.policyVersionId,
 			table.approvalArea
 		),
-		uniqueIndex("CommercialPolicyApproval_version_approver_unique").on(
-			table.policyVersionId,
-			table.approverUserId
-		),
 		check(
 			"CommercialPolicyApproval_area_check",
 			sql`${table.approvalArea} IN ('policy', 'finance', 'tour_operations')`
