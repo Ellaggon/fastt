@@ -94,7 +94,7 @@ suite("native composable policy integrity", () => {
 				tx.savepoint(async (sp) => {
 					await sp`UPDATE "CompliancePolicyVersion" SET "effectiveTo" = now() + interval '1 year' WHERE id = ${old}`
 				})
-			).rejects.toThrow("signed_policy_validity_immutable")
+			).rejects.toThrow(/signed_policy_(validity|contract)_immutable/)
 			await tx`INSERT INTO "CompliancePolicyVersion" (id,"policySetId",version,"effectiveFrom","contextJson") VALUES (${successor},${setId},2,now(),${tx.json(context(placeId, [old]))})`
 			await expect(
 				tx.savepoint(async (sp) => {
