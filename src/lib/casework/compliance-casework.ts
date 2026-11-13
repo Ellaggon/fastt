@@ -15,6 +15,8 @@ import {
 	eq,
 	inArray,
 	lt,
+	Provider,
+	sql,
 	ProviderComplianceAssignment,
 } from "@/shared/infrastructure/db/compat"
 import { listPendingProviderDocumentsForAdmin } from "@/lib/provider-documents"
@@ -219,7 +221,7 @@ async function legacyAssignment(source: ComplianceCaseSource) {
 }
 
 /** Idempotently creates the unique active case for a canonical pending source. */
-export async function synchronizeComplianceCase(source: ComplianceCaseSource) {
+export async function findActiveComplianceCase(source: ComplianceCaseSource) {
 	const existing = await db
 		.select()
 		.from(ComplianceCase)
@@ -234,7 +236,32 @@ export async function synchronizeComplianceCase(source: ComplianceCaseSource) {
 		)
 		.orderBy(desc(ComplianceCase.openedAt))
 		.limit(1)
-	if (existing[0]) return { caseId: existing[0].id, created: false }
+	return existing[0] ?? null
+}
+
+export async function listComplianceCaseHistory(source: ComplianceCaseSource, currentId: string) {
+	return db
+		.select({
+			id: ComplianceCase.id,
+			caseNumber: ComplianceCase.caseNumber,
+			openedAt: ComplianceCase.openedAt,
+		})
+		.from(ComplianceCase)
+		.where(
+			and(
+				eq(ComplianceCase.providerId, source.providerId),
+				eq(ComplianceCase.domain, source.domain),
+				eq(ComplianceCase.sourceType, source.sourceType),
+				eq(ComplianceCase.sourceRef, source.sourceRef)
+			)
+		)
+		.orderBy(desc(ComplianceCase.openedAt))
+		.then((rows) => rows.filter((row) => row.id !== currentId))
+}
+
+export async function synchronizeComplianceCase(source: ComplianceCaseSource) {
+	const existing = await findActiveComplianceCase(source)
+	if (existing) return { caseId: existing.id, created: false }
 	const [{ policyVersionId, rules }, assignment] = await Promise.all([
 		resolveRequirements(source.domain),
 		legacyAssignment(source),
@@ -529,8 +556,15 @@ export async function synchronizeCaseAssignment(params: {
 }
 
 export async function reconcileComplianceCases(options: { providerId?: string } = {}) {
+	const archived = new Set(
+		(
+			await db.select({ id: Provider.id }).from(Provider).where(eq(Provider.status, "archived"))
+		).map((row) => row.id)
+	)
 	const sources = (await listCurrentComplianceCaseSources()).filter(
-		(source) => !options.providerId || source.providerId === options.providerId
+		(source) =>
+			!archived.has(source.providerId) &&
+			(!options.providerId || source.providerId === options.providerId)
 	)
 	const keys = new Set(
 		sources.map(
@@ -547,8 +581,10 @@ export async function reconcileComplianceCases(options: { providerId?: string } 
 			sourceRef: ComplianceCase.sourceRef,
 		})
 		.from(ComplianceCase)
+		.innerJoin(Provider, eq(Provider.id, ComplianceCase.providerId))
 		.where(
 			and(
+				sql`${Provider.status} is distinct from 'archived'`,
 				inArray(ComplianceCase.status, [...ACTIVE_CASE_STATUSES]),
 				options.providerId ? eq(ComplianceCase.providerId, options.providerId) : undefined
 			)

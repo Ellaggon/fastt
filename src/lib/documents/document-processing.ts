@@ -158,7 +158,6 @@ async function callDocumentGateway(params: {
 		signal: AbortSignal.timeout(45_000),
 		redirect: "error",
 	})
-	if (!response.ok) throw new Error(`document_gateway_http_${response.status}`)
 	if (!response.body) throw new Error("document_gateway_empty_response")
 	const chunks: Uint8Array[] = []
 	let size = 0
@@ -167,7 +166,28 @@ async function callDocumentGateway(params: {
 		if (size > 64 * 1024) throw new Error("document_gateway_response_too_large")
 		chunks.push(chunk)
 	}
-	return gatewaySchema.parse(JSON.parse(Buffer.concat(chunks).toString("utf8")))
+	const body = Buffer.concat(chunks).toString("utf8")
+	if (!response.ok) {
+		let code: unknown
+		try {
+			code = JSON.parse(body)?.error
+		} catch {
+			// Non-JSON errors retain the HTTP status only.
+		}
+		if (
+			response.status === 422 &&
+			typeof code === "string" &&
+			[
+				"invalid_request",
+				"source_not_allowed",
+				"source_hash_mismatch",
+				"pdf_structure_invalid",
+			].includes(code)
+		)
+			throw new Error(`document_gateway_${code}`)
+		throw new Error(`document_gateway_http_${response.status}`)
+	}
+	return gatewaySchema.parse(JSON.parse(body))
 }
 
 export async function getProviderDocumentInspection(
@@ -233,7 +253,11 @@ export async function assertProviderDocumentSafeToReveal(documentId: string) {
 	const inspection = await getProviderDocumentInspection(documentId)
 	const gate = documentInspectionGate(inspection)
 	if (!gate.canReveal) {
-		const error = new Error("document_quarantined")
+		const error = new Error(
+			inspection?.processingState === "awaiting_configuration"
+				? "document_inspection_configuration_required"
+				: "document_quarantined"
+		)
 		;(error as Error & { status?: number }).status = 423
 		throw error
 	}
@@ -485,13 +509,34 @@ export async function runProviderDocumentProcessingWorker(
 		workerId?: string
 		gatewayMode?: "configured" | "disabled"
 		maxElapsedMs?: number
+		target?: { providerId: string; documentId: string }
 	} = {}
 ) {
 	const startedAt = Date.now()
 	assertDocumentPipelineEnabled()
 	const maxElapsedMs = Math.min(Math.max(params.maxElapsedMs ?? 45_000, 1_000), 45_000)
 	const allowExternalGateway = params.gatewayMode !== "disabled"
-	await ensureDocumentProcessingBacklog()
+	const target = params.target
+	if (target) {
+		const [document] = await db
+			.select({ id: ProviderDocument.id })
+			.from(ProviderDocument)
+			.where(
+				and(
+					eq(ProviderDocument.id, target.documentId),
+					eq(ProviderDocument.providerId, target.providerId)
+				)
+			)
+			.limit(1)
+		if (!document) throw new Error("document_processing_target_not_found")
+		if (!allowExternalGateway || !documentGatewayConfigured())
+			throw new Error("document_processing_target_gateway_required")
+	} else {
+		await ensureDocumentProcessingBacklog()
+	}
+	const targetFilter = target
+		? eq(ProviderDocumentProcessingJob.documentId, target.documentId)
+		: undefined
 	const now = new Date()
 	if (allowExternalGateway && documentGatewayConfigured()) {
 		await db
@@ -504,6 +549,7 @@ export async function runProviderDocumentProcessingWorker(
 			})
 			.where(
 				and(
+					targetFilter,
 					eq(ProviderDocumentProcessingJob.status, "blocked"),
 					eq(
 						ProviderDocumentProcessingJob.lastErrorCode,
@@ -517,6 +563,7 @@ export async function runProviderDocumentProcessingWorker(
 		.set({ status: "retry", lockedAt: null, lockedBy: null, availableAt: now, updatedAt: now })
 		.where(
 			and(
+				targetFilter,
 				eq(ProviderDocumentProcessingJob.status, "processing"),
 				lt(ProviderDocumentProcessingJob.lockedAt, new Date(now.getTime() - LEASE_MS))
 			)
@@ -530,12 +577,13 @@ export async function runProviderDocumentProcessingWorker(
 		.from(ProviderDocumentProcessingJob)
 		.where(
 			and(
+				targetFilter,
 				inArray(ProviderDocumentProcessingJob.status, ["queued", "retry"]),
 				lte(ProviderDocumentProcessingJob.availableAt, now)
 			)
 		)
 		.orderBy(ProviderDocumentProcessingJob.createdAt)
-		.limit(Math.min(Math.max(params.limit ?? 10, 1), 25))
+		.limit(target ? 1 : Math.min(Math.max(params.limit ?? 10, 1), 25))
 	const workerId = params.workerId ?? `document-worker:${randomUUID()}`
 	const outcomes = { completed: 0, blocked: 0, retry: 0, failed: 0, skipped: 0 }
 	let attempted = 0

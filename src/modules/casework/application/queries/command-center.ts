@@ -590,7 +590,7 @@ function escapeLike(value: string) {
 export async function listCommandCenterCases(filters: CaseListFilters = {}) {
 	const limit = normalizedLimit(filters.limit)
 	const cursor = decodeCursor(filters.cursor)
-	const conditions: SQL[] = []
+	const conditions: SQL[] = [sql`${Provider.status} is distinct from 'archived'`]
 
 	if (filters.status) conditions.push(eq(ComplianceCase.status, filters.status))
 	else conditions.push(inArray(ComplianceCase.status, [...ACTIVE_CASE_STATUSES]))
@@ -782,7 +782,12 @@ export async function getCommandCenterSummary() {
 		})
 		.from(ComplianceCase)
 		.innerJoin(Provider, eq(ComplianceCase.providerId, Provider.id))
-		.where(inArray(ComplianceCase.status, [...ACTIVE_CASE_STATUSES]))
+		.where(
+			and(
+				sql`${Provider.status} is distinct from 'archived'`,
+				inArray(ComplianceCase.status, [...ACTIVE_CASE_STATUSES])
+			)
+		)
 		.orderBy(desc(ComplianceCase.openedAt), desc(ComplianceCase.id))
 		.limit(2_000)
 	const caseIds = cases.map((item) => item.id)

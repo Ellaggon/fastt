@@ -12,6 +12,13 @@ import CaseNextAction from "@/components/admin/cases/CaseNextAction.astro"
 import CaseRelatedReviews from "@/components/admin/cases/CaseRelatedReviews.astro"
 import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
+import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
+import {
+	findActiveComplianceCase,
+	listComplianceCaseHistory,
+	synchronizeComplianceCase,
+} from "@/lib/casework/compliance-casework"
+import { readProviderHolderProfile } from "@/lib/provider-holder-profile"
 import {
 	principalHasPermission,
 	requireInternalPermission,
@@ -113,6 +120,57 @@ const caseActionable = Boolean(
 	workspace &&
 	["open", "in_review", "waiting_information", "blocked"].includes(workspace.case.status)
 )
+const holderSource =
+	workspace &&
+	workspace.case.domain === "verification" &&
+	workspace.case.sourceType === "ProviderVerification" &&
+	workspace.case.sourceRef === workspace.case.providerId
+		? {
+				providerId: workspace.case.providerId,
+				domain: "verification" as const,
+				sourceType: "ProviderVerification",
+				sourceRef: workspace.case.providerId,
+				summary: "Revisión de la declaración del titular",
+			}
+		: null
+const holderPending = Boolean(
+	holderSource &&
+	(await readProviderHolderProfile(holderSource.providerId))?.declarationStatus === "in_review"
+)
+const activeHolderCase =
+	holderSource &&
+	(holderPending || workspace?.case.summary === holderSource.summary) &&
+	!caseActionable
+		? await findActiveComplianceCase(holderSource)
+		: null
+if (Astro.request.method === "GET" && activeHolderCase) {
+	return Astro.redirect(
+		`/admin/cases/${encodeURIComponent(activeHolderCase.id)}?history=${encodeURIComponent(caseId)}#history-${encodeURIComponent(caseId)}`,
+		302
+	)
+}
+const canStartHolderReview = commandsEnabled && caseInPilot && canProposeDecision
+if (Astro.request.method === "POST") {
+	if (
+		Astro.request.headers.get("origin") !== Astro.url.origin ||
+		!principal ||
+		!canStartHolderReview
+	)
+		return new Response("Acción no autorizada", { status: 403 })
+	if (!holderSource || !holderPending || caseActionable)
+		return Astro.redirect(Astro.url.pathname, 303)
+	try {
+		await requireRecentInternalAuthentication({ request: Astro.request, user: principal.user })
+	} catch (error) {
+		if (error instanceof Response && error.status === 401)
+			return Astro.redirect(`/auth/mfa?returnTo=${encodeURIComponent(Astro.url.pathname)}`, 303)
+		throw error
+	}
+	if ((await readProviderHolderProfile(holderSource.providerId))?.declarationStatus !== "in_review")
+		return Astro.redirect(Astro.url.pathname, 303)
+	const review = await synchronizeComplianceCase(holderSource)
+	return Astro.redirect(`/admin/cases/${encodeURIComponent(review.caseId)}#case-evidence`, 303)
+}
 const decisionLabels: Record<string, string> = {
 	approved: "Aprobar",
 	rejected: "Rechazar",
@@ -160,8 +218,22 @@ const pendingDecisionReview =
 	workspace?.decisions.some((decision) =>
 		["proposed", "pending_approval", "approved", "applying", "failed"].includes(decision.status)
 	) ?? false
-const legacyReviewHref =
-	workspace?.case.sourceType === "ProviderCommercialAgreement"
+const holderWorkspace =
+	workspace?.case.sourceType === "ProviderVerification" &&
+	(holderPending ||
+		workspace.case.summary === holderSource?.summary ||
+		Boolean(evidence?.holderDocuments))
+const holderHistory =
+	holderWorkspace && holderSource ? await listComplianceCaseHistory(holderSource, caseId) : []
+const historicalWorkspaces = await Promise.all(
+	holderHistory.map(async (previous) => ({
+		...previous,
+		detail: await getCaseWorkspace(previous.id),
+	}))
+)
+const legacyReviewHref = holderWorkspace
+	? null
+	: workspace?.case.sourceType === "ProviderCommercialAgreement"
 		? legacyHref
 		: workspace &&
 			  caseActionable &&
@@ -249,7 +321,11 @@ const noticeMessage =
 											<span class="font-mono text-xs text-amber-200">
 												{workspace.case.caseNumber}
 											</span>
-											<CaseStatusBadge value={workspace.case.status} />
+											{holderPending && !caseActionable ? (
+												<span class="text-sm font-medium">Expediente histórico</span>
+											) : (
+												<CaseStatusBadge value={workspace.case.status} />
+											)}
 											<CaseStatusBadge value={workspace.case.priority} kind="priority" />
 											<CaseStatusBadge value={workspace.case.riskTier} kind="risk" />
 										</>
@@ -277,12 +353,14 @@ const noticeMessage =
 									>
 										Ficha del proveedor
 									</Button>
-									<a
-										href={`/admin/audit?providerId=${workspace.case.providerId}&caseId=${workspace.case.id}`}
-										class="px-3 py-3 text-sm text-slate-300 underline underline-offset-4"
-									>
-										Auditoría
-									</a>
+									{!(holderWorkspace && caseActionable) && (
+										<a
+											href={`/admin/audit?providerId=${workspace.case.providerId}&caseId=${workspace.case.id}`}
+											class="px-3 py-3 text-sm text-slate-300 underline underline-offset-4"
+										>
+											Auditoría
+										</a>
+									)}
 								</>
 							</div>
 						</div>
@@ -301,10 +379,14 @@ const noticeMessage =
 													</p>
 													<h2 class="mt-2 text-lg font-semibold">
 														{caseActionable
-															? "Qué revisar"
-															: reconciliation
-																? "Cerrado automáticamente"
-																: "Expediente cerrado"}
+															? holderWorkspace
+																? "Declaración del titular en revisión"
+																: "Qué revisar"
+															: holderWorkspace && latestOutcome
+																? "Decisión aplicada"
+																: reconciliation
+																	? "Cerrado automáticamente"
+																	: "Expediente cerrado"}
 													</h2>
 													<p class="mt-2 text-sm text-slate-600">
 														{caseActionable
@@ -320,56 +402,135 @@ const noticeMessage =
 											{caseActionable && <CaseStatusBadge value={workspace.case.stage} />}
 										</>
 									</div>
-									{!caseActionable && evidence?.holderDocuments && (
-										<p class="mt-3 border-l-2 border-amber-400 pl-3 text-sm text-slate-700">
-											La declaración actual del titular sigue en revisión. Este expediente cerrado
-											no permite registrar una decisión sobre ella.
-										</p>
+									{holderWorkspace && (
+										<section class="mt-4 border-t border-slate-200 pt-4">
+											<h3 class="font-semibold">Qué cambió</h3>
+											{(() => {
+												const before = evidence?.facts.find(
+													(fact) => fact.key === "holder_previous_legal_form"
+												)
+												const after = evidence?.facts.find(
+													(fact) => fact.key === "holder_filed_legal_form"
+												)
+												return before && after ? (
+													<p class="mt-1 text-sm">
+														Forma jurídica:{" "}
+														<strong>
+															{before.value} → {after.value}
+														</strong>
+													</p>
+												) : (
+													<p class="mt-1 text-sm text-slate-600">
+														No consta una comparación vinculada a este expediente.
+													</p>
+												)
+											})()}
+											{latestOutcome && (
+												<div class="mt-4 text-sm">
+													<h3 class="font-semibold">Qué se decidió</h3>
+													<p>
+														{decisionLabels[latestOutcome.decision] ?? latestOutcome.decision} ·{" "}
+														{fmt.format(latestOutcome.appliedAt ?? latestOutcome.createdAt)}
+													</p>
+													<p>
+														{reasonById.get(latestOutcome.reasonCodeId)?.label ??
+															"Motivo no disponible"}
+													</p>
+													{latestOutcome.comment && (
+														<p class="whitespace-pre-wrap">{latestOutcome.comment}</p>
+													)}
+												</div>
+											)}
+										</section>
 									)}
-									<dl class="mt-5 grid gap-4 text-sm break-words sm:grid-cols-2">
-										<>
-											<div>
-												<>
-													<dt class="text-slate-500">Fecha de apertura</dt>
-													<dd class="mt-1 font-medium">{fmt.format(workspace.case.openedAt)}</dd>
-												</>
+									{holderPending && !caseActionable && (
+										<div class="mt-4 space-y-3 border-l-2 border-amber-400 pl-3 text-sm text-slate-700">
+											<p>
+												<strong>Declaración del titular: en revisión.</strong> El cierre de este
+												expediente no aprobó la declaración.
+											</p>
+											{activeHolderCase ? (
+												<Button
+													href={`/admin/cases/${encodeURIComponent(activeHolderCase.id)}#case-evidence`}
+												>
+													Ir a la revisión activa
+												</Button>
+											) : canStartHolderReview ? (
+												<form method="post" action={Astro.url.pathname}>
+													<Button type="submit">Iniciar revisión de la declaración</Button>
+												</form>
+											) : (
+												<p>
+													No hay una revisión activa. Tu sesión no tiene habilitada la opción de
+													iniciarla desde aquí.
+												</p>
+											)}
+										</div>
+									)}
+									{holderWorkspace &&
+										caseActionable &&
+										commandsEnabled &&
+										caseInPilot &&
+										canProposeDecision &&
+										!pendingDecisionReview &&
+										workspace.case.status !== "waiting_information" && (
+											<div class="mt-4">
+												<Button href="#decision-composer">Registrar decisión</Button>
 											</div>
-											<div>
-												<>
-													<dt class="text-slate-500">Última actualización</dt>
-													<dd class="mt-1 font-medium">{fmt.format(workspace.case.updatedAt)}</dd>
-												</>
-											</div>
-											<div>
-												<>
-													<dt class="text-slate-500">Política · referencia técnica</dt>
-													<dd class="mt-1 text-xs">
-														<details>
-															<>
-																<summary class="cursor-pointer py-1">Ver versión aplicada</summary>
-																<span class="font-mono break-all">
-																	{workspace.case.policyVersionId ?? "Sin versión"}
-																</span>
-															</>
-														</details>
-													</dd>
-												</>
-											</div>
-											<div>
-												<>
-													<dt class="text-slate-500">Referencia</dt>
-													<dd class="mt-1 text-xs">
-														<details>
-															<>
-																<summary class="cursor-pointer py-1">Ver ID de la fuente</summary>
-																<span class="font-mono break-all">{workspace.case.sourceRef}</span>
-															</>
-														</details>
-													</dd>
-												</>
-											</div>
-										</>
-									</dl>
+										)}
+									<details class="mt-5" open={!holderWorkspace}>
+										<summary class="cursor-pointer text-sm font-semibold">
+											Detalles del expediente
+										</summary>
+										<dl class="mt-3 grid gap-4 text-sm break-words sm:grid-cols-2">
+											<>
+												<div>
+													<>
+														<dt class="text-slate-500">Fecha de apertura</dt>
+														<dd class="mt-1 font-medium">{fmt.format(workspace.case.openedAt)}</dd>
+													</>
+												</div>
+												<div>
+													<>
+														<dt class="text-slate-500">Última actualización</dt>
+														<dd class="mt-1 font-medium">{fmt.format(workspace.case.updatedAt)}</dd>
+													</>
+												</div>
+												<div>
+													<>
+														<dt class="text-slate-500">Política · referencia técnica</dt>
+														<dd class="mt-1 text-xs">
+															<details>
+																<>
+																	<summary class="cursor-pointer py-1">
+																		Ver versión aplicada
+																	</summary>
+																	<span class="font-mono break-all">
+																		{workspace.case.policyVersionId ?? "Sin versión"}
+																	</span>
+																</>
+															</details>
+														</dd>
+													</>
+												</div>
+												<div>
+													<>
+														<dt class="text-slate-500">Referencia</dt>
+														<dd class="mt-1 text-xs">
+															<details>
+																<>
+																	<summary class="cursor-pointer py-1">Ver ID de la fuente</summary>
+																	<span class="font-mono break-all">
+																		{workspace.case.sourceRef}
+																	</span>
+																</>
+															</details>
+														</dd>
+													</>
+												</div>
+											</>
+										</dl>
+									</details>
 								</>
 							</Card>
 
@@ -439,11 +600,15 @@ const noticeMessage =
 													Resultado de la revisión
 												</p>
 												<h2 class="mt-1 text-lg font-semibold">
-													{caseActionable ? "Preparar decisión" : "Decisiones del expediente"}
+													{caseActionable
+														? holderWorkspace
+															? "Registrar decisión"
+															: "Preparar decisión"
+														: "Decisiones del expediente"}
 												</h2>
 											</>
 										</div>
-										{caseActionable && (
+										{caseActionable && !holderWorkspace && (
 											<span
 												class:list={[
 													"rounded-full px-3 py-1 text-xs font-semibold",
@@ -629,8 +794,51 @@ const noticeMessage =
 								)}
 							</Card>
 
-							<Card>
-								<h2 class="mt-1 text-lg font-semibold">Cronología operacional</h2>
+							<Card id="review-history">
+								<h2 class="mt-1 text-lg font-semibold">
+									{holderWorkspace ? "Historial de la revisión" : "Cronología operacional"}
+								</h2>
+								{historicalWorkspaces.length > 0 && (
+									<ul class="mt-4 space-y-2 text-sm">
+										{historicalWorkspaces.map((previous) => (
+											<li>
+												<details
+													id={`history-${previous.id}`}
+													open={Astro.url.searchParams.get("history") === previous.id}
+													class="scroll-mt-6 border-b border-slate-200 py-2"
+												>
+													<summary class="cursor-pointer font-medium">
+														{previous.caseNumber} · {fmt.format(previous.openedAt)}
+													</summary>
+													<ul class="mt-2 space-y-2 pl-4">
+														{previous.detail?.activities.map((event) => (
+															<li>
+																{event.summary} · {fmt.format(event.createdAt)}
+															</li>
+														))}
+														{previous.detail?.decisions
+															.filter((decision) => decision.status === "applied")
+															.map((decision) => (
+																<li>
+																	Decisión registrada:{" "}
+																	{decisionLabels[decision.decision] ?? decision.decision}
+																	{" · "}
+																	{fmt.format(decision.appliedAt ?? decision.createdAt)}
+																	{decision.comment && (
+																		<p class="whitespace-pre-wrap">{decision.comment}</p>
+																	)}
+																</li>
+															))}
+														{!previous.detail?.activities.length &&
+															!previous.detail?.decisions.some(
+																(decision) => decision.status === "applied"
+															) && <li>No hay actividad ni decisiones aplicadas registradas.</li>}
+													</ul>
+												</details>
+											</li>
+										))}
+									</ul>
+								)}
 								{workspace.activities.length ? (
 									<ol class="mt-4 space-y-3">
 										{workspace.activities.map((event) => (
@@ -650,6 +858,7 @@ const noticeMessage =
 
 						<aside class="space-y-4">
 							<CaseNextAction
+								assignmentOnly={holderWorkspace}
 								caseId={workspace.case.id}
 								caseVersion={workspace.case.version}
 								status={workspace.case.status}
@@ -985,6 +1194,15 @@ const noticeMessage =
 		const revealForm = document.querySelector<HTMLFormElement>("[data-evidence-reveal]")
 		const evidenceDraftKey = `casework:evidence-reason:${workspace.dataset.actorId}:${workspace.dataset.caseId}`
 		const reasonField = revealForm?.querySelector<HTMLInputElement>("[name='reason']")
+		const documentField = revealForm?.querySelector<HTMLSelectElement>("[name='documentId']")
+		const documentDraftKey = evidenceDraftKey + ":document"
+		const previousDocument = storage.getItem(documentDraftKey)
+		if (
+			documentField &&
+			previousDocument &&
+			Array.from(documentField.options).some((option) => option.value === previousDocument)
+		)
+			documentField.value = previousDocument
 		const previousReason = storage.getItem(evidenceDraftKey)
 		if (reasonField && previousReason && previousReason.length <= 240)
 			reasonField.value = previousReason
@@ -1006,6 +1224,7 @@ const noticeMessage =
 				const body = await response.json().catch(() => ({}))
 				if (response.status === 401 && body?.error === "reauthentication_required") {
 					if (reasonField) storage.setItem(evidenceDraftKey, reasonField.value)
+					if (documentField?.value) storage.setItem(documentDraftKey, documentField.value)
 					window.location.assign(
 						`/auth/mfa?returnTo=${encodeURIComponent(window.location.pathname + window.location.search + "#case-evidence")}`
 					)
@@ -1022,9 +1241,14 @@ const noticeMessage =
 								"El archivo no está disponible. Solicita que el proveedor lo vuelva a cargar.",
 							document_processing_gate_blocked:
 								"El archivo necesita completar sus controles de seguridad antes de abrirse.",
+							document_quarantined:
+								"Los controles de seguridad no permiten abrir este archivo. Revisa su estado de inspección antes de solicitar otra carga.",
+							document_inspection_configuration_required:
+								"Fastt aún no ha configurado la inspección de este archivo. No necesitas repetir el MFA ni volver a subirlo por este motivo.",
 						}[body?.error as string] || "No se pudo abrir la evidencia. Inténtalo de nuevo."
 					)
 				storage.removeItem(evidenceDraftKey)
+				storage.removeItem(documentDraftKey)
 				if (body.kind === "document" && body.url) {
 					if (output) {
 						output.textContent = "Documento autorizado. El enlace caduca en cinco minutos. "
