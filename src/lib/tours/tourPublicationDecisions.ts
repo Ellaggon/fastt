@@ -23,6 +23,7 @@ export type PublicationDecision = z.infer<typeof publicationDecisionSchema>
 export function projectAuthorizationDecisions(input: {
 	productId: string
 	policy: CommercialPolicyDiagnosis | null
+	provisionalCoverage?: CommercialPolicyDiagnosis | null
 	verification: { labels: string[]; ready: boolean; businessReady?: boolean } | null
 	agreement: { state: string; hasProposal: boolean } | null
 }): PublicationDecision[] {
@@ -39,6 +40,18 @@ export function projectAuthorizationDecisions(input: {
 			"collection_model_undecided",
 		].includes(b.id)
 	)
+	const holderReviewPending = blockers.some((b) => b.id === "holder_declaration_in_review")
+	const provisional = input.provisionalCoverage
+	const provisionalConfiguration = provisional?.blockers.some(
+		(b) =>
+			b.capabilities.includes("publish") &&
+			classifyCommercialFinding(b).category === "configuration"
+	)
+	const provisionalMatch =
+		holderReviewPending &&
+		provisional?.policyStatus === "supported" &&
+		provisional.policyVersionIds.length > 0 &&
+		!provisionalConfiguration
 	const coverageKnown =
 		input.policy?.policyStatus === "supported" &&
 		configuration.length === 0 &&
@@ -75,17 +88,31 @@ export function projectAuthorizationDecisions(input: {
 			label: "Modalidad y territorio",
 			status: coverageKnown
 				? "Cobertura aprobada"
-				: contextTask
-					? "Faltan datos de operación"
-					: configuration.length
+				: provisionalMatch
+					? "Cobertura provisional"
+					: provisionalConfiguration
 						? "Pendiente de Fastt"
-						: "No se pudo comprobar",
+						: holderReviewPending && provisional !== null
+							? "En espera de la declaración del titular"
+							: contextTask
+								? "Faltan datos de operación"
+								: configuration.length
+									? "Pendiente de Fastt"
+									: "No se pudo comprobar",
 			tone: coverageKnown ? "success" : "neutral",
 			message:
 				contextTask?.action ??
-				(coverageKnown
-					? "Hay políticas aprobadas para la operación declarada."
-					: "Fastt debe comprobar la cobertura de esta operación. No necesitas enviar documentos adicionales hasta que se indiquen."),
+				(provisionalMatch
+					? "La operación declarada coincide con una política vigente. La revisión del titular sigue pendiente y no se habilita la publicación."
+					: provisionalConfiguration
+						? "Fastt debe revisar la política aplicable. Esto no significa que la operación esté fuera de alcance."
+						: holderReviewPending && provisional !== null
+							? provisional
+								? "La comprobación provisional no confirmó cobertura. La declaración del titular sigue en revisión."
+								: "La cobertura aún no se evaluó porque la declaración del titular sigue en revisión. Esto no significa que la cobertura haya sido rechazada."
+							: coverageKnown
+								? "Hay políticas aprobadas para la operación declarada."
+								: "Fastt debe comprobar la cobertura de esta operación. No necesitas enviar documentos adicionales hasta que se indiquen."),
 			actions: contextTask
 				? [
 						{

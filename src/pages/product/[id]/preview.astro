@@ -1,6 +1,9 @@
 ---
 import TourPublishedReviewAction from "@/components/tours/TourPublishedReviewAction.astro"
 import TourReviewStatus from "@/components/tours/TourReviewStatus.astro"
+import { requireInternalPermission } from "@/lib/auth/internal-authorization"
+import { findActiveComplianceCase } from "@/lib/casework/compliance-casework"
+import { readProviderHolderProfile } from "@/lib/provider-holder-profile"
 import { presentTourDiagnostic } from "@/lib/tours/tourDiagnosticPresentation"
 import {
 	loadTourCommercialContext,
@@ -205,6 +208,32 @@ const tourPresentation = publishState.tourDiagnostic
 			previewHref: Astro.url.pathname + Astro.url.search,
 		})
 	: null
+let holderReviewHref: string | undefined
+if (tourPresentation) {
+	const canReadCompliance = await requireInternalPermission(
+		Astro.request,
+		"provider.compliance.read"
+	).then(
+		() => true,
+		(error: unknown) => {
+			if (error instanceof Response && [401, 403].includes(error.status)) return false
+			throw error
+		}
+	)
+	if (
+		canReadCompliance &&
+		(await readProviderHolderProfile(providerId))?.declarationStatus === "in_review"
+	) {
+		const active = await findActiveComplianceCase({
+			providerId,
+			domain: "verification",
+			sourceType: "ProviderVerification",
+			sourceRef: providerId,
+			summary: "Revisión de la declaración del titular",
+		})
+		if (active) holderReviewHref = `/admin/cases/${encodeURIComponent(active.id)}#case-evidence`
+	}
+}
 const readinessPercent = publishState.readinessPercent
 const blockerLabels = publishState.blockers
 	.filter((check) => check.sectionKey !== "preview")
@@ -512,6 +541,7 @@ if (!isTour) {
 				{
 					tourPresentation ? (
 						<TourReviewStatus
+							holderReviewHref={holderReviewHref}
 							diagnosis={publishState.tourDiagnostic!}
 							reviewHref={Astro.url.pathname + Astro.url.search}
 							published={isPublished}
