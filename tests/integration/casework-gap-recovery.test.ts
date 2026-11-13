@@ -31,6 +31,7 @@ import {
 	applyCaseDecision,
 	approveAndApplyCaseDecision,
 	getProvider360,
+	getCaseWorkspace,
 	listCommandCenterCases,
 	publishInformationRequest,
 	respondToInformationRequest,
@@ -334,6 +335,27 @@ describe
 					.from(AuditEvent)
 					.where(and(eq(AuditEvent.entityId, caseId), eq(AuditEvent.outcome, "succeeded")))
 				expect(audits).toHaveLength(2)
+			}))
+
+		it("hides archived providers from the queue without changing their cases", () =>
+			scenario(async (f) => {
+				const caseId = await f.createCase("verification")
+				const queue = () => listCommandCenterCases({ providerId: f.providerId })
+				const before = (await getCaseWorkspace(caseId))?.case
+				expect((await queue()).items).toHaveLength(1)
+				await db.update(Provider).set({ status: "archived" }).where(eq(Provider.id, f.providerId))
+				expect((await queue()).items).toHaveLength(0)
+				expect(await reconcileComplianceCases({ providerId: f.providerId })).toMatchObject({
+					created: 0,
+					resolved: 0,
+				})
+				expect((await getCaseWorkspace(caseId))?.case).toMatchObject({
+					id: caseId,
+					status: before?.status,
+					version: before?.version,
+				})
+				await db.update(Provider).set({ status: "draft" }).where(eq(Provider.id, f.providerId))
+				expect((await queue()).items).toHaveLength(1)
 			}))
 
 		it("does not regenerate a fiscal review after a negative decision", () =>

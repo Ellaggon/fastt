@@ -27,6 +27,7 @@ import {
 it("keeps receipt, technical analysis and human approval separate, including retries", async () => {
 	const providerId = "provider_inspection_worker"
 	const documentId = `document_inspection_${randomUUID()}`
+	const otherId = `document_inspection_${randomUUID()}`
 	await upsertProvider({
 		id: providerId,
 		legalName: "Synthetic inspection",
@@ -73,7 +74,25 @@ it("keeps receipt, technical analysis and human approval separate, including ret
 				qualitySignals: {},
 			})
 		) as typeof fetch
-		await runProviderDocumentProcessingWorker()
+		await db.insert(ProviderDocument).values({
+			id: otherId,
+			providerId,
+			type: "business_registration",
+			status: "pending",
+		})
+		await db.insert(ProviderDocumentProcessingJob).values({
+			id: randomUUID(),
+			documentId: otherId,
+			status: "blocked",
+			lastErrorCode: "document_analysis_gateway_not_configured",
+		})
+		await runProviderDocumentProcessingWorker({ target: { providerId, documentId } })
+		const [other] = await db
+			.select()
+			.from(ProviderDocumentProcessingJob)
+			.where(eq(ProviderDocumentProcessingJob.documentId, otherId))
+		expect(other.status).toBe("blocked")
+		expect(other.attempts).toBe(0)
 		inspection = await getProviderDocumentInspection(documentId)
 		expect(inspection?.processingState).toBe("queued")
 		expect(documentInspectionGate(inspection).canReveal).toBe(false)
@@ -88,7 +107,7 @@ it("keeps receipt, technical analysis and human approval separate, including ret
 			.update(ProviderDocumentProcessingJob)
 			.set({ availableAt: new Date(0) })
 			.where(eq(ProviderDocumentProcessingJob.documentId, documentId))
-		await runProviderDocumentProcessingWorker()
+		await runProviderDocumentProcessingWorker({ target: { providerId, documentId } })
 		inspection = await getProviderDocumentInspection(documentId)
 		expect(inspection?.processingState).toBe("completed")
 		expect(documentInspectionGate(inspection).canReveal).toBe(true)
@@ -100,6 +119,10 @@ it("keeps receipt, technical analysis and human approval separate, including ret
 		expect(document.status).toBe("pending")
 		expect(document.reviewedAt).toBeNull()
 	} finally {
+		await db
+			.delete(ProviderDocumentProcessingJob)
+			.where(eq(ProviderDocumentProcessingJob.documentId, otherId))
+		await db.delete(ProviderDocument).where(eq(ProviderDocument.id, otherId))
 		globalThis.fetch = fetchBefore
 		if (before === undefined) delete process.env.DOCUMENT_ANALYSIS_GATEWAY_URL
 		else process.env.DOCUMENT_ANALYSIS_GATEWAY_URL = before

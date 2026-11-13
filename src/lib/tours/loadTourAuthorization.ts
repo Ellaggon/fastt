@@ -35,7 +35,9 @@ async function loadAuthorization(
 			timing.time("lineRequirements", () =>
 				loadProductLineGate({ ...input, capability: "publish" })
 			),
-			timing.time("commercialPolicy", () => resolveProductCommercialDiagnosis(input)),
+			timing.time("commercialPolicy", () =>
+				resolveProductCommercialDiagnosis({ ...input, includeProvisionalCoverage: true })
+			),
 			timing.time("governance", () =>
 				commercialReadOnce(`governance:${input.providerId}`, () =>
 					evaluateProviderGovernance(input.providerId, { persist: false })
@@ -80,6 +82,7 @@ async function loadAuthorization(
 	const decisions = projectAuthorizationDecisions({
 		productId: input.productId,
 		policy: commercial?.diagnosis ?? null,
+		provisionalCoverage: commercial?.provisionalCoverage,
 		verification:
 			lineRead.status === "fulfilled" && providerRead.status === "fulfilled"
 				? {

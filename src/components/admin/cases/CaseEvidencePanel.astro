@@ -152,9 +152,13 @@ const processingErrorMessages: Record<string, string> = {
 			<section aria-label="Respaldos del titular">
 				<h3 class="text-sm font-semibold">Respaldos del titular</h3>
 				<p class="mt-1 text-sm text-slate-600">
-					El estado corresponde a la revisión del archivo. No confirma que acredite al titular
-					actual ni a su representante.
+					Puedes reutilizar los respaldos anteriores si corresponden al titular actual. Un archivo
+					verificado no acredita por sí solo a la sociedad ni a su representante.
 				</p>
+				<ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
+					<li>Comprueba que el registro corresponda a la sociedad declarada.</li>
+					<li>Comprueba que la persona identificada esté autorizada para representarla.</li>
+				</ul>
 				{evidence.holderDocuments.length ? (
 					<ul class="divide-y text-sm">
 						{evidence.holderDocuments.map((doc) => (

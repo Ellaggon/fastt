@@ -107,6 +107,7 @@ function blockedDiagnosis(id: string, action: string): CommercialPolicyDiagnosis
 }
 
 export type ProductCommercialDiagnosis = {
+	provisionalCoverage?: CommercialPolicyDiagnosis | null
 	productId: string
 	providerId: string
 	vertical: "hotel" | "tour" | "whole_home" | null
@@ -119,6 +120,7 @@ export type ProductCommercialDiagnosis = {
  * inference: `evaluateCommercialPolicy` checks every declared scope.
  */
 export async function resolveProductCommercialDiagnosis(params: {
+	includeProvisionalCoverage?: boolean
 	/** Internal policy simulation only; does not execute a publication command. */
 	policyEvaluationAt?: Date
 	providerId: string
@@ -213,7 +215,22 @@ async function resolveMeasuredCommercialDiagnosis(
 		}
 	}
 	if (holder.declarationStatus === "in_review") {
+		const provisionalCoverage =
+			vertical === "tour" && params.includeProvisionalCoverage
+				? await resolveMeasuredCommercialDiagnosis(
+						{
+							...params,
+							includeProvisionalCoverage: false,
+							holder: { ...holder, declarationStatus: "declared" },
+						},
+						timing
+					).then(
+						({ diagnosis }) => diagnosis,
+						() => null
+					)
+				: undefined
 		return {
+			provisionalCoverage,
 			productId: params.productId,
 			providerId: params.providerId,
 			vertical: vertical as ProductCommercialDiagnosis["vertical"],

@@ -67,6 +67,56 @@ describe("publication decision read projection", () => {
 		expect(rows[1].status).toBe("Requisitos por definir")
 		expect(rows[2].status).toBe("Vigente")
 	})
+	it("distinguishes deferred coverage from a coverage failure while the holder is under review", () => {
+		const input: Parameters<typeof projectAuthorizationDecisions>[0] = {
+			...base,
+			policy: {
+				...policy,
+				policyStatus: "unsupported",
+				policyVersionIds: [],
+				blockers: [
+					{
+						id: "holder_declaration_in_review",
+						capabilities: ["publish"],
+						action: "La declaración del titular está en revisión.",
+						policyVersionId: null,
+					},
+				],
+			},
+			verification: { ready: false, labels: ["La declaración del titular está en revisión."] },
+		}
+		const rows = projectAuthorizationDecisions(input)
+
+		expect(rows[0].status).toBe("En espera de la declaración del titular")
+		expect(rows[0].message).toContain("La cobertura aún no se evaluó")
+		expect(rows[0].message).toContain("no significa que la cobertura haya sido rechazada")
+		expect(rows[1].status).toBe("En revisión")
+		const provisional = projectAuthorizationDecisions({ ...input, provisionalCoverage: policy })
+		expect(provisional[0].status).toBe("Cobertura provisional")
+		expect(provisional[0].tone).toBe("neutral")
+		expect(provisional[1].status).toBe("En revisión")
+		const failed = projectAuthorizationDecisions({ ...input, provisionalCoverage: null })
+		expect(failed[0].status).toBe("No se pudo comprobar")
+		const unconfigured = projectAuthorizationDecisions({
+			...input,
+			provisionalCoverage: {
+				...policy,
+				policyStatus: "unsupported",
+				policyVersionIds: [],
+				blockers: [
+					{
+						id: "policy_context_unsupported_product",
+						capabilities: ["publish"],
+						action: "Revisar política",
+						policyVersionId: null,
+						configurationReason: "missing",
+					},
+				],
+			},
+		})
+		expect(unconfigured[0].status).toBe("Pendiente de Fastt")
+		expect(unconfigured[1].status).toBe("En revisión")
+	})
 	it("isolates failed reads without manufacturing successful results", () => {
 		const rows = projectAuthorizationDecisions({ ...base, policy: null, agreement: null })
 		expect(rows[0].status).toBe("No se pudo comprobar")

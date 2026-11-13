@@ -16,7 +16,15 @@ import {
 	inspectProviderDocumentPreview,
 	type ProviderDocumentPreviewState,
 } from "@/lib/provider-document-storage"
-import { and, db, desc, eq, Provider, ProviderAuditLog } from "@/shared/infrastructure/db/compat"
+import {
+	and,
+	db,
+	desc,
+	eq,
+	lte,
+	Provider,
+	ProviderAuditLog,
+} from "@/shared/infrastructure/db/compat"
 
 import type { getCaseWorkspace } from "./command-center"
 
@@ -128,6 +136,7 @@ export async function getCaseEvidence(workspace: Workspace): Promise<CaseEvidenc
 				? db
 						.select({
 							beforeJson: ProviderAuditLog.beforeJson,
+							afterJson: ProviderAuditLog.afterJson,
 							createdAt: ProviderAuditLog.createdAt,
 						})
 						.from(ProviderAuditLog)
@@ -135,7 +144,8 @@ export async function getCaseEvidence(workspace: Workspace): Promise<CaseEvidenc
 							and(
 								eq(ProviderAuditLog.providerId, providerId),
 								eq(ProviderAuditLog.entityType, "ProviderHolderProfile"),
-								eq(ProviderAuditLog.action, "provider.holder_declaration_changed")
+								eq(ProviderAuditLog.action, "provider.holder_declaration_changed"),
+								lte(ProviderAuditLog.createdAt, workspace.case.openedAt)
 							)
 						)
 						.orderBy(desc(ProviderAuditLog.createdAt))
@@ -410,6 +420,7 @@ export async function getCaseEvidence(workspace: Workspace): Promise<CaseEvidenc
 		}
 	} else {
 		const previousHolderDeclaration = holderDeclarationSnapshot(holderChange?.beforeJson)
+		const filedHolderDeclaration = holderDeclarationSnapshot(holderChange?.afterJson)
 		const reviewingHolderChange = holder?.declarationStatus === "in_review"
 		model = {
 			domain: "verification",
@@ -460,7 +471,9 @@ export async function getCaseEvidence(workspace: Workspace): Promise<CaseEvidenc
 								? "Rechazada"
 								: "Pendiente",
 				},
-				...(reviewingHolderChange && holderChange
+				...(workspace.case.summary === "Revisión de la declaración del titular" &&
+				previousHolderDeclaration &&
+				filedHolderDeclaration
 					? [
 							{
 								key: "holder_previous_country",
@@ -471,6 +484,11 @@ export async function getCaseEvidence(workspace: Workspace): Promise<CaseEvidenc
 								key: "holder_previous_legal_form",
 								label: "Forma jurídica anterior",
 								value: holderDeclarationLabel(previousHolderDeclaration),
+							},
+							{
+								key: "holder_filed_legal_form",
+								label: "Forma jurídica presentada en el expediente",
+								value: holderDeclarationLabel(filedHolderDeclaration),
 							},
 						]
 					: []),

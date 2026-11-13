@@ -26,6 +26,7 @@ import {
 } from "@lucide/astro"
 
 interface Props {
+	holderReviewHref?: string
 	diagnosis: TourDiagnostic
 	reviewHref: string
 	published: boolean
@@ -103,6 +104,16 @@ const taskIcon = (task: (typeof openTasks)[number]) => {
 						<Badge variant={decision.tone}>{decision.status}</Badge>
 					</div>
 					<p class="mt-2 text-sm leading-6 text-slate-600">{decision.message}</p>
+					{decision.id === "verification" && Astro.props.holderReviewHref && (
+						<Button
+							href={Astro.props.holderReviewHref}
+							variant="secondary"
+							size="sm"
+							data-astro-reload
+						>
+							Abrir revisión del titular
+						</Button>
+					)}
 					{decision.status === "No se pudo comprobar" && (
 						<Button href={reviewHref} variant="ghost" size="sm" data-astro-reload>
 							Reintentar comprobación
