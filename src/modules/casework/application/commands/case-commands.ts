@@ -210,14 +210,22 @@ export async function assignCase(input: {
 	assigneeUserId: string
 	assigneeEmail: string
 	actorUserId: string
+	deadlineHours?: number
 }) {
+	if (
+		input.deadlineHours !== undefined &&
+		(!Number.isInteger(input.deadlineHours) || input.deadlineHours < 1 || input.deadlineHours > 168)
+	)
+		throw commandError("case_deadline_invalid", 422)
 	const now = new Date()
 	const nextVersion = input.expectedVersion + 1
 	await db.transaction(async (tx) => {
 		const claimed = await tx
 			.update(ComplianceCase)
 			.set({
-				status: sql`CASE WHEN ${ComplianceCase.status} = 'waiting_information' THEN 'waiting_information' ELSE 'in_review' END`,
+				...(input.deadlineHours === undefined && {
+					status: sql`CASE WHEN ${ComplianceCase.status} = 'waiting_information' THEN 'waiting_information' ELSE 'in_review' END`,
+				}),
 				version: nextVersion,
 				updatedAt: now,
 			})
@@ -228,8 +236,52 @@ export async function assignCase(input: {
 					inArray(ComplianceCase.status, ["open", "in_review", "waiting_information", "blocked"])
 				)
 			)
-			.returning({ id: ComplianceCase.id })
+			.returning({ id: ComplianceCase.id, policyVersionId: ComplianceCase.policyVersionId })
 		if (!claimed[0]) throw commandError("case_version_conflict", 409)
+		const [timer] = await tx
+			.select()
+			.from(CaseSlaTimer)
+			.where(eq(CaseSlaTimer.caseId, input.caseId))
+			.orderBy(
+				sql`case when ${CaseSlaTimer.timerKey} = 'resolution' then 0 else 1 end`,
+				CaseSlaTimer.id
+			)
+			.limit(1)
+		if (!timer || input.deadlineHours !== undefined) {
+			const dueAt = new Date(now.getTime() + (input.deadlineHours ?? 48) * 3_600_000)
+			if (timer) {
+				if (timer.status === "paused" || timer.status === "stopped")
+					throw commandError("case_deadline_not_running", 409)
+				await tx
+					.update(CaseSlaTimer)
+					.set({ dueAt, status: "running", breachedAt: null, updatedAt: now })
+					.where(eq(CaseSlaTimer.id, timer.id))
+			} else {
+				await tx
+					.insert(CaseSlaTimer)
+					.values({
+						id: crypto.randomUUID(),
+						caseId: input.caseId,
+						timerKey: "resolution",
+						policyKey: `policy:${claimed[0].policyVersionId}`,
+						dueAt,
+						startedAt: now,
+						createdAt: now,
+						updatedAt: now,
+					})
+					.onConflictDoNothing({ target: [CaseSlaTimer.caseId, CaseSlaTimer.timerKey] })
+			}
+			await tx.insert(CaseActivityEvent).values({
+				id: crypto.randomUUID(),
+				caseId: input.caseId,
+				eventType: "case_deadline_set",
+				actorUserId: input.actorUserId,
+				summary: "Plazo de revisión actualizado",
+				metadataJson: { previousDueAt: timer?.dueAt ?? null, dueAt },
+				createdAt: now,
+			})
+		}
+		if (input.deadlineHours !== undefined) return
 		const tasks = await tx
 			.select({ id: CaseTask.id, assigneeEmail: CaseTask.assigneeEmail })
 			.from(CaseTask)
@@ -350,18 +402,37 @@ async function applyCanonicalDomainDecision(params: {
 	return { deferred: false }
 }
 
-const SAVED_VIEW_FILTER_KEYS = new Set(["q", "domain", "status", "priority", "riskTier", "sla"])
+const SAVED_VIEW_FILTER_KEYS = new Set([
+	"q",
+	"domain",
+	"status",
+	"priority",
+	"riskTier",
+	"sla",
+	"providerId",
+	"unassigned",
+	"assignee",
+])
 
 export async function saveCaseView(input: {
 	ownerUserId: string
 	name: string
 	filters: Record<string, string>
+	surface?: "providers"
 }) {
-	const name = input.name.trim().slice(0, 80)
-	if (name.length < 2) throw commandError("saved_view_name_invalid", 422)
+	const label = input.name.trim().slice(0, input.surface === "providers" ? 69 : 80)
+	if (label.length < 2 || label.startsWith("Proveedores:"))
+		throw commandError("saved_view_name_invalid", 422)
+	const name = input.surface === "providers" ? `Proveedores: ${label}` : label
 	const filters = Object.fromEntries(
 		Object.entries(input.filters)
-			.filter(([key, value]) => SAVED_VIEW_FILTER_KEYS.has(key) && String(value).trim())
+			.filter(
+				([key, value]) =>
+					(SAVED_VIEW_FILTER_KEYS.has(key) && String(value).trim()) ||
+					(input.surface === "providers" &&
+						((key === "view" && value === "archived") ||
+							(key === "documentType" && String(value).trim())))
+			)
 			.map(([key, value]) => [key, String(value).trim().slice(0, 100)])
 	)
 	const now = new Date()

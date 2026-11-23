@@ -9,6 +9,22 @@ const {
 	canReveal = false,
 }: { evidence: CaseEvidenceReadModel; caseId: string; canReveal?: boolean } = Astro.props
 const holderFiles = evidence.holderDocuments?.filter((doc) => doc.hasFile) ?? []
+const paymentReview = evidence.domain === "payments"
+const documentReview = evidence.domain === "documents"
+const fiscalReview = evidence.domain === "fiscal"
+const identityReview = evidence.domain === "verification"
+const focusedReview = paymentReview || documentReview || fiscalReview || identityReview
+const identityStatus = evidence.facts.filter((fact) =>
+	["verification", "holder_declaration_status"].includes(fact.key)
+)
+const fiscalStatus = evidence.facts.find((fact) => fact.key === "status")
+const fiscalValidation = evidence.signals.find((signal) => signal.key === "tin_bureau")
+const ProtectedFields = focusedReview ? "details" : "div"
+const observedAtLabel = new Intl.DateTimeFormat("es-BO", {
+	dateStyle: "medium",
+	timeStyle: "short",
+	timeZone: "America/La_Paz",
+}).format(new Date(evidence.observedAt))
 const reveal =
 	evidence.reveal ??
 	(holderFiles.length ? { kind: "document", label: "Consultar archivo original" } : null)
@@ -104,162 +120,22 @@ const processingErrorMessages: Record<string, string> = {
 			<h2 id="case-evidence-title" class="mt-1 text-lg font-semibold">{evidence.title}</h2>
 			<p class="mt-2 max-w-3xl text-sm text-slate-600">{evidence.description}</p>
 		</div>
-		<span
-			class="shrink-0 rounded-full bg-slate-100 px-3 py-1 font-mono text-[11px] text-slate-600"
-			title="Revisión determinista de la evidencia">rev. {evidence.revision.slice(0, 8)}</span
-		>
-	</header>
-	<p class="-mt-2 text-xs text-slate-500">
-		Consultada el {
-			new Intl.DateTimeFormat("es-BO", {
-				dateStyle: "medium",
-				timeStyle: "short",
-				timeZone: "America/La_Paz",
-			}).format(new Date(evidence.observedAt))
-		} (hora de Bolivia).
-	</p>
-
-	<dl class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
 		{
-			evidence.facts.map((fact) => (
-				<div
-					class:list={[
-						"rounded-xl border p-3",
-						fact.tone === "critical" ? "border-red-200 bg-red-50" : "border-slate-200 bg-slate-50",
-					]}
+			!focusedReview && (
+				<span
+					class="shrink-0 rounded-full bg-slate-100 px-3 py-1 font-mono text-[11px] text-slate-600"
+					title="Revisión determinista de la evidencia"
 				>
-					<>
-						<dt class="text-xs font-medium text-slate-500">
-							{fact.label}
-							{fact.sensitive ? <span class="ml-1 text-amber-700">· protegido</span> : null}
-						</dt>
-						<dd class="mt-1 text-sm font-medium break-words text-slate-900">{fact.value}</dd>
-					</>
-				</div>
-			))
+					rev. {evidence.revision.slice(0, 8)}
+				</span>
+			)
 		}
-	</dl>
+	</header>
 	{
-		evidence.domain === "fiscal" && (
-			<p class="text-sm text-slate-600">
-				Esta revisión contiene los datos fiscales declarados. Los archivos adjuntos se abren desde
-				su revisión documental.
-			</p>
+		!focusedReview && (
+			<p class="-mt-2 text-xs text-slate-500">Consultada el {observedAtLabel} (hora de Bolivia).</p>
 		)
 	}
-	{
-		evidence.holderDocuments && (
-			<section aria-label="Respaldos del titular">
-				<h3 class="text-sm font-semibold">Respaldos del titular</h3>
-				<p class="mt-1 text-sm text-slate-600">
-					Puedes reutilizar los respaldos anteriores si corresponden al titular actual. Un archivo
-					verificado no acredita por sí solo a la sociedad ni a su representante.
-				</p>
-				<ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
-					<li>Comprueba que el registro corresponda a la sociedad declarada.</li>
-					<li>Comprueba que la persona identificada esté autorizada para representarla.</li>
-				</ul>
-				{evidence.holderDocuments.length ? (
-					<ul class="divide-y text-sm">
-						{evidence.holderDocuments.map((doc) => (
-							<li class="py-2 break-words">
-								{doc.label} · {doc.fileName ?? "Sin nombre"} · {doc.status}
-								{!doc.hasFile && " · Sin archivo"}
-							</li>
-						))}
-					</ul>
-				) : (
-					<p class="text-sm">No hay respaldos de identidad o registro de empresa.</p>
-				)}
-			</section>
-		)
-	}
-	{
-		reveal && canReveal && (
-			<form
-				class="fastt-notice space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4"
-				data-evidence-reveal
-				data-endpoint={`/api/admin/v1/cases/${caseId}/evidence/reveal`}
-			>
-				<h3 class="text-sm font-semibold">
-					{reveal.kind === "document"
-						? "Consultar archivo original"
-						: reveal.kind === "tax_registration"
-							? "Consultar registro fiscal completo"
-							: "Consultar datos de la cuenta"}
-				</h3>
-				<p class="text-xs leading-5 text-slate-600">
-					Indica el motivo de acceso. Se solicitará MFA si hace falta y la consulta quedará
-					registrada.
-				</p>
-				<input type="hidden" name="kind" value={reveal.kind} />
-				{holderFiles.length > 0 && (
-					<label class="block text-xs font-medium">
-						Archivo
-						<select name="documentId" required class="fastt-field block w-full">
-							<option value="">Seleccionar archivo</option>
-							{holderFiles.map((doc) => (
-								<option value={doc.id}>
-									{doc.label}: {doc.fileName ?? "Sin nombre"}
-								</option>
-							))}
-						</select>
-					</label>
-				)}
-				<label class="block text-xs font-medium text-slate-700">
-					Motivo de acceso
-					<Input
-						name="reason"
-						required
-						minlength="8"
-						maxlength="240"
-						class="mt-1"
-						placeholder="Ej. comprobar el respaldo presentado para esta revisión"
-					/>
-				</label>
-				<Button type="submit" size="sm" variant="secondary">
-					{reveal.label}
-				</Button>
-				<div
-					class="fastt-notice hidden rounded-lg border border-slate-200 bg-white p-3 text-sm"
-					data-reveal-output
-					role="status"
-					aria-live="polite"
-				/>
-			</form>
-		)
-	}
-	{
-		reveal && !canReveal && (
-			<p class="text-sm text-amber-800">
-				Tu cuenta puede consultar el resumen, pero necesita permiso de acceso a información
-				protegida para abrir el contenido completo.
-			</p>
-		)
-	}
-
-	<div>
-		<h3 class="text-sm font-semibold text-slate-900">Criterios de decisión</h3>
-		<ul class="mt-3 grid gap-3 lg:grid-cols-2">
-			{
-				evidence.signals.map((signal) => (
-					<li class:list={["rounded-xl border p-3", signalClass[signal.status]]}>
-						<>
-							<div class="flex items-center justify-between gap-3">
-								<>
-									<span class="text-sm font-semibold">{signal.label}</span>
-									<span class="text-[11px] font-semibold tracking-wide uppercase">
-										{signalLabel[signal.status]}
-									</span>
-								</>
-							</div>
-							<p class="mt-1 text-xs leading-5 opacity-80">{signal.detail}</p>
-						</>
-					</li>
-				))
-			}
-		</ul>
-	</div>
 
 	{
 		evidence.holderMatch && (
@@ -288,7 +164,6 @@ const processingErrorMessages: Record<string, string> = {
 			</section>
 		)
 	}
-
 	{
 		evidence.artifact?.kind === "document" && (
 			<div
@@ -336,6 +211,251 @@ const processingErrorMessages: Record<string, string> = {
 			</div>
 		)
 	}
+	{
+		focusedReview &&
+			(evidence.approvalBlockers.length > 0 || evidence.approvalWarnings.length > 0) && (
+				<div class="fastt-notice rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+					<p class="font-semibold">
+						{evidence.approvalBlockers.length
+							? "No se puede aprobar"
+							: "Justifica la diferencia antes de aprobar"}
+					</p>
+					<ul class="mt-1 space-y-1">
+						{(evidence.approvalBlockers.length
+							? evidence.approvalBlockers
+							: evidence.approvalWarnings
+						).map((message) => (
+							<li>{message}</li>
+						))}
+					</ul>
+				</div>
+			)
+	}
+	{
+		fiscalReview && (
+			<section
+				class="rounded-lg border border-slate-200 p-4"
+				aria-label="Estado del registro fiscal"
+			>
+				<h3 class="text-sm font-semibold">Estado del registro fiscal</h3>
+				<p class="mt-1 text-sm text-slate-700">{fiscalStatus?.value ?? "No configurado"}</p>
+				{fiscalValidation && (
+					<div class="mt-3 border-t border-slate-200 pt-3 text-sm">
+						<p class="font-medium">
+							{fiscalValidation.label} · {signalLabel[fiscalValidation.status]}
+						</p>
+						<p class="mt-1 text-slate-600">{fiscalValidation.detail}</p>
+					</div>
+				)}
+			</section>
+		)
+	}
+	{
+		identityReview && identityStatus.length > 0 && (
+			<section
+				class="rounded-lg border border-slate-200 p-4"
+				aria-label="Estado de identidad y negocio"
+			>
+				<h3 class="text-sm font-semibold">Estado de identidad y negocio</h3>
+				<dl class="mt-2 grid gap-3 sm:grid-cols-2">
+					{identityStatus.map((fact) => (
+						<div>
+							<dt class="text-xs text-slate-600">{fact.label}</dt>
+							<dd class="text-sm font-medium">{fact.value}</dd>
+						</div>
+					))}
+				</dl>
+			</section>
+		)
+	}
+	{
+		(paymentReview || fiscalReview || identityReview) && (
+			<h3 class="text-sm font-semibold">
+				{identityReview
+					? "Datos del titular"
+					: fiscalReview
+						? "Datos fiscales declarados"
+						: "Cuenta registrada"}
+			</h3>
+		)
+	}
+	<dl class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+		{
+			evidence.facts
+				.filter((fact) => !paymentReview || fact.key !== "micro_deposit" || fact.value !== "none")
+				.filter((fact) => !fiscalReview || fact.key !== "status")
+				.filter((fact) => !identityReview || !identityStatus.includes(fact))
+				.filter(
+					(fact) =>
+						!documentReview ||
+						evidence.artifact?.kind !== "document" ||
+						!["file", "mime", "size"].includes(fact.key)
+				)
+				.map((fact) => (
+					<div
+						class:list={[
+							"rounded-xl border p-3",
+							fact.tone === "critical"
+								? "border-red-200 bg-red-50"
+								: "border-slate-200 bg-slate-50",
+						]}
+					>
+						<>
+							<dt class="text-xs font-medium text-slate-500">
+								{fact.label}
+								{fact.sensitive ? <span class="ml-1 text-amber-700">· protegido</span> : null}
+							</dt>
+							<dd class="mt-1 text-sm font-medium break-words text-slate-900">{fact.value}</dd>
+						</>
+					</div>
+				))
+		}
+	</dl>
+	{
+		evidence.domain === "fiscal" && (
+			<p class="text-sm text-slate-600">
+				Esta revisión contiene los datos fiscales declarados. Los archivos adjuntos se abren desde
+				su revisión documental.
+			</p>
+		)
+	}
+	{
+		evidence.holderDocuments && (
+			<section aria-label="Respaldos del titular">
+				<h3 class="text-sm font-semibold">Respaldos del titular</h3>
+				<p class="mt-1 text-sm text-slate-600">
+					Puedes reutilizar los respaldos anteriores si corresponden al titular actual. Un archivo
+					verificado no acredita por sí solo a la sociedad ni a su representante.
+				</p>
+				<ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
+					<li>Comprueba que el registro corresponda a la sociedad declarada.</li>
+					<li>Comprueba que la persona identificada esté autorizada para representarla.</li>
+				</ul>
+				{evidence.holderDocuments.length ? (
+					<ul class="divide-y text-sm">
+						{evidence.holderDocuments.map((doc) => (
+							<li class="py-2 break-words">
+								{doc.label} · {doc.fileName ?? "Sin nombre"} · {doc.status}
+								{!doc.hasFile && " · Sin archivo"}
+							</li>
+						))}
+					</ul>
+				) : (
+					<p class="text-sm">No hay respaldos de identidad o registro de empresa.</p>
+				)}
+			</section>
+		)
+	}
+	{
+		reveal && canReveal && (
+			<ProtectedFields class:list={focusedReview ? ["rounded-lg border border-slate-200 p-3"] : []}>
+				{focusedReview && (
+					<summary class="cursor-pointer text-sm font-semibold">
+						{documentReview || identityReview
+							? "Consultar archivo original"
+							: fiscalReview
+								? "Consultar registro fiscal completo"
+								: "Consultar datos protegidos de la cuenta"}
+					</summary>
+				)}
+				<form
+					class="fastt-notice space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4"
+					data-evidence-reveal
+					data-endpoint={`/api/admin/v1/cases/${caseId}/evidence/reveal`}
+				>
+					<h3 class="text-sm font-semibold">
+						{reveal.kind === "document"
+							? "Consultar archivo original"
+							: reveal.kind === "tax_registration"
+								? "Consultar registro fiscal completo"
+								: "Consultar datos de la cuenta"}
+					</h3>
+					<p class="text-xs leading-5 text-slate-600">
+						Indica el motivo de acceso. Se solicitará MFA si hace falta y la consulta quedará
+						registrada.
+					</p>
+					<input type="hidden" name="kind" value={reveal.kind} />
+					{holderFiles.length > 0 && (
+						<label class="block text-xs font-medium">
+							Archivo
+							<select name="documentId" required class="fastt-field block w-full">
+								<option value="">Seleccionar archivo</option>
+								{holderFiles.map((doc) => (
+									<option value={doc.id}>
+										{doc.label}: {doc.fileName ?? "Sin nombre"}
+									</option>
+								))}
+							</select>
+						</label>
+					)}
+					<label class="block text-xs font-medium text-slate-700">
+						Motivo de acceso
+						<Input
+							name="reason"
+							required
+							minlength="8"
+							maxlength="240"
+							class="mt-1"
+							placeholder="Ej. comprobar el respaldo presentado para esta revisión"
+						/>
+					</label>
+					<Button type="submit" size="sm" variant="secondary">
+						{reveal.label}
+					</Button>
+					<div
+						class="fastt-notice hidden rounded-lg border border-slate-200 bg-white p-3 text-sm"
+						data-reveal-output
+						role="status"
+						aria-live="polite"
+					/>
+				</form>
+			</ProtectedFields>
+		)
+	}
+	{
+		reveal && !canReveal && (
+			<p class="text-sm text-amber-800">
+				Tu cuenta puede consultar el resumen, pero necesita permiso de acceso a información
+				protegida para abrir el contenido completo.
+			</p>
+		)
+	}
+
+	<div>
+		<h3 class="text-sm font-semibold text-slate-900">
+			{focusedReview ? "Respaldos del proveedor" : "Criterios de decisión"}
+		</h3>
+		{
+			documentReview && (
+				<p class="mt-1 text-xs text-slate-600">
+					Estado de otros respaldos de la cuenta. La decisión de este expediente solo afecta al
+					archivo asociado.
+				</p>
+			)
+		}
+		<ul class="mt-3 grid gap-3 lg:grid-cols-2">
+			{
+				evidence.signals
+					.filter((signal) => !paymentReview || signal.key !== "holder_match")
+					.filter((signal) => !fiscalReview || !["tin_bureau", "fiscal_state"].includes(signal.key))
+					.map((signal) => (
+						<li class:list={["rounded-xl border p-3", signalClass[signal.status]]}>
+							<>
+								<div class="flex items-center justify-between gap-3">
+									<>
+										<span class="text-sm font-semibold">{signal.label}</span>
+										<span class="text-[11px] font-semibold tracking-wide uppercase">
+											{signal.statusLabel ?? signalLabel[signal.status]}
+										</span>
+									</>
+								</div>
+								<p class="mt-1 text-xs leading-5 opacity-80">{signal.detail}</p>
+							</>
+						</li>
+					))
+			}
+		</ul>
+	</div>
 
 	{
 		evidence.artifact?.kind === "document" && (
@@ -363,60 +483,89 @@ const processingErrorMessages: Record<string, string> = {
 							"Pendiente"}
 					</span>
 				</div>
-				{evidence.artifact.inspection ? (
-					<>
-						<dl class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-							{[
-								["Antivirus", evidence.artifact.inspection.malwareStatus],
-								["OCR", evidence.artifact.inspection.ocrStatus],
-								["Extracción", evidence.artifact.inspection.extractionStatus],
-								["Manipulación", evidence.artifact.inspection.tamperStatus],
-							].map(([label, status]) => (
-								<div class:list={["rounded-lg border p-3", processingTone(status)]}>
-									<dt class="text-xs font-medium opacity-75">{label}</dt>
-									<dd class="mt-1 text-sm font-semibold">{processingLabels[status] ?? status}</dd>
-								</div>
-							))}
-						</dl>
-						<div class="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
-							<span>
-								Formato detectado: {evidence.artifact.inspection.detectedMimeType ?? "pendiente"}
-							</span>
-							<span>
-								Huella:{" "}
-								{evidence.artifact.inspection.sha256
-									? `${evidence.artifact.inspection.sha256.slice(0, 12)}…`
-									: "pendiente"}
-							</span>
-							<span>
-								Campos extraídos: {evidence.artifact.inspection.extractedFieldKeys.length}
-							</span>
-						</div>
-						{evidence.artifact.inspection.extractedFieldKeys.length > 0 && (
-							<p class="mt-2 text-xs text-slate-500">
-								Campos detectados: {evidence.artifact.inspection.extractedFieldKeys.join(", ")}. Los
-								valores sensibles no se muestran en este resumen.
-							</p>
-						)}
-						{evidence.artifact.inspection.errorCode && (
-							<p class="mt-3 text-xs text-amber-800">
-								Atención operativa:{" "}
-								{processingErrorMessages[evidence.artifact.inspection.errorCode] ??
-									"La inspección técnica necesita atención. Consulta el evento operativo antes de decidir."}
-							</p>
-						)}
-					</>
-				) : (
-					<p class="mt-3 text-sm text-amber-800">
-						Este documento todavía no ingresó a la cola técnica de inspección.
-					</p>
-				)}
+				<details class="mt-3">
+					<summary class="cursor-pointer text-sm font-medium">Ver detalle de la inspección</summary>
+					{evidence.artifact.inspection ? (
+						<>
+							<dl class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+								{[
+									["Antivirus", evidence.artifact.inspection.malwareStatus],
+									["OCR", evidence.artifact.inspection.ocrStatus],
+									["Extracción", evidence.artifact.inspection.extractionStatus],
+									["Manipulación", evidence.artifact.inspection.tamperStatus],
+								].map(([label, status]) => (
+									<div class:list={["rounded-lg border p-3", processingTone(status)]}>
+										<dt class="text-xs font-medium opacity-75">{label}</dt>
+										<dd class="mt-1 text-sm font-semibold">{processingLabels[status] ?? status}</dd>
+									</div>
+								))}
+							</dl>
+							{evidence.artifact.inspection.readingReason && (
+								<p class="mt-3 text-sm text-slate-700">
+									{new Map([
+										["unknown_page_count", "No se pudo determinar cuántas páginas tiene el PDF."],
+										[
+											"page_limit",
+											"El PDF supera el límite de cinco páginas para lectura automática.",
+										],
+										["pages_without_text", "Una o más páginas no devolvieron texto legible."],
+										[
+											"issue_fields_unresolved",
+											"Se leyó texto, pero no se pudo identificar con certeza el emisor, la fecha de emisión o ambos.",
+										],
+										[
+											"reading_error",
+											"El lector no terminó de procesar el archivo. No es un rechazo del documento.",
+										],
+										[
+											"page_render_error",
+											"No se pudo convertir una página del PDF en imagen para leerla.",
+										],
+										["ocr_engine_error", "El motor OCR no pudo terminar de leer una página."],
+										["ocr_timeout", "El lector agotó el tiempo permitido para completar el OCR."],
+									]).get(evidence.artifact.inspection.readingReason)}
+								</p>
+							)}
+							<div class="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
+								<span>
+									Formato detectado: {evidence.artifact.inspection.detectedMimeType ?? "pendiente"}
+								</span>
+								<span>
+									Huella:{" "}
+									{evidence.artifact.inspection.sha256
+										? `${evidence.artifact.inspection.sha256.slice(0, 12)}…`
+										: "pendiente"}
+								</span>
+								<span>
+									Campos extraídos: {evidence.artifact.inspection.extractedFieldKeys.length}
+								</span>
+							</div>
+							{evidence.artifact.inspection.extractedFieldKeys.length > 0 && (
+								<p class="mt-2 text-xs text-slate-500">
+									Campos detectados: {evidence.artifact.inspection.extractedFieldKeys.join(", ")}.
+									Los valores sensibles no se muestran en este resumen.
+								</p>
+							)}
+							{evidence.artifact.inspection.errorCode && (
+								<p class="mt-3 text-xs text-amber-800">
+									Atención operativa:{" "}
+									{processingErrorMessages[evidence.artifact.inspection.errorCode] ??
+										"La inspección técnica necesita atención. Consulta el evento operativo antes de decidir."}
+								</p>
+							)}
+						</>
+					) : (
+						<p class="mt-3 text-sm text-amber-800">
+							Este documento todavía no ingresó a la cola técnica de inspección.
+						</p>
+					)}
+				</details>
 			</section>
 		)
 	}
 
 	{
-		evidence.approvalBlockers.length > 0 && (
+		!focusedReview && evidence.approvalBlockers.length > 0 && (
 			<div class="fastt-notice rounded-xl border border-amber-300 bg-amber-50 p-4" role="alert">
 				<>
 					<h3 class="text-sm font-semibold text-amber-950">Aprobación bloqueada</h3>
@@ -431,7 +580,7 @@ const processingErrorMessages: Record<string, string> = {
 	}
 
 	{
-		evidence.approvalWarnings.length > 0 && (
+		!focusedReview && evidence.approvalWarnings.length > 0 && (
 			<div class="fastt-notice rounded-xl border border-amber-300 bg-amber-50 p-4" role="alert">
 				<h3 class="text-sm font-semibold text-amber-950">Revisión reforzada requerida</h3>
 				<ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-900">
@@ -444,9 +593,19 @@ const processingErrorMessages: Record<string, string> = {
 	}
 
 	<details class="text-xs text-slate-600 break-words">
-		<summary class="cursor-pointer py-2">Referencias técnicas de la evidencia</summary>
+		<summary class="cursor-pointer py-2"
+			>{focusedReview ? "Detalles técnicos" : "Referencias técnicas de la evidencia"}</summary
+		>
 		<footer class="text-xs text-slate-500 break-all">
 			Fuente canónica: <span class="font-mono">{evidence.sourceType} · {evidence.sourceRef}</span>.
+			{
+				focusedReview && (
+					<p>
+						Revisión: <span class="font-mono">{evidence.revision.slice(0, 8)}</span> · Consultada el{" "}
+						{observedAtLabel} (hora de Bolivia).
+					</p>
+				)
+			}
 		</footer>
 	</details>
 </section>

@@ -14,6 +14,7 @@ import { assertHolderDeclarationAllowsDocuments } from "@/lib/provider-holder-pr
 import {
 	listProviderDocuments,
 	providerDocumentTypes,
+	providerDocumentTypeForDefinition,
 	requiredKycDocumentTypes,
 	submitProviderDocument,
 	validateDocumentFile,
@@ -301,10 +302,11 @@ export const POST: APIRoute = async ({ request }) => {
 		let matchedRequirement: VerificationRequirement | null = null
 		const definitionId = String(form.get("definitionVersionId") ?? "").trim()
 		const policyKey = String(form.get("policyRequirementKey") ?? "").trim()
-		if (definitionId && policyKey && scopeProductIdHint) {
+		const policyProductId = String(form.get("policyProductId") ?? scopeProductIdHint).trim()
+		if (definitionId && policyKey && policyProductId) {
 			const { diagnosis } = await resolveProductCommercialDiagnosis({
 				providerId,
-				productId: scopeProductIdHint,
+				productId: policyProductId,
 			})
 			const requirement = diagnosis.applicableRequirements?.find(
 				(item) => item.key === policyKey && item.policyVersionId === form.get("policyVersionId")
@@ -317,9 +319,10 @@ export const POST: APIRoute = async ({ request }) => {
 			)
 				return json({ error: "document_not_applicable" }, 422)
 			const definition = await readPublishedDocumentDefinition(definitionId)
-			const family = providerDocumentTypes.find((type) => type.value === definition.family)?.value
+			const family = providerDocumentTypeForDefinition(definition)
 			if (!family) return json({ error: "document_not_applicable" }, 422)
 			const selector = requirement.condition?.evidenceSubjectSelector
+			const providerWide = requirement.condition?.evidenceScope === "provider"
 			matchedRequirement = {
 				id:
 					selector === "guides"
@@ -328,14 +331,14 @@ export const POST: APIRoute = async ({ request }) => {
 							? "tour.operator_license"
 							: `policy.${policyKey}`,
 				label: definition.label,
-				layer: "tour",
+				layer: providerWide ? "shared" : "tour",
 				presentationArea: "activity",
 				documentType: family,
 				uploadValue: postedType,
-				accountDocuments: false,
+				accountDocuments: providerWide,
 				appliesBecause: requirement.blockingAction,
 				scopes: {
-					productIds: [scopeProductIdHint],
+					productIds: providerWide ? [] : [policyProductId],
 					territoryCodes: [],
 					resourceIds: [],
 					activityClasses: [],

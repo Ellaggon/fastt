@@ -1,0 +1,92 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import type { ProviderDocumentRecord } from "@/lib/provider-documents"
+import { documentCaptureSchema } from "@/shared/domain/document-definition"
+const { document: doc, definitions } = Astro.props as {
+	document: ProviderDocumentRecord
+	definitions: { id: string; label: string; capture: unknown }[]
+}
+const subjects = [
+	...new Set(
+		definitions.flatMap((def) => documentCaptureSchema.parse(def.capture).allowedSubjectTypes)
+	),
+]
+const subjectLabels: Record<string, string> = {
+	person: "Persona",
+	legal_entity: "Empresa o entidad",
+	provider: "Proveedor",
+}
+const date = (value: Date | null) => value?.toISOString().slice(0, 10) ?? ""
+---
+
+{
+	definitions.length > 0 && (
+		<details class="mt-3 rounded-md border border-slate-200 p-3">
+			<summary class="cursor-pointer text-sm font-medium">Revisar para otro requisito</summary>
+			<form
+				action="/api/admin/providers/document-reuse"
+				method="post"
+				data-agreement-form
+				data-follow-command-redirect
+				class="mt-4 grid gap-3 sm:grid-cols-2"
+			>
+				<input type="hidden" name="providerId" value={doc.providerId} />
+				<input type="hidden" name="documentId" value={doc.id} />
+				<label class="text-sm sm:col-span-2">
+					Requisito
+					<Select name="definitionVersionId" required class="mt-1">
+						{definitions.map((def) => (
+							<option value={def.id}>{def.label}</option>
+						))}
+					</Select>
+				</label>
+				<label class="text-sm">
+					Sujeto
+					<Select name="subjectType" required class="mt-1">
+						<option value="">Seleccionar</option>
+						{subjects
+							.filter((s) => subjectLabels[s])
+							.map((s) => (
+								<option value={s}>{subjectLabels[s]}</option>
+							))}
+					</Select>
+				</label>
+				<label class="text-sm">
+					Identificador del sujeto
+					<Input name="subjectReference" required maxlength="200" class="mt-1" />
+				</label>
+				<label class="text-sm sm:col-span-2">
+					Emisor
+					<Input name="issuer" value={doc.issuer ?? ""} required maxlength="200" class="mt-1" />
+				</label>
+				<label class="text-sm">
+					Fecha de emisión
+					<Input type="date" name="issuedAt" value={date(doc.issuedAt)} required class="mt-1" />
+				</label>
+				<label class="text-sm">
+					Vencimiento
+					<Input type="date" name="expiresAt" value={date(doc.expiresAt)} class="mt-1" />
+				</label>
+				<label class="text-sm sm:col-span-2">
+					Motivo de la nueva revisión
+					<Textarea
+						name="reason"
+						required
+						minlength="10"
+						maxlength="500"
+						rows="2"
+						class="mt-1 min-h-20 py-2"
+					/>
+				</label>
+				<div class="sm:col-span-2">
+					<Button type="submit" variant="secondary" size="sm">
+						Crear revisión pendiente
+					</Button>
+				</div>
+			</form>
+		</details>
+	)
+}

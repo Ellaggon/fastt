@@ -11,16 +11,23 @@ try {
 	principal = await requireInternalPermission(Astro.request, "provider.compliance.read")
 } catch (response) {
 	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
+	if (response instanceof Response && response.status === 403) Astro.response.status = 403
+	else throw response
 }
 const view = Astro.url.searchParams.get("view") ?? "assigned"
+if (view === "activity") return Astro.redirect("/admin/audit?view=compliance", 302)
 const result = principal
 	? await listCommandCenterCases({
 			assigneeUserId: view === "assigned" ? principal.user.id : null,
 			sla: view === "overdue" ? "overdue" : view === "due_soon" ? "due_soon" : null,
 			pendingSecondControlForUserId: view === "second_control" ? principal.user.id : null,
 			limit: 60,
+		}).catch((error: unknown) => {
+			console.error("Unable to load admin work queue", error)
+			Astro.response.status = 503
+			return null
 		})
-	: { items: [], nextCursor: null }
+	: null
 ---
 
 <InternalAdminLayout title="Centro de Mando · Mi trabajo">
@@ -74,7 +81,7 @@ const result = principal
 			)
 		}
 		{
-			principal ? (
+			result ? (
 				<CaseTable
 					items={result.items}
 					emptyMessage={
@@ -83,6 +90,13 @@ const result = principal
 							: "No hay casos en esta vista."
 					}
 				/>
+			) : principal ? (
+				<Card class="space-y-3">
+					<p role="status">No se pudo cargar esta vista de trabajo.</p>
+					<Button href={Astro.url.pathname + Astro.url.search} reload variant="secondary">
+						Reintentar
+					</Button>
+				</Card>
 			) : (
 				<Card>Acceso restringido.</Card>
 			)

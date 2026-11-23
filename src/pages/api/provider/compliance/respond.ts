@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro"
 import { IdempotencyConflictError } from "@/lib/commands/command-idempotency"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
-import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
+import { getFeatureFlag } from "@/config/featureFlags"
 import { executeSensitiveCommand } from "@/lib/commands/sensitive-command"
 import { requestIdFromRequest } from "@/lib/http/request-context"
 import {
@@ -20,11 +20,8 @@ export const POST: APIRoute = async ({ request }) => {
 			return new Response("Origen no permitido", { status: 403 })
 		const session = await requireProviderSessionSurface(request)
 		const providerId = session.provider.providerId
-		if (
-			!getFeatureFlag("COMMAND_CENTER_V2_COMMANDS_ENABLED", { request }) ||
-			!isCommandCenterV2PilotProvider(providerId)
-		)
-			return new Response("Respuestas fuera del piloto", { status: 403 })
+		if (!getFeatureFlag("COMMAND_CENTER_V2_COMMANDS_ENABLED", { request }))
+			return new Response("Respuestas deshabilitadas en este entorno", { status: 503 })
 		const form = await request.formData()
 		const decisionId = String(form.get("decisionId") ?? "")
 		const message = String(form.get("message") ?? "")

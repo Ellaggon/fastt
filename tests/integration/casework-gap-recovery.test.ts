@@ -3,7 +3,25 @@ import {
 	resolveComplianceCaseForSource,
 	listCurrentComplianceCaseSources,
 } from "@/lib/casework/compliance-casework"
-import { afterAll, describe, expect, it } from "vitest"
+import { afterAll, describe, expect, it, vi } from "vitest"
+import { POST as startDocumentReview } from "@/pages/api/admin/providers/start-document-review"
+
+vi.mock("@/lib/auth/internal-authorization", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/lib/auth/internal-authorization")>()),
+	requireInternalPermission: vi.fn(async () => ({ user: { id: "synthetic-reviewer" } })),
+}))
+vi.mock("@/lib/auth/internal-step-up", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/lib/auth/internal-step-up")>()),
+	requireRecentInternalAuthentication: vi.fn(async () => undefined),
+}))
+vi.mock("@/config/featureFlags", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/config/featureFlags")>()
+	return {
+		...actual,
+		getFeatureFlag: (...args: Parameters<typeof actual.getFeatureFlag>) =>
+			args[0] === "COMMAND_CENTER_V2_COMMANDS_ENABLED" || actual.getFeatureFlag(...args),
+	}
+})
 import { hasIsolatedTestDatabase } from "@/shared/infrastructure/db/data-environment"
 import { withPostgresTransaction, closePostgresClients } from "@/shared/infrastructure/db/client"
 import {
@@ -163,6 +181,29 @@ describe
 	.skipIf(!available)
 	.sequential("casework persistence and recovery in isolated PostgreSQL", () => {
 		afterAll(closePostgresClients)
+		it("starts a pending document review only once and exposes it in the provider workspace", () =>
+			scenario(async (f) => {
+				const url = "http://localhost/api/admin/providers/start-document-review"
+				const submit = (providerId: string) =>
+					startDocumentReview({
+						request: new Request(url, {
+							method: "POST",
+							headers: { origin: "http://localhost" },
+							body: new URLSearchParams({ providerId, documentId: f.documentId }),
+						}),
+					} as Parameters<typeof startDocumentReview>[0])
+				expect((await submit(f.otherId)).status).toBe(409)
+				const first = await submit(f.providerId)
+				expect(first.status).toBe(200)
+				const { redirectTo } = await first.json()
+				expect(redirectTo).toMatch(/^\/admin\/cases\//)
+				const retry = await submit(f.providerId)
+				expect(await retry.json()).toMatchObject({ ok: true, redirectTo })
+				const workspace = await getProvider360(f.providerId)
+				expect(
+					workspace?.pendingCases.filter((item) => item.sourceRef === f.documentId)
+				).toHaveLength(1)
+			}))
 		it("preserves an old active case beyond 100 closed cases and excludes a second provider", () =>
 			scenario(async (f) => {
 				const oldest = await f.createCase(

@@ -3,16 +3,14 @@ import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import ProviderInformationRequestInbox from "@/components/provider/ProviderInformationRequestInbox.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
 import { listProviderInformationRequests } from "@/modules/casework/public"
-import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
+import { getFeatureFlag } from "@/config/featureFlags"
 const session = await requireProviderSessionSurface(Astro.request).catch((error) => {
 	if (error instanceof Response && error.status === 401) return null
 	throw error
 })
 if (!session) return Astro.redirect("/SignInPage")
 const requests = await listProviderInformationRequests(session.provider.providerId, session.user.id)
-const enabled =
-	getFeatureFlag("COMMAND_CENTER_V2_COMMANDS_ENABLED", { request: Astro.request }) &&
-	isCommandCenterV2PilotProvider(session.provider.providerId)
+const enabled = getFeatureFlag("COMMAND_CENTER_V2_COMMANDS_ENABLED", { request: Astro.request })
 Astro.response.headers.set("Cache-Control", "private, no-store")
 const permissions = session.provider.permissions
 const canReadRequests = Boolean(

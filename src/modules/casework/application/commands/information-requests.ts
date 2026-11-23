@@ -7,6 +7,7 @@ import {
 	CaseActivityEvent,
 	CaseDecision,
 	ComplianceCase,
+	Provider,
 	ProviderUser,
 } from "@/shared/infrastructure/db/compat"
 import { resolveProviderPermissions } from "@/lib/provider-permissions"
@@ -43,9 +44,10 @@ export async function assertInformationRecipient(
 
 export async function informationRequestContext(decisionId: string) {
 	const [row] = await db
-		.select({ decision: CaseDecision, case: ComplianceCase })
+		.select({ decision: CaseDecision, case: ComplianceCase, providerStatus: Provider.status })
 		.from(CaseDecision)
 		.innerJoin(ComplianceCase, eq(ComplianceCase.id, CaseDecision.caseId))
+		.innerJoin(Provider, eq(Provider.id, ComplianceCase.providerId))
 		.where(eq(CaseDecision.id, decisionId))
 	if (!row || row.decision.decision !== "request_information" || row.decision.status !== "applied")
 		fail("information_request_not_found", 404)

@@ -5,6 +5,7 @@ import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
 	assertLegacyComplianceReviewAllowed,
+	findActiveComplianceCase,
 	resolveComplianceCaseForSourceCompat,
 	synchronizeComplianceCaseCompat,
 } from "@/lib/casework/compliance-casework"
@@ -24,6 +25,7 @@ async function readPayload(request: Request): Promise<{
 	documentId: string
 	status: string
 	reviewNotes?: string
+	withdrawVerification: boolean
 }> {
 	const contentType = (request.headers.get("content-type") || "").toLowerCase()
 
@@ -34,6 +36,8 @@ async function readPayload(request: Request): Promise<{
 			documentId: String(body.documentId ?? body.id ?? "").trim(),
 			status: String(body.status ?? "").trim(),
 			reviewNotes: String(body.reviewNotes ?? body.reason ?? "").trim() || undefined,
+			withdrawVerification:
+				body.withdrawVerification === true || body.withdrawVerification === "true",
 		}
 	}
 
@@ -43,6 +47,7 @@ async function readPayload(request: Request): Promise<{
 		documentId: String(form.get("documentId") ?? form.get("id") ?? "").trim(),
 		status: String(form.get("status") ?? "").trim(),
 		reviewNotes: String(form.get("reviewNotes") ?? form.get("reason") ?? "").trim() || undefined,
+		withdrawVerification: form.get("withdrawVerification") === "true",
 	}
 }
 
@@ -50,6 +55,14 @@ export const POST: APIRoute = async ({ request }) => {
 	const requestId = requestIdFromRequest(request)
 	try {
 		const payload = await readPayload(request)
+		if (
+			payload.withdrawVerification &&
+			(request.headers.get("origin") !== new URL(request.url).origin ||
+				payload.status !== "rejected" ||
+				(payload.reviewNotes?.length ?? 0) < 10 ||
+				(payload.reviewNotes?.length ?? 0) > 500)
+		)
+			return Response.json({ error: "invalid_verification_withdrawal" }, { status: 422 })
 
 		if (!payload.providerId) {
 			return new Response(JSON.stringify({ error: "providerId is required" }), {
@@ -82,6 +95,7 @@ export const POST: APIRoute = async ({ request }) => {
 					documentId: payload.documentId,
 					status: payload.status,
 					reviewNotes: payload.reviewNotes ?? null,
+					withdrawVerification: payload.withdrawVerification,
 				},
 			},
 			authorize: async () => {
@@ -96,25 +110,28 @@ export const POST: APIRoute = async ({ request }) => {
 			execute: async () => {
 				const actorUserId = audit.actorUserId
 				if (!actorUserId) throw new Error("sensitive_command_actor_missing")
-				await synchronizeComplianceCaseCompat({
+				const source = {
 					providerId: payload.providerId,
-					domain: "documents",
+					domain: "documents" as const,
 					sourceType: "ProviderDocument",
 					sourceRef: payload.documentId,
 					summary: "Revisión documental",
-				})
-				await assertLegacyComplianceReviewAllowed({
-					providerId: payload.providerId,
-					domain: "documents",
-					sourceType: "ProviderDocument",
-					sourceRef: payload.documentId,
-				})
+				}
+				if (payload.withdrawVerification) {
+					if (await findActiveComplianceCase(source))
+						throw Object.assign(new Error("active_document_review_exists"), { status: 409 })
+				} else {
+					await synchronizeComplianceCaseCompat(source)
+					await assertLegacyComplianceReviewAllowed(source)
+				}
 				const document = await reviewProviderDocument({
 					providerId: payload.providerId,
 					actorUserId,
 					documentId: payload.documentId,
 					status: payload.status,
 					reviewNotes: payload.reviewNotes,
+					withdrawVerification: payload.withdrawVerification,
+					requireVerifiedPredecessor: payload.withdrawVerification,
 				})
 				if (payload.status === "verified" || payload.status === "rejected")
 					await resolveComplianceCaseForSourceCompat(

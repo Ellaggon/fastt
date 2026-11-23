@@ -128,7 +128,7 @@ const correctionNotes = caseIds.length
 		{
 			providerId && (
 				<Button
-					href={`/admin/providers?filter=payments&providerId=${encodeURIComponent(providerId)}`}
+					href={`/admin/providers/${encodeURIComponent(providerId)}`}
 					variant="secondary"
 					size="sm"
 					class="w-fit"

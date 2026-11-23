@@ -283,7 +283,7 @@ export function formatAdminComplianceSlaSummary(
 		: "sin fecha"
 	const assignee = assignment.assigneeEmail || "sin responsable"
 	const state = complianceSlaStateLabels[assignment.slaState] ?? assignment.slaState
-	return `SLA ${assignment.slaHours}h · ${assignee} · vence ${due} · ${state}`
+	return `Responsable: ${assignee} · Vencimiento: ${due} · ${state}`
 }
 
 export type ProviderComplianceSlaMirror = {

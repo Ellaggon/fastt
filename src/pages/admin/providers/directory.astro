@@ -1,0 +1,413 @@
+---
+import InternalAccessDenied from "@/components/admin/InternalAccessDenied.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
+import { requireInternalPermission } from "@/lib/auth/internal-authorization"
+import { providerDocumentTypes } from "@/lib/provider-documents"
+import { ACTIVE_CASE_STATUSES, listSavedCaseViews } from "@/modules/casework/public"
+import {
+	and,
+	asc,
+	CaseSlaTimer,
+	CaseTask,
+	ComplianceCase,
+	db,
+	eq,
+	inArray,
+	or,
+	Provider,
+	ProviderDocument,
+	sql,
+	User,
+} from "@/shared/infrastructure/db/compat"
+import { ChevronRight, Search } from "@lucide/astro"
+
+let authorized = false
+let ownerId = ""
+try {
+	const principal = await requireInternalPermission(Astro.request, "provider.compliance.read")
+	ownerId = principal.user.id
+	authorized = true
+} catch (error) {
+	if (error instanceof Response && error.status === 401) return Astro.redirect("/SignInPage")
+	if (!(error instanceof Response && error.status === 403)) throw error
+}
+const query = (Astro.url.searchParams.get("q") ?? "").trim().slice(0, 120)
+const options = {
+	domain: {
+		verification: "Identidad y negocio",
+		documents: "Documentos",
+		fiscal: "Fiscalidad",
+		payments: "Cuentas bancarias",
+	},
+	status: {
+		pending: "Pendientes",
+		open: "Abierto",
+		in_review: "En revisión",
+		waiting_information: "Esperando información",
+		blocked: "Bloqueado",
+		resolved: "Resuelto",
+	},
+	priority: { low: "Baja", normal: "Normal", high: "Alta", critical: "Crítica" },
+	riskTier: { standard: "Estándar", elevated: "Elevado", high: "Alto" },
+	sla: { overdue: "Vencidos", due_soon: "Por vencer" },
+	documentType: Object.fromEntries(providerDocumentTypes.map(({ value, label }) => [value, label])),
+} as const
+const labels = {
+	domain: "Área",
+	status: "Estado",
+	priority: "Prioridad",
+	riskTier: "Riesgo",
+	sla: "Plazo",
+	documentType: "Tipo de documento",
+}
+const filters: Record<string, string> = {}
+for (const [key, values] of Object.entries(options)) {
+	const value = Astro.url.searchParams.get(key)
+	if (value && Object.hasOwn(values, value)) filters[key] = value
+}
+const unassigned = Astro.url.searchParams.get("unassigned") === "1"
+const assignee = (Astro.url.searchParams.get("assignee") ?? "").trim().slice(0, 100)
+const hasFilters = Object.keys(filters).length > 0 || unassigned || Boolean(assignee)
+const archived = Astro.url.searchParams.get("view") === "archived"
+const currentFilters = {
+	...(archived ? { view: "archived" } : {}),
+	...filters,
+	...(unassigned ? { unassigned: "1" } : {}),
+	...(assignee ? { assignee } : {}),
+	...(query ? { q: query } : {}),
+}
+const savedViews = authorized
+	? (await listSavedCaseViews(ownerId)).filter(
+			(view) => view.ownerUserId === ownerId && view.name.startsWith("Proveedores: ")
+		)
+	: []
+const filterHref = (values: Record<string, string | undefined>) => {
+	const params = new URLSearchParams()
+	for (const [key, value] of Object.entries(values)) if (value) params.set(key, value)
+	return `?${params}`
+}
+const shortcuts = [
+	{ label: "Pendientes", value: { status: "pending" } },
+	{ label: "Vencidos", value: { sla: "overdue", status: "pending" } },
+	{ label: "Por vencer", value: { sla: "due_soon", status: "pending" } },
+	{ label: "Sin asignar", value: { unassigned: "1", status: "pending" } },
+	{ label: "Riesgo alto", value: { riskTier: "high", status: "pending" } },
+] satisfies Array<{ label: string; value: Record<string, string> }>
+const byCode = /^cc-/i.test(query)
+const [exactCase] =
+	authorized && query
+		? await db
+				.select({
+					id: ComplianceCase.id,
+					number: ComplianceCase.caseNumber,
+					title: ComplianceCase.summary,
+					domain: ComplianceCase.domain,
+				})
+				.from(ComplianceCase)
+				.where(
+					byCode ? eq(ComplianceCase.caseNumber, query.toUpperCase()) : eq(ComplianceCase.id, query)
+				)
+				.limit(1)
+		: []
+const matchingDocumentId = sql`exists (select 1 from ${ProviderDocument}
+	where ${ProviderDocument.providerId} = ${Provider.id} and ${ProviderDocument.id} = ${query})`
+const documentMatch = and(
+	eq(ProviderDocument.providerId, Provider.id),
+	filters.documentType ? eq(ProviderDocument.type, filters.documentType) : undefined
+)
+const canUseDocumentQueue =
+	(!filters.domain || filters.domain === "documents") &&
+	(!filters.status || filters.status === "pending") &&
+	!filters.priority &&
+	!filters.riskTier &&
+	!filters.sla &&
+	!unassigned &&
+	!assignee
+const matchingDocumentQueue = sql`exists (select 1 from ${ProviderDocument} where ${documentMatch}
+	and (${ProviderDocument.status} = 'pending' or
+		(${ProviderDocument.status} = 'verified' and ${ProviderDocument.expiresAt} < now()))
+	and not exists (select 1 from ${ComplianceCase} where
+		${ComplianceCase.providerId} = ${Provider.id}
+		and ${ComplianceCase.sourceType} = 'ProviderDocument'
+		and ${ComplianceCase.sourceRef} = ${ProviderDocument.id}
+		and ${inArray(ComplianceCase.status, [...ACTIVE_CASE_STATUSES])}))`
+const matchingCase = sql`exists (select 1 from ${ComplianceCase} where ${and(
+	eq(ComplianceCase.providerId, Provider.id),
+	byCode ? eq(ComplianceCase.caseNumber, query.toUpperCase()) : undefined,
+	filters.domain ? eq(ComplianceCase.domain, filters.domain) : undefined,
+	filters.documentType
+		? sql`${ComplianceCase.sourceType} = 'ProviderDocument' and exists (select 1 from ${ProviderDocument}
+			where ${documentMatch} and ${ProviderDocument.id} = ${ComplianceCase.sourceRef})`
+		: undefined,
+	filters.status === "pending"
+		? inArray(ComplianceCase.status, [...ACTIVE_CASE_STATUSES])
+		: filters.status
+			? eq(ComplianceCase.status, filters.status)
+			: undefined,
+	assignee
+		? sql`exists (select 1 from ${CaseTask}
+		left join ${User} on ${User.id} = ${CaseTask.assigneeUserId}
+		where ${CaseTask.caseId} = ${ComplianceCase.id}
+		and (lower(${CaseTask.assigneeEmail}) = lower(${assignee}::text) or lower(${User.email}) = lower(${assignee}::text)))`
+		: undefined,
+	filters.priority ? eq(ComplianceCase.priority, filters.priority) : undefined,
+	filters.riskTier ? eq(ComplianceCase.riskTier, filters.riskTier) : undefined,
+	filters.sla
+		? sql`exists (select 1 from ${CaseSlaTimer} where ${CaseSlaTimer.caseId} = ${ComplianceCase.id}
+		and ${
+			filters.sla === "overdue"
+				? sql`(${CaseSlaTimer.status} = 'breached' or (${CaseSlaTimer.status} = 'running' and ${CaseSlaTimer.dueAt} < now()))`
+				: sql`(${CaseSlaTimer.status} = 'running' and ${CaseSlaTimer.dueAt} between now() and now() + interval '8 hours')`
+		})`
+		: undefined,
+	unassigned
+		? sql`not exists (select 1 from ${CaseTask} where ${CaseTask.caseId} = ${ComplianceCase.id}
+		and ${CaseTask.status} in ('open', 'in_progress', 'blocked')
+		and (${CaseTask.assigneeUserId} is not null or ${CaseTask.assigneeEmail} is not null))`
+		: undefined
+)})`
+const page = Math.min(
+	10000,
+	Math.max(1, parseInt(Astro.url.searchParams.get("page") ?? "1", 10) || 1)
+)
+const pageSize = 25
+const name = sql<string>`coalesce(nullif(trim(${Provider.displayName}), ''), nullif(trim(${Provider.legalName}), ''), 'Proveedor sin nombre')`
+const rows =
+	authorized && !exactCase
+		? await db
+				.select({ id: Provider.id, name, legalName: Provider.legalName })
+				.from(Provider)
+				.where(
+					and(
+						archived
+							? eq(Provider.status, "archived")
+							: sql`${Provider.status} is distinct from 'archived'`,
+						byCode
+							? matchingCase
+							: hasFilters
+								? or(matchingCase, canUseDocumentQueue ? matchingDocumentQueue : undefined)
+								: undefined,
+						query && !byCode
+							? or(
+									eq(Provider.id, query),
+									matchingDocumentId,
+									sql`strpos(lower(${Provider.displayName}), lower(${query}::text)) > 0`,
+									sql`strpos(lower(${Provider.legalName}), lower(${query}::text)) > 0`
+								)
+							: undefined
+					)
+				)
+				.orderBy(asc(name), asc(Provider.id))
+				.limit(pageSize + 1)
+				.offset((page - 1) * pageSize)
+		: []
+const pageHref = (number: number) => filterHref({ ...currentFilters, page: String(number) })
+---
+
+<InternalAdminLayout title="Proveedores · Centro de Mando">
+	{
+		!authorized ? (
+			<InternalAccessDenied />
+		) : (
+			<section class="space-y-6">
+				<header>
+					<p class="text-xs font-semibold text-amber-300 uppercase">Centro de Mando</p>
+					<h1 class="mt-2 text-3xl font-semibold text-white">Proveedores</h1>
+				</header>
+				<Card class="space-y-4">
+					<form class="flex flex-wrap items-end gap-2" method="get">
+						{archived && <input type="hidden" name="view" value="archived" />}
+						<label class="min-w-0 grow text-sm font-medium">
+							Buscar proveedor
+							<Input
+								type="search"
+								name="q"
+								value={query}
+								maxlength="120"
+								placeholder="Nombre, código o ID de expediente, proveedor o documento"
+								class="mt-1"
+							/>
+						</label>
+						<Button type="submit">
+							<Search class="size-4" aria-hidden="true" /> Buscar
+						</Button>
+						{(archived || query || hasFilters) && (
+							<Button href="/admin/providers/directory" variant="secondary">
+								Limpiar
+							</Button>
+						)}
+						<nav aria-label="Filtros rápidos" class="flex w-full flex-wrap gap-2 py-2">
+							<Button
+								href={filterHref({ view: "archived" })}
+								variant={archived ? "selection" : "secondary"}
+								size="sm"
+								aria-current={archived ? "page" : undefined}
+							>
+								Archivados
+							</Button>
+							{shortcuts.map(({ label, value }) => (
+								<Button
+									href={filterHref({
+										...(!archived && query ? { q: query } : {}),
+										...(filters.domain ? { domain: filters.domain } : {}),
+										...(filters.documentType ? { documentType: filters.documentType } : {}),
+										...value,
+									})}
+									variant="secondary"
+									size="sm"
+								>
+									{label}
+								</Button>
+							))}
+							{archived && (
+								<Button href="/admin/providers/directory" variant="secondary" size="sm">
+									Directorio
+								</Button>
+							)}
+						</nav>
+						<details class="fastt-soft-box w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+							<summary class="cursor-pointer text-sm font-semibold">
+								Filtros avanzados{" "}
+								{hasFilters && <span class="ml-2 text-xs text-slate-600">Activos</span>}
+							</summary>
+							<div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+								{Object.entries(options).map(([key, values]) => (
+									<label class="text-sm font-medium">
+										{labels[key as keyof typeof labels]}
+										<Select name={key} class="mt-1">
+											<option value="">Cualquiera</option>
+											{Object.entries(values).map(([value, label]) => (
+												<option value={value} selected={filters[key] === value}>
+													{label}
+												</option>
+											))}
+										</Select>
+									</label>
+								))}
+								<label class="flex items-center gap-2 text-sm">
+									<input type="checkbox" name="unassigned" value="1" checked={unassigned} /> Sin
+									asignar
+								</label>
+								<label class="text-sm font-medium">
+									Responsable
+									<Input
+										type="email"
+										name="assignee"
+										maxlength="100"
+										value={assignee}
+										placeholder="Correo del responsable"
+										class="mt-1"
+									/>
+								</label>
+							</div>
+							<Button type="submit" size="sm" class="mt-4">
+								Aplicar filtros
+							</Button>
+						</details>
+					</form>
+					<details class="fastt-soft-box rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+						<summary class="cursor-pointer text-sm font-semibold">
+							Vistas guardadas{" "}
+							{savedViews.length > 0 && (
+								<span class="ml-2 text-xs text-slate-600">{savedViews.length}</span>
+							)}
+						</summary>
+						{savedViews.length > 0 && (
+							<nav aria-label="Mis vistas" class="mt-3 flex flex-wrap gap-2">
+								{savedViews.map((view) => (
+									<Button
+										href={filterHref(view.filtersJson as Record<string, string>)}
+										variant="secondary"
+										size="sm"
+									>
+										{view.name.slice("Proveedores: ".length)}
+									</Button>
+								))}
+							</nav>
+						)}
+						<form
+							action="/api/admin/v1/views"
+							method="post"
+							class="mt-3 flex flex-wrap items-end gap-2"
+						>
+							<input type="hidden" name="surface" value="providers" />
+							<input type="hidden" name="filters" value={JSON.stringify(currentFilters)} />
+							<label class="min-w-0 grow text-sm font-medium">
+								Nombre de la vista
+								<Input name="name" required minlength="2" maxlength="67" class="mt-1" />
+							</label>
+							<Button type="submit" variant="secondary">
+								Guardar filtros actuales
+							</Button>
+						</form>
+					</details>
+					{Astro.url.searchParams.get("notice") === "view_saved" && (
+						<p role="status" class="text-sm text-emerald-700">
+							Vista guardada.
+						</p>
+					)}
+					<h2 class="pt-2 text-sm font-semibold text-slate-900">Resultados</h2>
+					{exactCase ? (
+						<a
+							href={`/admin/cases/${encodeURIComponent(exactCase.id)}`}
+							class="flex items-center justify-between gap-3 border-y border-slate-200 px-3 py-3 hover:bg-slate-50 focus-visible:outline-2"
+						>
+							<div class="min-w-0">
+								<span class="block font-semibold break-words text-slate-950">
+									{exactCase.title?.trim() ||
+										`Revisión: ${options.domain[exactCase.domain as keyof typeof options.domain] ?? "Expediente"}`}
+								</span>
+								<span class="block text-sm text-slate-600">{exactCase.number}</span>
+							</div>
+							<ChevronRight class="size-4 shrink-0 text-slate-500" aria-hidden="true" />
+						</a>
+					) : rows.length ? (
+						<ul class="divide-y divide-slate-200 border-y border-slate-200">
+							{rows.slice(0, pageSize).map((row) => (
+								<li>
+									<a
+										href={`/admin/providers/${encodeURIComponent(row.id)}`}
+										class="flex items-center justify-between gap-3 px-3 py-3 hover:bg-slate-50 focus-visible:outline-2"
+									>
+										<div class="min-w-0">
+											<span class="block font-semibold break-words text-slate-950">{row.name}</span>
+											{row.legalName && row.legalName !== row.name && (
+												<span class="block text-sm break-words text-slate-600">
+													{row.legalName}
+												</span>
+											)}
+										</div>
+										<ChevronRight class="size-4 shrink-0 text-slate-500" aria-hidden="true" />
+									</a>
+								</li>
+							))}
+						</ul>
+					) : (
+						<p class="border-t border-slate-200 pt-4 text-sm text-slate-600">
+							No se encontraron proveedores.
+						</p>
+					)}
+					{!exactCase && (page > 1 || rows.length > pageSize) && (
+						<nav aria-label="Paginación de proveedores" class="flex flex-wrap items-center gap-3">
+							{page > 1 && (
+								<Button variant="secondary" href={pageHref(page - 1)}>
+									Anterior
+								</Button>
+							)}
+							<span class="text-sm">Página {page}</span>
+							{rows.length > pageSize && (
+								<Button variant="secondary" href={pageHref(page + 1)}>
+									Siguiente
+								</Button>
+							)}
+						</nav>
+					)}
+				</Card>
+			</section>
+		)
+	}
+</InternalAdminLayout>

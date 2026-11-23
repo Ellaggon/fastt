@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 const state = vi.hoisted(() => ({
-	pilot: true,
+	providerAvailable: true,
 	mfa: true,
 	domainPermission: true,
 	publish: vi.fn(),
 }))
 vi.mock("@/config/featureFlags", () => ({
 	getFeatureFlag: () => true,
-	isCommandCenterV2PilotProvider: () => state.pilot,
+	canUseCommandCenterDecisionForCase: () => state.providerAvailable,
 }))
 vi.mock("@/lib/auth/internal-authorization", () => ({
 	requireInternalPermission: async (_request: Request, permission: string) => {
@@ -52,7 +52,7 @@ const invoke = () =>
 	} as any)
 describe("information publication authorization", () => {
 	beforeEach(() => {
-		state.pilot = true
+		state.providerAvailable = true
 		state.mfa = true
 		state.domainPermission = true
 		state.publish
@@ -69,8 +69,8 @@ describe("information publication authorization", () => {
 		expect((await invoke()).status).toBe(403)
 		expect(state.publish).not.toHaveBeenCalled()
 	})
-	it("rejects a provider outside the pilot", async () => {
-		state.pilot = false
+	it("rejects an archived provider", async () => {
+		state.providerAvailable = false
 		expect((await invoke()).status).toBe(403)
 		expect(state.publish).not.toHaveBeenCalled()
 	})

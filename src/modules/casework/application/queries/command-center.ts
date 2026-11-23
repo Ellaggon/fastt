@@ -371,6 +371,14 @@ export async function getProviderOperationalSnapshot(providerId: string) {
 	}
 	return {
 		evaluatedAt: new Date(),
+		identityDocumentsToReplace: kyc.missingRequiredTypes
+			.filter(
+				(type) =>
+					(type === "government_id" || type === "business_registration") &&
+					documents.some((document) => document.type === type && document.status === "rejected") &&
+					!documents.some((document) => document.type === type && document.status === "pending")
+			)
+			.map(labelDocument),
 		areas: evaluatedAreas,
 		capabilities: {
 			collections: {
@@ -592,8 +600,8 @@ export async function listCommandCenterCases(filters: CaseListFilters = {}) {
 	const cursor = decodeCursor(filters.cursor)
 	const conditions: SQL[] = [sql`${Provider.status} is distinct from 'archived'`]
 
-	if (filters.status) conditions.push(eq(ComplianceCase.status, filters.status))
-	else conditions.push(inArray(ComplianceCase.status, [...ACTIVE_CASE_STATUSES]))
+	if (!filters.status) conditions.push(inArray(ComplianceCase.status, [...ACTIVE_CASE_STATUSES]))
+	else if (filters.status !== "all") conditions.push(eq(ComplianceCase.status, filters.status))
 	if (filters.providerId) conditions.push(eq(ComplianceCase.providerId, filters.providerId.trim()))
 	if (filters.domain && CASE_DOMAINS.includes(filters.domain as (typeof CASE_DOMAINS)[number]))
 		conditions.push(eq(ComplianceCase.domain, filters.domain))
@@ -759,6 +767,53 @@ export async function listCommandCenterCases(filters: CaseListFilters = {}) {
 	}
 }
 
+export async function listCommandCenterPendingProviders(page: number, pageSize = 20) {
+	const overdue = sql<number>`count(*) filter (where exists (
+		select 1 from ${CaseSlaTimer}
+		where ${CaseSlaTimer.caseId} = ${ComplianceCase.id}
+		and (${CaseSlaTimer.status} = 'breached' or
+			(${CaseSlaTimer.status} = 'running' and ${CaseSlaTimer.dueAt} < now()))
+	))`
+	const grouped = db
+		.select({
+			id: Provider.id,
+			name: sql<string>`coalesce(nullif(trim(${Provider.displayName}), ''), nullif(trim(${Provider.legalName}), ''), 'Proveedor sin nombre')`.as(
+				"providerName"
+			),
+			total: count().as("pendingTotal"),
+			overdue: overdue.mapWith(Number).as("overdueTotal"),
+			verification: sql<number>`count(*) filter (where ${ComplianceCase.domain} = 'verification')`
+				.mapWith(Number)
+				.as("verification"),
+			fiscal: sql<number>`count(*) filter (where ${ComplianceCase.domain} = 'fiscal')`
+				.mapWith(Number)
+				.as("fiscal"),
+			documents: sql<number>`count(*) filter (where ${ComplianceCase.domain} = 'documents')`
+				.mapWith(Number)
+				.as("documents"),
+			payments: sql<number>`count(*) filter (where ${ComplianceCase.domain} = 'payments')`
+				.mapWith(Number)
+				.as("payments"),
+		})
+		.from(ComplianceCase)
+		.innerJoin(Provider, eq(ComplianceCase.providerId, Provider.id))
+		.where(
+			and(
+				sql`${Provider.status} is distinct from 'archived'`,
+				inArray(ComplianceCase.status, [...ACTIVE_CASE_STATUSES])
+			)
+		)
+		.groupBy(Provider.id, Provider.displayName, Provider.legalName)
+		.as("pendingProviders")
+	const rows = await db
+		.select()
+		.from(grouped)
+		.orderBy(desc(grouped.overdue), desc(grouped.total), asc(grouped.name), asc(grouped.id))
+		.limit(pageSize + 1)
+		.offset((page - 1) * pageSize)
+	return { providers: rows.slice(0, pageSize), hasNext: rows.length > pageSize }
+}
+
 export async function getCommandCenterSummary() {
 	const cases = await db
 		.select({
@@ -840,6 +895,7 @@ export async function getCommandCenterSummary() {
 		number
 	>
 	for (const item of items) byDomain[item.domain as keyof typeof byDomain] += 1
+
 	return {
 		open: items.length,
 		overdue: items.filter((item) => item.slaStatus === "overdue").length,
@@ -859,6 +915,7 @@ export async function getCaseWorkspace(caseId: string) {
 			id: ComplianceCase.id,
 			caseNumber: ComplianceCase.caseNumber,
 			providerId: ComplianceCase.providerId,
+			providerStatus: Provider.status,
 			providerName: Provider.displayName,
 			providerLegalName: Provider.legalName,
 			domain: ComplianceCase.domain,
@@ -1015,11 +1072,14 @@ export async function getDecisionAuthorizationContext(decisionId: string) {
 		.select({
 			caseId: ComplianceCase.id,
 			providerId: ComplianceCase.providerId,
+			providerStatus: Provider.status,
+			sourceType: ComplianceCase.sourceType,
 			domain: ComplianceCase.domain,
 			proposedByUserId: CaseDecision.proposedByUserId,
 		})
 		.from(CaseDecision)
 		.innerJoin(ComplianceCase, eq(CaseDecision.caseId, ComplianceCase.id))
+		.innerJoin(Provider, eq(ComplianceCase.providerId, Provider.id))
 		.where(eq(CaseDecision.id, decisionId))
 		.limit(1)
 	return rows[0] ?? null

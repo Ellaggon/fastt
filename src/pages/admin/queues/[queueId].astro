@@ -1,197 +1,29 @@
 ---
-import CaseTable from "@/components/admin/cases/CaseTable.astro"
-import Button from "@/components/ui/Button.astro"
-import Card from "@/components/ui/Card.astro"
-import Select from "@/components/ui/Select.astro"
-import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
-import { requireInternalPermission } from "@/lib/auth/internal-authorization"
-import {
-	CASE_DOMAINS,
-	COMMAND_CENTER_QUEUES,
-	listCommandCenterCases,
-	parseCommandCenterQueueFilters,
-} from "@/modules/casework/public"
-import { db, eq, Provider } from "@/shared/infrastructure/db/compat"
+import { parseCommandCenterQueueFilters } from "@/modules/casework/public"
 
-let authorized = false
-let accessRestricted = false
-try {
-	await requireInternalPermission(Astro.request, "provider.compliance.read")
-	authorized = true
-} catch (response) {
-	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
-	if (response instanceof Response && response.status === 403) accessRestricted = true
-	else throw response
-}
-const queueContext = parseCommandCenterQueueFilters(
+const { filters } = parseCommandCenterQueueFilters(
 	String(Astro.params.queueId ?? "all"),
 	Astro.url.searchParams
 )
-const { queueId, queue, filters } = queueContext
-const provider =
-	authorized && filters.providerId
-		? (
-				await db
-					.select({ name: Provider.displayName, legalName: Provider.legalName })
-					.from(Provider)
-					.where(eq(Provider.id, filters.providerId))
-					.limit(1)
-			)[0]
-		: null
-const priorityLabels: Record<string, string> = {
-	low: "Baja",
-	normal: "Normal",
-	high: "Alta",
-	critical: "Crítica",
+const query = new URLSearchParams()
+for (const key of [
+	"domain",
+	"priority",
+	"riskTier",
+	"status",
+	"providerId",
+	"sla",
+	"cursor",
+] as const) {
+	const value = filters[key] ?? Astro.url.searchParams.get(key)
+	if (value) query.set(key, value)
 }
-const riskLabels: Record<string, string> = {
-	standard: "Estándar",
-	elevated: "Elevado",
-	high: "Alto",
-}
-const result = authorized
-	? await listCommandCenterCases({
-			...filters,
-			limit: 50,
-		})
-	: { items: [], nextCursor: null }
-const nextParams = new URLSearchParams(Astro.url.searchParams)
-if (result.nextCursor) nextParams.set("cursor", result.nextCursor)
-const queueHref = (id: string) => {
-	const params = new URLSearchParams()
-	if (filters.providerId) params.set("providerId", filters.providerId)
-	const query = params.toString()
-	return `/admin/queues/${id}${query ? `?${query}` : ""}`
-}
-const clearHref = queueHref(queueId)
+const search = Astro.url.searchParams.get("q")
+if (search) query.set("q", search)
+if (filters.unassigned || Astro.url.searchParams.get("unassigned") === "1")
+	query.set("unassigned", "1")
+return Astro.redirect(
+	query.size ? `/admin/providers/directory?${query}` : "/admin/providers/directory",
+	302
+)
 ---
-
-<InternalAdminLayout title={`Centro de Mando · ${queue.label}`}>
-	<section class="space-y-6">
-		<header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-			<div>
-				<p class="text-xs font-semibold tracking-[0.16em] text-amber-300 uppercase">
-					Cola operacional
-				</p><h1 class="mt-2 text-3xl font-semibold text-white">{queue.label}</h1><p
-					class="mt-2 text-sm text-slate-300"
-				>
-					{queue.description}
-				</p>
-			</div><Button href="/admin/work" variant="onDark" class="self-start">Mi trabajo</Button>
-		</header>
-		{
-			filters.providerId && (
-				<Card class="border-sky-300 bg-sky-50">
-					<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-						<div>
-							<p class="text-sm font-semibold text-slate-900">
-								{provider?.name || provider?.legalName || "Proveedor seleccionado"}
-							</p>
-							<p class="mt-1 text-xs text-slate-600">Solo revisiones de este proveedor</p>
-						</div>
-						<div class="flex flex-wrap gap-2">
-							<Button href={`/admin/providers/${encodeURIComponent(filters.providerId)}`} size="sm">
-								Volver al proveedor
-							</Button>
-							<Button href={`/admin/queues/${queueId}`} variant="secondary" size="sm">
-								Ver todos los proveedores
-							</Button>
-						</div>
-					</div>
-				</Card>
-			)
-		}
-		<nav class="flex flex-wrap gap-2 pb-1" aria-label="Colas principales">
-			{
-				Object.entries(COMMAND_CENTER_QUEUES).map(([id, item]) => (
-					<a
-						href={queueHref(id)}
-						aria-current={queueId === id ? "page" : undefined}
-						class:list={[
-							"min-h-10 shrink-0 rounded-xl border px-4 py-2 text-sm",
-							queueId === id
-								? "border-amber-300 bg-amber-300 font-semibold text-slate-950"
-								: "border-slate-700 text-slate-200 hover:bg-slate-900",
-						]}
-					>
-						{item.label}
-					</a>
-				))
-			}
-		</nav>
-		{
-			accessRestricted ? (
-				<Card class="bg-slate-100">
-					<h2 class="text-lg font-semibold text-slate-900">Acceso restringido</h2>
-					<p class="mt-1 text-sm text-slate-600">
-						Tu cuenta no tiene permiso para consultar esta cola de casos.
-					</p>
-				</Card>
-			) : (
-				<>
-					<Card>
-						<form class="grid gap-4 md:grid-cols-4" method="get" aria-label="Filtrar cola">
-							{filters.providerId && (
-								<input type="hidden" name="providerId" value={filters.providerId} />
-							)}
-							<>
-								<label class="text-sm font-medium">
-									Dominio
-									<Select name="domain" class="mt-2" disabled={"domain" in queue}>
-										<option value="">Todos</option>
-										{CASE_DOMAINS.map((value) => (
-											<option value={value} selected={filters.domain === value}>
-												{COMMAND_CENTER_QUEUES[value].label}
-											</option>
-										))}
-									</Select>
-								</label>
-								<label class="text-sm font-medium">
-									Prioridad
-									<Select name="priority" class="mt-2">
-										<option value="">Todas</option>
-										{["low", "normal", "high", "critical"].map((value) => (
-											<option value={value} selected={filters.priority === value}>
-												{priorityLabels[value]}
-											</option>
-										))}
-									</Select>
-								</label>
-								<label class="text-sm font-medium">
-									Riesgo
-									<Select name="riskTier" class="mt-2">
-										<option value="">Todos</option>
-										{["standard", "elevated", "high"].map((value) => (
-											<option value={value} selected={filters.riskTier === value}>
-												{riskLabels[value]}
-											</option>
-										))}
-									</Select>
-								</label>
-								<div class="flex items-end gap-2">
-									<>
-										<Button type="submit">Aplicar</Button>
-										<Button href={clearHref} variant="secondary">
-											Limpiar
-										</Button>
-									</>
-								</div>
-							</>
-						</form>
-					</Card>
-					<CaseTable items={result.items} />
-					{result.nextCursor && (
-						<div class="flex justify-center">
-							<Button
-								href={`/admin/queues/${queueId}?${nextParams.toString()}`}
-								variant="secondary"
-							>
-								Siguiente página
-							</Button>
-						</div>
-					)}
-				</>
-			)
-		}
-	</section>
-</InternalAdminLayout>
