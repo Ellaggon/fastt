@@ -1,0 +1,325 @@
+---
+import { Search, ChevronDown, ChevronRight, ArrowLeft, X } from "@lucide/astro"
+import type { CatalogTerritoryNode } from "@/lib/commercial-policy/catalog-territories"
+import { catalogTerritorySelection } from "@/lib/commercial-policy/catalog-territories"
+interface Props {
+	business: string
+	family: string
+	status: string
+	search: string
+	holder: string | null
+	territory: string
+	nodes: CatalogTerritoryNode[]
+}
+const { business, family, status, search, holder, territory, nodes } = Astro.props
+const label = catalogTerritorySelection(territory, nodes)
+---
+
+<form
+	method="get"
+	class="policy-search-bar"
+	data-policy-catalog-search
+	data-nodes={JSON.stringify(nodes)}
+>
+	<input type="hidden" name="view" value="policies" /><input
+		type="hidden"
+		name="business"
+		value={business}
+	/><input type="hidden" name="family" value={family} /><input
+		type="hidden"
+		name="status"
+		value={status}
+	/>
+	<label class="policy-segment policy-query"
+		><span>Política</span><input
+			type="search"
+			name="q"
+			value={search}
+			placeholder="Nombre o código"
+		/></label
+	>
+	<label class="policy-segment policy-holder"
+		><span>Titular</span><select name="holder" aria-label="Titular"
+			><option value="">Todos los titulares</option><option
+				value="persona_natural"
+				selected={holder === "persona_natural"}>Persona natural</option
+			><option value="entidad" selected={holder === "entidad"}>Empresa o entidad</option></select
+		></label
+	>
+	<input type="hidden" name="territory" value={territory} data-territory-value />
+	<details class="policy-territory" data-territory-details>
+		<summary class="policy-segment"
+			><span>Territorio</span><span class="territory-summary"
+				><span data-territory-label>{label}</span><ChevronDown size={16} /></span
+			></summary
+		>
+		<section class="territory-panel" aria-label="Elegir territorio">
+			<header>
+				<button type="button" data-territory-back aria-label="Volver al nivel anterior"
+					><ArrowLeft size={17} /></button
+				><h3 data-territory-heading>Países</h3><button
+					type="button"
+					data-territory-close
+					aria-label="Cerrar territorios"><X size={17} /></button
+				>
+			</header>
+			<button type="button" class="fastt-button territory-select-all" data-territory-select
+				>Todos los territorios</button
+			>
+			<p data-territory-location class="territory-location"></p>
+			<div data-territory-options class="territory-options"></div>
+			<button type="button" data-territory-more class="fastt-button territory-more" hidden
+				>Ver más</button
+			>
+			<p data-territory-status role="status" class="territory-status"></p>
+		</section>
+	</details>
+	<button type="submit" class="fastt-button policy-search-submit" aria-label="Buscar políticas"
+		><Search size={19} /><span class="mobile-search-label">Buscar</span></button
+	>
+</form>
+<style>
+	.policy-search-bar {
+		display: flex;
+		align-items: center;
+		position: relative;
+		margin-top: 26px;
+		border: 1px solid var(--catalog-line);
+		border-radius: var(--fastt-radius-pill);
+		background: var(--catalog-bg);
+		padding: 6px;
+		gap: 0;
+		color: var(--catalog-ink);
+	}
+	.policy-segment {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		min-width: 0;
+		padding: 9px 20px;
+	}
+	.policy-segment > span:first-child {
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--catalog-ink);
+	}
+	.policy-query {
+		flex: 1.35;
+		min-width: 150px;
+	}
+	.policy-holder {
+		flex: 1;
+		border-left: 1px solid var(--catalog-line);
+	}
+	.policy-query input,
+	.policy-holder select {
+		width: 100%;
+		min-width: 0;
+		background: transparent;
+		border: 0;
+		padding: 0;
+		color: var(--catalog-muted);
+		font: inherit;
+		font-size: 13px;
+		outline-offset: 4px;
+		border-radius: 0;
+	}
+	.policy-holder select option {
+		background: var(--catalog-bg);
+		color: var(--catalog-ink);
+	}
+	.policy-query input::placeholder {
+		color: var(--catalog-muted);
+		opacity: 1;
+	}
+	.policy-territory {
+		flex: 1.15;
+		min-width: 170px;
+		border-left: 1px solid var(--catalog-line);
+	}
+	.policy-territory summary {
+		list-style: none;
+		cursor: pointer;
+		border-radius: var(--fastt-radius-pill);
+	}
+	.policy-territory summary::-webkit-details-marker {
+		display: none;
+	}
+	.territory-summary {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		font-size: 13px;
+		color: var(--catalog-muted);
+	}
+	.territory-summary > span {
+		overflow-wrap: anywhere;
+	}
+	.policy-search-submit {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		border: 0;
+		border-radius: var(--fastt-radius-pill);
+		height: 46px;
+		min-width: 46px;
+		padding: 0 14px;
+		background: var(--catalog-ink);
+		color: var(--catalog-bg);
+		margin: 0 3px 0 8px;
+		cursor: pointer;
+	}
+	.mobile-search-label {
+		display: none;
+	}
+	.territory-panel {
+		position: absolute;
+		right: 0;
+		top: calc(100% + 12px);
+		width: min(410px, 100%);
+		z-index: 30;
+		background: var(--catalog-bg);
+		color: var(--catalog-ink);
+		border: 1px solid var(--catalog-line);
+		border-radius: var(--fastt-radius-field);
+		padding: 16px;
+		box-shadow: 0 15px 45px rgb(0 0 0 / 20%);
+	}
+	.territory-panel header {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		margin-bottom: 12px;
+	}
+	.territory-panel h3 {
+		flex: 1;
+		margin: 0;
+		font-size: 14px;
+		font-weight: 600;
+	}
+	.territory-panel button {
+		font: inherit;
+		color: inherit;
+		cursor: pointer;
+	}
+	.territory-panel header button {
+		background: transparent;
+		border: 0;
+		border-radius: var(--fastt-radius-pill);
+		min-width: 32px;
+		min-height: 32px;
+		display: grid;
+		place-items: center;
+	}
+	.territory-select-all,
+	.territory-more {
+		display: block;
+		text-align: left;
+		width: 100%;
+		border: 0;
+		background: var(--catalog-soft);
+		padding: 11px 12px;
+		border-radius: var(--fastt-radius-control);
+		font-size: 13px !important;
+	}
+	.territory-options {
+		max-height: 280px;
+		overflow-y: auto;
+		margin-top: 7px;
+	}
+	.territory-options :global(button) {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		width: 100%;
+		padding: 12px;
+		background: transparent;
+		border: 0;
+		border-bottom: 1px solid var(--catalog-line);
+		text-align: left;
+		font-size: 13px;
+	}
+	.territory-options :global(button:hover) {
+		background: var(--catalog-soft);
+	}
+	.territory-options :global(small) {
+		display: block;
+		color: var(--catalog-muted);
+		font-size: 11px;
+		margin-top: 3px;
+	}
+	.territory-location,
+	.territory-status {
+		color: var(--catalog-muted);
+		font-size: 12px;
+		margin: 10px 0 0;
+	}
+	.territory-more {
+		margin-top: 8px;
+	}
+	button:focus-visible,
+	summary:focus-visible,
+	input:focus-visible,
+	select:focus-visible {
+		outline: 2px solid var(--catalog-blue);
+		outline-offset: 3px;
+	}
+	@media (max-width: 1050px) {
+		.policy-segment {
+			padding: 9px 13px;
+		}
+		.policy-query {
+			min-width: 130px;
+		}
+		.policy-territory {
+			min-width: 150px;
+		}
+	}
+	@media (max-width: 700px) {
+		.policy-search-bar {
+			flex-direction: column;
+			align-items: stretch;
+			border-radius: var(--fastt-radius-field);
+			padding: 8px;
+			gap: 0;
+		}
+		.policy-query,
+		.policy-holder,
+		.policy-territory {
+			flex: auto;
+			border-left: 0;
+			min-width: 0;
+		}
+		.policy-holder,
+		.policy-territory {
+			border-top: 1px solid var(--catalog-line);
+		}
+		.policy-segment {
+			padding: 12px;
+		}
+		.policy-search-submit {
+			margin: 8px 0 0;
+			height: 42px;
+		}
+		.mobile-search-label {
+			display: inline;
+			font-size: 13px;
+		}
+		.territory-panel {
+			width: 100%;
+			top: calc(100% + 8px);
+			padding: 12px;
+		}
+		.territory-options {
+			max-height: 230px;
+		}
+	}
+</style>
+<script>
+	import { initPolicyCatalogSearch } from "@/lib/ui/policy-catalog-search"
+	initPolicyCatalogSearch()
+	document.addEventListener("astro:page-load", initPolicyCatalogSearch)
+</script>

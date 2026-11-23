@@ -8,6 +8,7 @@ const {
 	class: classProp = "",
 	id,
 	disabled = false,
+	closeOnScroll = false,
 	...selectProps
 } = Astro.props
 
@@ -24,7 +25,11 @@ const triggerClass =
 const listboxId = id ? `${id}-listbox` : undefined
 ---
 
-<div class={wrapperClass} data-fastt-select>
+<div
+	class={wrapperClass}
+	data-fastt-select
+	data-close-on-scroll={closeOnScroll ? "true" : undefined}
+>
 	<select
 		class="sr-only"
 		tabindex="-1"
@@ -143,8 +148,16 @@ const listboxId = id ? `${id}-listbox` : undefined
 				}
 			}
 
-			const onViewportChange = () => {
-				if (rootEl.dataset.open === "true") positionMenu()
+			const onViewportChange = (event: Event) => {
+				if (rootEl.dataset.open !== "true") return
+				if (rootEl.dataset.closeOnScroll === "true" && event.type === "scroll") {
+					if (event.target instanceof Node && menu.contains(event.target)) return
+					const restoreFocus = menu.contains(document.activeElement)
+					setOpen(false)
+					if (restoreFocus) trigger.focus({ preventScroll: true })
+					return
+				}
+				positionMenu()
 			}
 
 			const options = () => Array.from(select.options)
@@ -301,6 +314,7 @@ const listboxId = id ? `${id}-listbox` : undefined
 			})
 
 			select.addEventListener("fastt:options-updated", () => {
+				setOpen(false)
 				syncLabel()
 				renderMenu()
 			})

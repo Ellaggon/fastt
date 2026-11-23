@@ -1,0 +1,123 @@
+---
+import { documentCertificationWorkspaceEnabled } from "@/lib/documents/certification-workspace"
+import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
+import { db, eq, Provider } from "@/shared/infrastructure/db/compat"
+import { listProviderDocuments } from "@/lib/provider-documents"
+import { listPublishedDocumentDefinitions } from "@/lib/documents/document-definitions"
+import { getProviderDocumentInspection } from "@/lib/documents/document-processing"
+import ProviderVerificationOptionals from "@/components/provider/ProviderVerificationOptionals.astro"
+import "@/styles/global.css"
+if (!documentCertificationWorkspaceEnabled(process.env, Astro.url))
+	return new Response(null, { status: 404 })
+let session
+try {
+	session = await requireProviderSessionSurface(Astro.request)
+} catch (error) {
+	if (error instanceof Response) return error
+	throw error
+}
+const providerId = session.provider.providerId
+if (providerId !== process.env.LOCAL_QA_PROVIDER_ID) return new Response(null, { status: 403 })
+const [provider] = await db.select().from(Provider).where(eq(Provider.id, providerId))
+if (
+	provider?.dataClassification !== "fixture" ||
+	provider.accountPurpose !== "integration_certification"
+)
+	return new Response(null, { status: 403 })
+const documents = await listProviderDocuments(providerId)
+const rows = await Promise.all(
+	documents.map(async (doc) => ({
+		id: doc.id,
+		status: doc.status,
+		inspection: await getProviderDocumentInspection(doc.id),
+	}))
+)
+if (Astro.url.searchParams.get("snapshot") === "1")
+	return Response.json(
+		{
+			fixture: true,
+			rows: rows.map((r) => ({
+				id: r.id,
+				status: r.status,
+				processingState: r.inspection?.processingState,
+				malware: r.inspection?.malwareStatus,
+				ocr: r.inspection?.ocrStatus,
+			})),
+		},
+		{ headers: { "Cache-Control": "no-store" } }
+	)
+const definitions = (await listPublishedDocumentDefinitions())
+	.filter(
+		(d) =>
+			d.key === "bo.holder.personal_identity" &&
+			d.id === process.env.LOCAL_QA_DOCUMENT_DEFINITION_ID
+	)
+	.map((d) => ({ ...d, family: "government_id" }))
+---
+
+<!doctype html>
+<html lang="es">
+	<head
+		><meta charset="UTF-8" /><meta name="viewport" content="width=device-width" /><title>
+			Certificación documental aislada
+		</title></head
+	>
+	<body class="min-h-screen bg-slate-50 text-slate-950"
+		><main class="mx-auto max-w-4xl space-y-6 p-6">
+			<header>
+				<p class="text-sm font-semibold text-amber-700">Entorno aislado · Datos sintéticos</p><h1
+					class="mt-2 text-2xl font-semibold"
+				>
+					Documentos del proveedor de prueba
+				</h1><p class="mt-2 text-sm">Sesión de proveedor: {session.provider.role}</p>
+			</header>
+			<section aria-label="Procesamiento automático">
+				<h2 class="text-lg font-semibold">Estado de los envíos</h2><div
+					id="processing-status"
+					role="status"
+					class="mt-3 border-y border-slate-200 py-4"
+				>
+					{
+						rows.length
+							? rows.map((r) => (
+									<p>
+										{r.status} · {r.inspection?.processingState ?? "En cola"} · OCR:{" "}
+										{r.inspection?.ocrStatus ?? "Pendiente"}
+									</p>
+								))
+							: "Sin documentos enviados"
+					}
+				</div>
+			</section>
+			<ProviderVerificationOptionals
+				surface="tour-activity"
+				canManageDocuments={session.provider.permissions.canManageDocuments}
+				documentTypes={[{ value: "government_id", label: "Identidad nacional del titular" }]}
+				documentDefinitions={definitions}
+				holderSubject={{ type: "person", reference: providerId }}
+				documents={documents}
+				availableProducts={[]}
+				scopeProductId={null}
+			/>
+		</main><script>
+			const status = document.querySelector("#processing-status")
+			const poll = async () => {
+				try {
+					const response = await fetch(`${location.pathname}?snapshot=1`, { cache: "no-store" })
+					if (!response.ok) return
+					const { rows } = await response.json()
+					if (!status || !rows.length) return
+					status.textContent = rows
+						.map(
+							(r: { status: string; processingState?: string; malware?: string; ocr?: string }) =>
+								`${r.status === "pending" ? "Pendiente de revisión" : r.status} · ${r.processingState ?? "En cola"} · Antivirus: ${r.malware ?? "Pendiente"} · OCR: ${r.ocr ?? "Pendiente"}`
+						)
+						.join("\n")
+				} catch {
+					/* Next poll retries without changing evidence state. */
+				}
+			}
+			setInterval(poll, 2000)
+		</script></body
+	>
+</html>

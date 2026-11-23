@@ -1,0 +1,737 @@
+---
+import {
+	Layers,
+	LogIn,
+	Contact,
+	ReceiptText,
+	BadgeCheck,
+	MapPin,
+	Users,
+	ShieldCheck,
+	Search,
+	Plus,
+	ChevronRight,
+	FileClock,
+} from "@lucide/astro"
+import { policyFamilyLabels } from "@/lib/commercial-policy/composition"
+import PolicyCatalogSearch from "./PolicyCatalogSearch.astro"
+import type { CatalogTerritoryNode } from "@/lib/commercial-policy/catalog-territories"
+interface PolicyVersion {
+	id: string
+	number: number
+	state: string
+	substituted: boolean
+}
+interface Props {
+	business: string
+	groups: {
+		id: string
+		label: string
+		holder: string | null
+		country: string
+		territorialScope: string[]
+		family: string
+		versions: PolicyVersion[]
+	}[]
+	family: string
+	holder: string | null
+	search: string
+	status: string
+	territory: string
+	territories: { id: string; label: string }[]
+	territoryNodes: CatalogTerritoryNode[]
+	canEdit: boolean
+}
+const {
+	business,
+	groups,
+	family,
+	holder,
+	search,
+	status,
+	territory,
+	territories,
+	territoryNodes,
+	canEdit,
+} = Astro.props
+const families = [
+	{ id: "", label: "Todas las políticas", icon: Layers },
+	{ id: "admission", label: "Admisión", icon: LogIn },
+	...Object.entries(policyFamilyLabels).map(([id, label]) => ({
+		id,
+		label,
+		icon:
+			id === "identity"
+				? Contact
+				: id === "fiscal"
+					? ReceiptText
+					: id === "tourism"
+						? BadgeCheck
+						: id === "regulated_place"
+							? MapPin
+							: id === "operational_resources"
+								? Users
+								: ShieldCheck,
+	})),
+]
+const href = (changes: Record<string, string>) => {
+	const url = new URL(Astro.url)
+	for (const [key, value] of Object.entries(changes))
+		value ? url.searchParams.set(key, value) : url.searchParams.delete(key)
+	return url.pathname + url.search
+}
+const isTour = business === "tour"
+const businessName = isTour ? "Tours" : business === "lodging" ? "Alojamientos" : "Transporte"
+---
+
+<section class="policy-catalog" aria-label="Catálogo de políticas comerciales">
+	<header class="catalog-heading">
+		<div><p class="eyebrow">Administración</p><h1>Políticas comerciales</h1></div>{
+			canEdit && isTour && (
+				<a class="create-policy" href="/admin/commercial-policies?view=policies&editor=create">
+					<Plus size={16} /> Nueva política
+				</a>
+			)
+		}
+	</header>
+	<nav class="business-tabs" aria-label="Línea de negocio">
+		{
+			[
+				{ id: "tour", label: "Tours" },
+				{ id: "lodging", label: "Alojamientos" },
+				{ id: "transport", label: "Transporte" },
+			].map((item) => (
+				<a
+					href={`/admin/commercial-policies?view=policies&business=${item.id}`}
+					data-astro-reload
+					aria-current={business === item.id ? "page" : undefined}
+				>
+					{item.label}
+				</a>
+			))
+		}
+	</nav>
+	<div class="catalog-grid">
+		<aside>
+			<p class="eyebrow">Familias</p><nav aria-label="Familias de políticas">
+				{
+					families.map(({ id, label, icon: Icon }) => (
+						<a href={href({ family: id })} aria-current={family === id ? "page" : undefined}>
+							<>
+								<Icon size={17} />
+								<span>{label}</span>
+							</>
+						</a>
+					))
+				}
+			</nav><div class="aside-tools">
+				<a href="/admin/commercial-policies?view=policies&task=reorganization"
+					>Reorganización territorial</a
+				>
+				<a href="/admin/commercial-policies?view=policies&task=ratification"
+					><FileClock size={17} />Revisar borradores</a
+				><a href="/admin/commercial-policies?view=documents">Catálogo documental</a><a
+					href="/admin/commercial-policies?view=simulation">Comprobar cobertura</a
+				>
+			</div>
+		</aside>
+		<div class="catalog-results">
+			<div class="results-heading">
+				<div>
+					<p class="breadcrumb">{businessName}<span>/</span>Catálogo</p><h2>
+						{
+							family
+								? (families.find((item) => item.id === family)?.label ?? "Otras políticas")
+								: "Todas las políticas"
+						}
+					</h2>
+				</div>{isTour && <p class="count">{groups.length} políticas</p>}
+			</div>
+			{
+				isTour ? (
+					<>
+						<PolicyCatalogSearch
+							business={business}
+							family={family}
+							status={status}
+							search={search}
+							holder={holder}
+							territory={territory}
+							nodes={territoryNodes}
+						/>
+						<div class="status-bar">
+							<>
+								<nav aria-label="Estado de políticas">
+									{[
+										{ id: "current", label: "Vigentes" },
+										{ id: "draft", label: "Borradores" },
+										{ id: "all", label: "Historial" },
+									].map((item) => (
+										<a
+											href={href({ status: item.id })}
+											aria-current={status === item.id ? "page" : undefined}
+										>
+											{item.label}
+										</a>
+									))}
+								</nav>
+								<span>Orden: familia</span>
+							</>
+						</div>
+						<div class="policy-table">
+							<table>
+								<>
+									<thead>
+										<tr>
+											<>
+												<th>Política</th>
+												<th>Aplicación</th>
+												<th>Alcance territorial</th>
+												<th>Versión</th>
+												<th>Estado</th>
+												<th>
+													<span class="sr-only">Abrir política</span>
+												</th>
+											</>
+										</tr>
+									</thead>
+									<tbody>
+										{groups.map((group) => {
+											const current = group.versions[0]
+											return (
+												<tr>
+													<td>
+														<a
+															href={`/admin/commercial-policies?view=policies&version=${current.id}`}
+														>
+															{group.label}
+														</a>
+														<small>
+															{group.family} · {group.country}
+														</small>
+													</td>
+													<td>
+														{group.holder === "persona_natural"
+															? "Persona natural"
+															: group.holder === "entidad"
+																? "Empresa o entidad"
+																: "Todos los titulares"}
+													</td>
+													<td class="territorial-scope">
+														{group.territorialScope.map((label) => (
+															<span>{label}</span>
+														))}
+													</td>
+													<td class="version-cell">
+														v{current.number}
+														{group.versions.length > 1 && (
+															<small>{group.versions.length} versiones</small>
+														)}
+													</td>
+													<td>
+														<span
+															class:list={[
+																"policy-state",
+																current.state === "Vigente" ? "state-current" : "",
+															]}
+														>
+															{current.state}
+														</span>
+														{current.substituted && <small>Con sustitución</small>}
+													</td>
+													<td>
+														<a
+															class="open-policy"
+															href={`/admin/commercial-policies?view=policies&version=${current.id}`}
+															aria-label={`Abrir ${group.label}`}
+														>
+															<ChevronRight size={18} />
+														</a>
+													</td>
+												</tr>
+											)
+										})}
+									</tbody>
+								</>
+							</table>
+						</div>
+						{groups.length === 0 && (
+							<div class="empty-state">
+								<h3>No hay políticas con estos filtros</h3>
+								<a href="/admin/commercial-policies">Limpiar filtros</a>
+							</div>
+						)}
+					</>
+				) : (
+					<div class="empty-state">
+						<>
+							<h3>Catálogo no integrado</h3>
+							<p>
+								Las políticas de {businessName.toLocaleLowerCase()} todavía no están integradas en
+								esta herramienta.
+							</p>
+						</>
+					</div>
+				)
+			}
+		</div>
+	</div>
+</section>
+<style>
+	.policy-catalog {
+		background: #fff;
+		color: #202735;
+		border-radius: 8px;
+		min-height: calc(100vh - 130px);
+		padding: 36px 40px;
+		letter-spacing: 0;
+	}
+	a,
+	button,
+	input,
+	select {
+		letter-spacing: 0;
+	}
+	.catalog-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 20px;
+	}
+	.eyebrow {
+		font-size: 11px;
+		text-transform: uppercase;
+		color: #687282;
+		font-weight: 600;
+		margin: 0;
+	}
+	.catalog-heading h1 {
+		font-size: 26px;
+		font-weight: 650;
+		margin: 5px 0 0;
+	}
+	.create-policy {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		background: #202735;
+		color: #fff;
+		padding: 11px 16px;
+		border-radius: var(--fastt-radius-pill);
+		font-size: 13px;
+		font-weight: 600;
+	}
+	.business-tabs {
+		display: flex;
+		gap: 32px;
+		border-bottom: 1px solid #e4e7ec;
+		margin-top: 24px;
+	}
+	.business-tabs a {
+		padding: 15px 0;
+		font-size: 14px;
+		color: #647080;
+		border-bottom: 2px solid transparent;
+	}
+	.business-tabs a[aria-current] {
+		border-color: #202735;
+		color: #202735;
+		font-weight: 600;
+	}
+	.catalog-grid {
+		display: grid;
+		grid-template-columns: 220px minmax(0, 1fr);
+		gap: 38px;
+		margin-top: 32px;
+	}
+	aside {
+		border-right: 1px solid #e4e7ec;
+		padding-right: 22px;
+	}
+	aside nav {
+		display: flex;
+		flex-direction: column;
+		gap: 5px;
+		margin-top: 16px;
+	}
+	aside a {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		border-radius: var(--fastt-radius-control);
+		padding: 11px 10px;
+		font-size: 13px;
+		color: #5f6978;
+	}
+	aside a[aria-current] {
+		background: #edf2ff;
+		color: #294fb2;
+		font-weight: 600;
+	}
+	aside a:hover {
+		background: #f3f5f8;
+	}
+	.aside-tools {
+		border-top: 1px solid #e4e7ec;
+		margin-top: 28px;
+		padding-top: 13px;
+	}
+	.aside-tools a {
+		font-size: 12px;
+	}
+	.catalog-results {
+		min-width: 0;
+	}
+	.results-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+	}
+	.breadcrumb {
+		font-size: 12px;
+		color: #76808f;
+		margin: 0 0 8px;
+	}
+	.breadcrumb span {
+		padding: 0 10px;
+		color: #a4adba;
+	}
+	h2 {
+		font-size: 20px;
+		font-weight: 600;
+		margin: 0;
+	}
+	.count {
+		font-size: 12px;
+		color: #687282;
+	}
+	.catalog-filters {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 10px;
+		margin-top: 25px;
+	}
+	.catalog-filters label {
+		min-width: 0;
+	}
+	.catalog-filters input:not([type="hidden"]),
+	.catalog-filters select {
+		height: 42px;
+		border: 1px solid #dce1e8;
+		border-radius: var(--fastt-radius-field);
+		background: #fff;
+		color: #313b49;
+		font-size: 13px;
+		padding: 10px 13px;
+		max-width: 100%;
+	}
+	.search-field {
+		flex: 1;
+		min-width: 190px;
+		position: relative;
+	}
+	.search-field svg {
+		position: absolute;
+		left: 13px;
+		top: 13px;
+		color: #788391;
+	}
+	.search-field input {
+		width: 100%;
+		padding-left: 39px !important;
+	}
+	.filter-submit {
+		height: 42px;
+		width: 42px;
+		display: grid;
+		place-items: center;
+		border: 1px solid #dce1e8;
+		border-radius: var(--fastt-radius-pill);
+		color: #455163;
+		background: #fff;
+	}
+	.status-bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		border-bottom: 1px solid #e4e7ec;
+		margin-top: 25px;
+	}
+	.status-bar nav {
+		display: flex;
+		gap: 24px;
+	}
+	.status-bar a {
+		padding: 0 0 14px;
+		border-bottom: 2px solid transparent;
+		font-size: 13px;
+		color: #667080;
+	}
+	.status-bar a[aria-current] {
+		color: #294fb2;
+		border-color: #294fb2;
+		font-weight: 600;
+	}
+	.status-bar > span {
+		font-size: 11px;
+		color: #7a8492;
+	}
+	.policy-table table {
+		border-collapse: collapse;
+		width: 100%;
+		table-layout: fixed;
+		font-size: 13px;
+	}
+	.policy-table th {
+		text-align: left;
+		padding: 15px 16px;
+		font-size: 12px;
+		font-weight: 500;
+		color: #747e8d;
+		background: #f7f8fa;
+	}
+	.policy-table th:first-child {
+		width: 33%;
+	}
+	.policy-table th:nth-child(2) {
+		width: 18%;
+	}
+	.policy-table th:nth-child(3) {
+		width: 24%;
+	}
+	.policy-table th:nth-child(4) {
+		width: 8%;
+	}
+	.territorial-scope span {
+		display: block;
+		margin: 3px 0;
+	}
+	.policy-table th:last-child {
+		width: 5%;
+	}
+	.policy-table td {
+		padding: 23px 16px;
+		border-bottom: 1px solid #e8ebef;
+		vertical-align: middle;
+		overflow-wrap: anywhere;
+	}
+	.policy-table td:first-child > a {
+		font-size: 14px;
+		font-weight: 600;
+		color: #263143;
+	}
+	.policy-table small {
+		display: block;
+		font-size: 11px;
+		color: #7a8492;
+		margin-top: 5px;
+	}
+	.policy-state {
+		font-size: 12px;
+	}
+	.state-current:before {
+		content: "";
+		display: inline-block;
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: #2b805d;
+		margin-right: 7px;
+	}
+	.policy-table tr:hover td {
+		background: #fafbfd;
+	}
+	.open-policy {
+		display: grid;
+		place-items: center;
+		min-width: 30px;
+		min-height: 34px;
+		color: #667080;
+	}
+	.empty-state {
+		padding: 55px 20px;
+		color: #687282;
+		text-align: center;
+	}
+	.empty-state h3 {
+		font-size: 17px;
+		color: #313b49;
+	}
+	.empty-state p {
+		font-size: 14px;
+	}
+	.empty-state a {
+		color: #294fb2;
+		text-decoration: underline;
+	}
+	a:focus-visible,
+	button:focus-visible,
+	input:focus-visible,
+	select:focus-visible {
+		outline: 2px solid #4269c3;
+		outline-offset: 3px;
+	}
+	@media (min-width: 1600px) {
+		.policy-catalog {
+			padding: 42px 48px;
+		}
+		.catalog-grid {
+			grid-template-columns: 240px minmax(0, 1fr);
+			gap: 46px;
+		}
+	}
+	@media (max-width: 1000px) {
+		.policy-catalog {
+			padding: 26px 22px;
+		}
+		.catalog-grid {
+			grid-template-columns: 185px minmax(0, 1fr);
+			gap: 22px;
+		}
+		.catalog-filters select {
+			width: 100%;
+		}
+		.catalog-filters label:not(.search-field) {
+			flex: 1;
+		}
+		.policy-table th:first-child {
+			width: 31%;
+		}
+		.policy-table th:nth-child(2) {
+			width: 18%;
+		}
+	}
+	@media (max-width: 700px) {
+		.catalog-grid {
+			display: block;
+		}
+		aside {
+			border: 0;
+			padding: 0 0 24px;
+		}
+		aside nav {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+		}
+		.aside-tools {
+			display: flex;
+			flex-wrap: wrap;
+			margin-top: 12px;
+			padding-top: 8px;
+		}
+		.policy-table th:nth-child(2),
+		.policy-table td:nth-child(2),
+		.policy-table th:nth-child(4),
+		.policy-table td:nth-child(4) {
+			display: none;
+		}
+		.policy-table th:first-child {
+			width: 40%;
+		}
+		.policy-table th:nth-child(3) {
+			width: 32%;
+		}
+		.catalog-heading h1 {
+			font-size: 22px;
+		}
+		.catalog-heading {
+			align-items: start;
+		}
+		.create-policy {
+			padding: 10px;
+			font-size: 12px;
+			white-space: nowrap;
+		}
+		.policy-table td,
+		.policy-table th {
+			padding-left: 9px;
+			padding-right: 9px;
+		}
+		.status-bar > span {
+			display: none;
+		}
+	}
+	/* Match the approved mockup in both system appearances. */
+	.policy-catalog {
+		color-scheme: light dark;
+		--catalog-bg: light-dark(#fff, var(--color-slate-950, #020617));
+		--catalog-ink: light-dark(#17202d, #edf0f5);
+		--catalog-muted: light-dark(#657080, #adb5c2);
+		--catalog-line: light-dark(#e5e8ed, #1e293b);
+		--catalog-soft: light-dark(#f4f6f8, #0f172a);
+		--catalog-active: light-dark(#edf2ff, #27334d);
+		--catalog-blue: light-dark(#244db8, #b4c7ff);
+		background: var(--catalog-bg);
+		color: var(--catalog-ink);
+	}
+	.eyebrow,
+	.business-tabs a,
+	aside a,
+	.breadcrumb,
+	.count,
+	.status-bar a,
+	.status-bar > span,
+	.policy-table small,
+	.open-policy,
+	.empty-state,
+	.search-field svg {
+		color: var(--catalog-muted);
+	}
+	.create-policy {
+		background: var(--catalog-ink);
+		color: var(--catalog-bg);
+	}
+	.business-tabs,
+	aside,
+	.aside-tools,
+	.status-bar,
+	.policy-table td {
+		border-color: var(--catalog-line);
+	}
+	.business-tabs a[aria-current] {
+		color: var(--catalog-ink);
+		border-color: var(--catalog-ink);
+	}
+	.breadcrumb span {
+		color: var(--catalog-muted);
+	}
+	aside a[aria-current] {
+		background: var(--catalog-active);
+		color: var(--catalog-blue);
+	}
+	aside a:hover,
+	.policy-table tr:hover td {
+		background: var(--catalog-soft);
+	}
+	.catalog-filters input:not([type="hidden"]),
+	.catalog-filters select,
+	.filter-submit {
+		background: var(--catalog-bg);
+		color: var(--catalog-ink);
+		border-color: var(--catalog-line);
+	}
+	.catalog-filters input::placeholder {
+		color: var(--catalog-muted);
+		opacity: 1;
+	}
+	.status-bar a[aria-current] {
+		color: var(--catalog-blue);
+		border-color: var(--catalog-blue);
+	}
+	.policy-table th {
+		background: var(--catalog-soft);
+		color: var(--catalog-muted);
+	}
+	.policy-table td:first-child > a,
+	.empty-state h3 {
+		color: var(--catalog-ink);
+	}
+	.empty-state a {
+		color: var(--catalog-blue);
+	}
+	.state-current:before {
+		background: light-dark(#287255, #92d9b5);
+	}
+</style>
