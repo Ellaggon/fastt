@@ -304,11 +304,21 @@ export async function createProviderDocumentProcessingUrl(params: {
 	const objectKey = parseProviderDocumentObjectKey(params.fileUrl)
 	const storage = storageFor(params.fileUrl)
 	if (!objectKey || !storage) return null
-	return getSignedUrl(
+	const signedUrl = await getSignedUrl(
 		storage.client,
 		new GetObjectCommand({ Bucket: storage.bucket, Key: objectKey }),
 		{ expiresIn: params.expiresInSeconds ?? 300 }
 	)
+	const bridge = process.env.FASTT_TEST_DOCUMENT_SOURCE_ORIGIN
+	if (process.env.FASTT_DATA_ENV !== "test" || !bridge) return signedUrl
+	const url = new URL(signedUrl)
+	if (
+		url.protocol !== "http:" ||
+		url.hostname !== "127.0.0.1" ||
+		!/^https:\/\/host\.docker\.internal:\d+$/.test(bridge)
+	)
+		throw new Error("invalid_test_document_source_bridge")
+	return bridge + url.pathname + url.search
 }
 
 export async function readProviderDocumentObject(params: {

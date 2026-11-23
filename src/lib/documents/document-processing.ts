@@ -5,8 +5,11 @@ import { documentAnalysisGatewayConfig } from "./analysis-gateway-config"
 import { z } from "zod"
 
 import {
+	buildProviderDocumentObjectKey,
 	createProviderDocumentProcessingUrl,
 	readProviderDocumentObject,
+	toProviderDocumentFileRef,
+	uploadProviderDocumentObject,
 } from "@/lib/provider-document-storage"
 import {
 	and,
@@ -52,6 +55,7 @@ const gatewaySchema = z.object({
 				z.object({
 					key: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),
 					value: z.string().max(500),
+					page: z.number().int().positive().optional(),
 					confidence: z.number().min(0).max(1).nullable().optional(),
 				})
 			)
@@ -70,6 +74,7 @@ export type ProviderDocumentInspectionReadModel = {
 	malwareStatus: string
 	ocrStatus: string
 	extractionStatus: string
+	readingReason?: string | null
 	tamperStatus: string
 	detectedMimeType: string | null
 	sha256: string | null
@@ -130,9 +135,10 @@ async function callDocumentGateway(params: {
 	sha256: string
 	detectedMimeType: string
 	allowExternalGateway: boolean
+	targeted?: boolean
 }) {
 	if (!params.allowExternalGateway) return null
-	const config = documentAnalysisGatewayConfig()
+	const config = documentAnalysisGatewayConfig(process.env, params.targeted)
 	if (!config) return null
 	const { endpoint, token } = config
 	const sourceUrl = await createProviderDocumentProcessingUrl({
@@ -155,7 +161,14 @@ async function callDocumentGateway(params: {
 			mimeType: params.detectedMimeType,
 			controls: ["malware", "ocr", "field_extraction", "tamper"],
 		}),
-		signal: AbortSignal.timeout(45_000),
+		signal: AbortSignal.timeout(
+			params.targeted &&
+				endpoint.protocol === "http:" &&
+				endpoint.hostname === "127.0.0.1" &&
+				endpoint.port === "4329"
+				? 125_000
+				: 45_000
+		),
 		redirect: "error",
 	})
 	if (!response.body) throw new Error("document_gateway_empty_response")
@@ -206,6 +219,9 @@ export async function getProviderDocumentInspection(
 		malwareStatus: row.malwareStatus,
 		ocrStatus: row.ocrStatus,
 		extractionStatus: row.extractionStatus,
+		readingReason:
+			z.object({ readingReason: z.string() }).safeParse(row.qualitySignalsJson).data
+				?.readingReason ?? null,
 		tamperStatus: row.tamperStatus,
 		detectedMimeType: row.detectedMimeType,
 		sha256: row.sha256,
@@ -266,7 +282,8 @@ export async function assertProviderDocumentSafeToReveal(documentId: string) {
 async function processJob(
 	job: { id: string; documentId: string; attempts: number },
 	workerId: string,
-	allowExternalGateway: boolean
+	allowExternalGateway: boolean,
+	stageLegacy: boolean
 ) {
 	const now = new Date()
 	const claimed = await db
@@ -289,6 +306,7 @@ async function processJob(
 			.select({
 				id: ProviderDocument.id,
 				type: ProviderDocument.type,
+				providerId: ProviderDocument.providerId,
 				fileUrl: ProviderDocument.fileUrl,
 				metadataJson: ProviderDocument.metadataJson,
 			})
@@ -310,13 +328,31 @@ async function processJob(
 		const local = inspectDocumentStructure(bytes, declaredMimeType)
 		const sha256 = createHash("sha256").update(bytes).digest("hex")
 		if (!local.detectedMimeType) throw new Error("document_format_not_recognized")
+		const canonicalRef = toProviderDocumentFileRef(
+			buildProviderDocumentObjectKey({
+				providerId: document.providerId,
+				documentId: document.id,
+				fileName: "original",
+			})
+		)
+		const source =
+			stageLegacy && allowExternalGateway && document.fileUrl !== canonicalRef
+				? await uploadProviderDocumentObject({
+						providerId: document.providerId,
+						documentId: document.id,
+						fileName: "original",
+						mimeType: local.detectedMimeType,
+						body: bytes,
+					})
+				: document
 		const gateway = await callDocumentGateway({
 			documentId: document.id,
 			documentType: document.type,
-			fileUrl: document.fileUrl,
+			fileUrl: source.fileUrl!,
 			sha256,
 			detectedMimeType: local.detectedMimeType,
 			allowExternalGateway,
+			targeted: stageLegacy,
 		})
 		const completedAt = new Date()
 		if (!gateway) {
@@ -589,7 +625,7 @@ export async function runProviderDocumentProcessingWorker(
 	let attempted = 0
 	for (const job of jobs) {
 		if (Date.now() - startedAt >= maxElapsedMs) break
-		outcomes[await processJob(job, workerId, allowExternalGateway)] += 1
+		outcomes[await processJob(job, workerId, allowExternalGateway, Boolean(target))] += 1
 		attempted++
 	}
 	return { claimed: attempted, ...outcomes }

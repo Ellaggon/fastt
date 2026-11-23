@@ -49,13 +49,21 @@ export async function createDocumentDefinitionDraft(input: unknown) {
 
 export async function readPublishedDocumentDefinition(id: string) {
 	const [row] = await db
-		.select()
+		.select({ version: DocumentDefinitionVersion, key: DocumentDefinition.key })
 		.from(DocumentDefinitionVersion)
+		.innerJoin(
+			DocumentDefinition,
+			eq(DocumentDefinitionVersion.definitionId, DocumentDefinition.id)
+		)
 		.where(
 			and(eq(DocumentDefinitionVersion.id, id), eq(DocumentDefinitionVersion.status, "published"))
 		)
 	if (!row) throw Object.assign(new Error("document_definition_not_published"), { status: 422 })
-	return { ...row, capture: documentCaptureSchema.parse(row.captureJson) }
+	return {
+		...row.version,
+		key: row.key,
+		capture: documentCaptureSchema.parse(row.version.captureJson),
+	}
 }
 
 export async function listPublishedDocumentDefinitions() {
@@ -64,9 +72,14 @@ export async function listPublishedDocumentDefinitions() {
 			id: DocumentDefinitionVersion.id,
 			label: DocumentDefinitionVersion.label,
 			family: DocumentDefinitionVersion.family,
+			key: DocumentDefinition.key,
 			capture: DocumentDefinitionVersion.captureJson,
 		})
 		.from(DocumentDefinitionVersion)
+		.innerJoin(
+			DocumentDefinition,
+			eq(DocumentDefinitionVersion.definitionId, DocumentDefinition.id)
+		)
 		.where(eq(DocumentDefinitionVersion.status, "published"))
 		.orderBy(DocumentDefinitionVersion.label)
 }

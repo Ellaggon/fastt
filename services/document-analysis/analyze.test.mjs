@@ -1,6 +1,27 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { validateAnalysisRequest } from "./analyze.mjs"
+import { extractIssueFields, validateAnalysisRequest } from "./analyze.mjs"
+
+test("extracts labeled issue fields with their page, ignoring expiry", () => {
+	assert.deepEqual(
+		extractIssueFields([
+			"Emisor: Entidad de prueba",
+			"Fecha de emisión: 2026-11-14\nVence: 2027-11-14",
+		]),
+		[
+			{ key: "issuer", value: "Entidad de prueba", page: 1 },
+			{ key: "issued_at", value: "2026-11-14", page: 2 },
+		]
+	)
+})
+
+test("leaves conflicting or invalid dates unset", () => {
+	assert.deepEqual(extractIssueFields(["Fecha de emisión: 2026-02-30"]), [])
+	assert.deepEqual(
+		extractIssueFields(["Fecha de emisión: 2026-02-01", "Fecha de emisión: 2026-02-02"]),
+		[]
+	)
+})
 
 const config = {
 	sourceOrigin: "https://private.r2.cloudflarestorage.com",

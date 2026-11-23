@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
-import { readFile } from "node:fs/promises"
-import { DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3"
+import { makeMixedPdf } from "../../services/document-analysis/fixtures/mixed-pdf.mjs"
+import { DeleteObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3"
 import { afterEach, expect, it, vi } from "vitest"
 afterEach(() => vi.unstubAllEnvs())
 import { getDocumentR2Client } from "@/container/shared.container"
@@ -31,21 +31,19 @@ it.skipIf(process.env.FASTT_CERTIFY_LOCAL_GATEWAY !== "1")(
 	"certifies signed direct R2 upload → local antivirus/OCR → isolated PostgreSQL without approval",
 	async () => {
 		vi.stubEnv("FASTT_DOCUMENT_PIPELINE_ENABLED", "true")
+		vi.stubEnv("DOCUMENT_ANALYSIS_LOCAL_DEVELOPMENT", "true")
 		if (
 			process.env.FASTT_DATA_ENV !== "test" ||
-			process.env.DOCUMENT_ANALYSIS_GATEWAY_URL !== "http://127.0.0.1:4319/v1/documents/analyze"
+			!/^http:\/\/127\.0\.0\.1:\d+\/?$/.test(process.env.FASTT_TEST_S3_ENDPOINT ?? "") ||
+			!/^http:\/\/127\.0\.0\.1:\d+\/v1\/documents\/analyze$/.test(
+				process.env.DOCUMENT_ANALYSIS_GATEWAY_URL ?? ""
+			)
 		)
 			throw new Error("isolated_local_certification_required")
 		const providerId = `gateway-worker-certification-${randomUUID()}`,
 			idempotencyKey = randomUUID(),
 			documentId = documentSubmissionId(providerId, idempotencyKey)
-		const bytes = Buffer.from(
-			await readFile(
-				new URL("../../services/document-analysis/fixtures/synthetic.pdf.b64", import.meta.url),
-				"utf8"
-			),
-			"base64"
-		)
+		const bytes = makeMixedPdf()
 		const integrity = documentIntegrity(bytes, "application/pdf"),
 			config = documentStorageConfig()!
 		await upsertProvider({
@@ -86,23 +84,78 @@ it.skipIf(process.env.FASTT_CERTIFY_LOCAL_GATEWAY !== "1")(
 				metadataJson: { mimeType: "application/pdf", integrity },
 			})
 			const result = await runProviderDocumentProcessingWorker({ limit: 1 })
-			expect(result.completed).toBe(1)
 			const inspection = await getProviderDocumentInspection(documentId)
+			expect(result.completed, inspection?.errorCode ?? "No inspection error recorded").toBe(1)
 			expect(inspection).toMatchObject({
 				processingState: "completed",
 				malwareStatus: "clean",
 				ocrStatus: "completed",
-				extractionStatus: "not_supported",
+				extractionStatus: "completed",
 				sha256: integrity.sha256,
 			})
+			const [stored] = await db
+				.select({ fields: ProviderDocumentInspection.extractedFieldsJson })
+				.from(ProviderDocumentInspection)
+				.where(eq(ProviderDocumentInspection.documentId, documentId))
+			expect(stored?.fields).toEqual([
+				{ key: "issuer", value: "Autoridad sintetica", page: 1 },
+				{ key: "issued_at", value: "2026-11-14", page: 2 },
+			])
 			expect(documentInspectionGate(inspection)).toMatchObject({ canReveal: true, blockers: [] })
-			expect(documentInspectionGate(inspection).warnings.length).toBeGreaterThan(0)
+			expect(documentInspectionGate(inspection).warnings).toEqual([])
 			const [document] = await db
 				.select()
 				.from(ProviderDocument)
 				.where(eq(ProviderDocument.id, documentId))
 			expect(document.status).toBe("pending")
 			expect(document.reviewedAt).toBeNull()
+
+			const storage = getDocumentR2Client()
+			const legacyKey = object.objectKey.replace(/\/original$/, "/legacy.pdf")
+			await storage.send(
+				new PutObjectCommand({
+					Bucket: config.bucket,
+					Key: legacyKey,
+					Body: bytes,
+					ContentType: "application/pdf",
+				})
+			)
+			try {
+				await storage.send(
+					new DeleteObjectCommand({ Bucket: config.bucket, Key: object.objectKey })
+				)
+				const legacyRef = `r2-documents:${legacyKey}`
+				await db
+					.update(ProviderDocument)
+					.set({ fileUrl: legacyRef })
+					.where(eq(ProviderDocument.id, documentId))
+				await db
+					.update(ProviderDocumentProcessingJob)
+					.set({ status: "queued", availableAt: new Date() })
+					.where(eq(ProviderDocumentProcessingJob.documentId, documentId))
+				const retry = await runProviderDocumentProcessingWorker({
+					limit: 1,
+					target: { providerId, documentId },
+				})
+				const retried = await getProviderDocumentInspection(documentId)
+				expect(retry.completed, retried?.errorCode ?? "No inspection error recorded").toBe(1)
+				expect(retried).toMatchObject({
+					sha256: integrity.sha256,
+					malwareStatus: "clean",
+					extractionStatus: "completed",
+				})
+				const [preserved] = await db
+					.select()
+					.from(ProviderDocument)
+					.where(eq(ProviderDocument.id, documentId))
+				expect(preserved).toMatchObject({ fileUrl: legacyRef, status: "pending", reviewedAt: null })
+				expect(
+					(await storage.send(new HeadObjectCommand({ Bucket: config.bucket, Key: legacyKey })))
+						.ContentLength
+				).toBe(bytes.length)
+			} finally {
+				await storage.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: legacyKey }))
+			}
 		} finally {
 			await db
 				.delete(ProviderDocumentProcessingJob)

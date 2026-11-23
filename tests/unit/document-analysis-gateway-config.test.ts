@@ -29,3 +29,22 @@ it("requires a strong token and rejects URL credentials", () => {
 	).toThrow()
 	expect(documentAnalysisGatewayConfig({})).toBeNull()
 })
+it("allows the certified analyzer in the explicitly activated local development portal only", () => {
+	const local = {
+		...env,
+		DOCUMENT_ANALYSIS_GATEWAY_URL: "http://127.0.0.1:4329/v1/documents/analyze",
+		FASTT_DOCUMENT_LOCAL_PORTAL_ENABLED: "true",
+		FASTT_DOCUMENT_PIPELINE_ENABLED: "true",
+		R2_DOCUMENTS_BUCKET_NAME: "documents-development",
+		NODE_ENV: "development",
+	}
+	expect(documentAnalysisGatewayConfig(local)?.endpoint.port).toBe("4329")
+	for (const change of [
+		{ NODE_ENV: "production" },
+		{ VERCEL: "1" },
+		{ FASTT_DOCUMENT_LOCAL_PORTAL_ENABLED: "false" },
+		{ FASTT_DOCUMENT_PIPELINE_ENABLED: "false" },
+		{ R2_DOCUMENTS_BUCKET_NAME: "documents-production" },
+	])
+		expect(() => documentAnalysisGatewayConfig({ ...local, ...change })).toThrow()
+})
