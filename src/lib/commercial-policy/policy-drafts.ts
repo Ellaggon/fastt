@@ -80,7 +80,10 @@ const ruleSchema = z.object({
 	sourceCheckedAt: z.iso.date(),
 	capabilities: z.array(z.enum(["publish", "booking", "integrations"])).min(1),
 })
-export async function createCommercialPolicyDraft(form: FormData) {
+export async function createCommercialPolicyDraft(
+	form: FormData,
+	options?: { newPolicyOnly?: boolean }
+) {
 	const value = commercialPolicyDraftSchema.parse({
 		...Object.fromEntries(form),
 		composition:
@@ -145,7 +148,7 @@ export async function createCommercialPolicyDraft(form: FormData) {
 			? `${baseKey}:${value.composition.kind}:${value.composition.family}:${value.policyCode}`
 			: baseKey
 		await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`)
-		await tx
+		const [createdSet] = await tx
 			.insert(CompliancePolicySet)
 			.values({
 				id: crypto.randomUUID(),
@@ -159,6 +162,8 @@ export async function createCommercialPolicyDraft(form: FormData) {
 				policyScope: "commercial",
 			})
 			.onConflictDoNothing({ target: CompliancePolicySet.key })
+			.returning({ id: CompliancePolicySet.id })
+		if (!createdSet && options?.newPolicyOnly) throw new Error("policy_set_already_exists")
 		const [set] = await tx
 			.select()
 			.from(CompliancePolicySet)
@@ -192,6 +197,78 @@ export async function createCommercialPolicyDraft(form: FormData) {
 		return row
 	})
 }
+export async function createCommercialPolicyDraftFromVersion(form: FormData) {
+	const baseVersionId = z.string().trim().min(1).max(200).parse(form.get("baseVersionId"))
+	const removedFamilies = form.getAll("removeRequiredFamily")
+	return db.transaction(async (tx) => {
+		const [base] = await tx
+			.select({ version: CompliancePolicyVersion, set: CompliancePolicySet })
+			.from(CompliancePolicyVersion)
+			.innerJoin(
+				CompliancePolicySet,
+				eq(CompliancePolicyVersion.policySetId, CompliancePolicySet.id)
+			)
+			.where(
+				and(
+					eq(CompliancePolicyVersion.id, baseVersionId),
+					eq(CompliancePolicySet.policyScope, "commercial"),
+					eq(CompliancePolicySet.vertical, "tour"),
+					eq(CompliancePolicySet.status, "active"),
+					eq(CompliancePolicyVersion.status, "published")
+				)
+			)
+		if (!base) throw new Error("invalid_policy_version_base")
+		await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${base.set.key}, 0))`)
+		const context = structuredClone(base.version.contextJson) as Record<string, unknown> | null
+		if (removedFamilies.length && !context?.composition)
+			throw new Error("invalid_admission_family_removal")
+		if (context?.composition) {
+			const composition = compositionSchema.parse(context.composition)
+			if (
+				removedFamilies.some(
+					(family) => !composition.requiredFamilies.some((entry) => entry === family)
+				)
+			)
+				throw new Error("invalid_admission_family_removal")
+			context.composition = compositionSchema.parse({
+				...composition,
+				requiredFamilies: composition.requiredFamilies.filter(
+					(family) => !removedFamilies.includes(family)
+				),
+				replacesVersionIds: form.get("replaceBase") === "1" ? [baseVersionId] : [],
+			})
+		}
+		const versions = await tx
+			.select({ version: CompliancePolicyVersion.version })
+			.from(CompliancePolicyVersion)
+			.where(eq(CompliancePolicyVersion.policySetId, base.set.id))
+		const [draft] = await tx
+			.insert(CompliancePolicyVersion)
+			.values({
+				id: crypto.randomUUID(),
+				policySetId: base.set.id,
+				version: Math.max(0, ...versions.map((row) => row.version)) + 1,
+				status: "draft",
+				effectiveFrom: new Date(),
+				contextJson: context,
+			})
+			.returning()
+		const rules = await tx
+			.select()
+			.from(ComplianceRequirementRule)
+			.where(eq(ComplianceRequirementRule.policyVersionId, baseVersionId))
+		if (rules.length)
+			await tx.insert(ComplianceRequirementRule).values(
+				rules.map(({ id: _id, createdAt: _createdAt, ...rule }) => ({
+					...rule,
+					id: crypto.randomUUID(),
+					policyVersionId: draft.id,
+				}))
+			)
+		return draft
+	})
+}
+
 export async function addCommercialPolicyDraftRule(form: FormData) {
 	const acceptance =
 		form.get("evidenceMode") === "versioned" ? parseEvidenceAlternatives(form) : null

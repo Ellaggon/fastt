@@ -741,133 +741,158 @@ export function evaluateCommercialPolicy(input: {
 				scopes: [],
 			})
 		)
-	for (const version of selected) {
+	const applicable = selected.flatMap((version) => {
 		const effectiveContext = versionContext(version)
-		for (const requirement of version.requirements) {
-			if (!requirement.required || !requirementApplies(requirement.condition, effectiveContext))
-				continue
-			const definitionIds =
-				requirement.documentAcceptance?.alternatives.flatMap((alternative) =>
-					alternative.allOf.map((part) => part.definitionVersionId)
-				) ?? []
-			const accepted = evidence
-				.filter((item) =>
+		return version.requirements
+			.filter((rule) => rule.required && requirementApplies(rule.condition, effectiveContext))
+			.map((requirement) => ({ version, requirement, effectiveContext }))
+	})
+	const contractKey = ({ requirement, effectiveContext }: (typeof applicable)[number]) => {
+		const { key: _key, ...contract } = requirement
+		return JSON.stringify([
+			contract,
+			effectiveContext.jurisdictionCode,
+			effectiveContext.jurisdictionCodes ?? [],
+			effectiveContext.activityClasses ?? [],
+		])
+	}
+	const providerContracts = new Set(
+		applicable
+			.filter(
+				({ version, requirement }) =>
+					["holder", "tax"].includes(version.jurisdictionRole) &&
+					requirement.condition?.evidenceScope === "provider" &&
+					requirement.condition.evidenceSubjectSelector === "holder" &&
 					requirement.documentAcceptance
-						? Boolean(item.definitionVersionId && definitionIds.includes(item.definitionVersionId))
-						: requirement.acceptedEvidence.includes(item.type)
-				)
-				.map((item) =>
-					requirement.documentAcceptance &&
-					["holder", "operator"].includes(requirement.condition?.evidenceSubjectSelector ?? "") &&
-					(item.subjectType === "provider" || item.subjectType === "legal_entity") &&
-					effectiveContext.providerId
-						? { ...item, subjectReference: effectiveContext.providerId }
-						: item
-				)
-			const evidenceScope = requirement.condition?.evidenceScope ?? "product"
-			const evidenceContext =
-				requirement.documentAcceptance && effectiveContext.providerId
-					? {
-							...effectiveContext,
-							subjectReferences: [
-								...new Set([
-									...(effectiveContext.subjectReferences ?? []),
-									effectiveContext.providerId,
-								]),
-							],
-						}
-					: effectiveContext
-			const eligible = accepted.filter(
-				(item) =>
-					item.status === "verified" &&
-					!evidenceAppliesToContext(item, evidenceContext, now, evidenceScope)
 			)
-			const packageResult = requirement.documentAcceptance
-				? evaluateDocumentAcceptance(
-						requirement.documentAcceptance,
-						requirement.requiredSubjectReferences ??
-							(requirement.condition?.evidenceSubjectSelector
-								? (effectiveContext.evidenceSubjects?.[
-										requirement.condition.evidenceSubjectSelector
-									] ?? [])
-								: (effectiveContext.subjectReferences ?? [])),
-						eligible.map((item) => ({
-							id: item.id,
-							definitionVersionId: item.definitionVersionId ?? null,
-							subjectId:
-								(item.subjectType === "provider" || item.subjectType === "legal_entity") &&
-								["holder", "operator"].includes(
-									requirement.condition?.evidenceSubjectSelector ?? ""
+			.map(contractKey)
+	)
+	const effectiveRequirements = applicable.filter(
+		({ version, requirement, effectiveContext }) =>
+			input.context.vertical !== "tour" ||
+			version.jurisdictionRole !== "product" ||
+			!providerContracts.has(contractKey({ version, requirement, effectiveContext }))
+	)
+	for (const { version, requirement, effectiveContext } of effectiveRequirements) {
+		const definitionIds =
+			requirement.documentAcceptance?.alternatives.flatMap((alternative) =>
+				alternative.allOf.map((part) => part.definitionVersionId)
+			) ?? []
+		const accepted = evidence
+			.filter((item) =>
+				requirement.documentAcceptance
+					? Boolean(item.definitionVersionId && definitionIds.includes(item.definitionVersionId))
+					: requirement.acceptedEvidence.includes(item.type)
+			)
+			.map((item) =>
+				requirement.documentAcceptance &&
+				["holder", "operator"].includes(requirement.condition?.evidenceSubjectSelector ?? "") &&
+				(item.subjectType === "provider" || item.subjectType === "legal_entity") &&
+				effectiveContext.providerId
+					? { ...item, subjectReference: effectiveContext.providerId }
+					: item
+			)
+		const evidenceScope = requirement.condition?.evidenceScope ?? "product"
+		const evidenceContext =
+			requirement.documentAcceptance && effectiveContext.providerId
+				? {
+						...effectiveContext,
+						subjectReferences: [
+							...new Set([
+								...(effectiveContext.subjectReferences ?? []),
+								effectiveContext.providerId,
+							]),
+						],
+					}
+				: effectiveContext
+		const eligible = accepted.filter(
+			(item) =>
+				item.status === "verified" &&
+				!evidenceAppliesToContext(item, evidenceContext, now, evidenceScope)
+		)
+		const packageResult = requirement.documentAcceptance
+			? evaluateDocumentAcceptance(
+					requirement.documentAcceptance,
+					requirement.requiredSubjectReferences ??
+						(requirement.condition?.evidenceSubjectSelector
+							? (effectiveContext.evidenceSubjects?.[
+									requirement.condition.evidenceSubjectSelector
+								] ?? [])
+							: (effectiveContext.subjectReferences ?? [])),
+					eligible.map((item) => ({
+						id: item.id,
+						definitionVersionId: item.definitionVersionId ?? null,
+						subjectId:
+							(item.subjectType === "provider" || item.subjectType === "legal_entity") &&
+							["holder", "operator"].includes(requirement.condition?.evidenceSubjectSelector ?? "")
+								? (effectiveContext.providerId ?? "")
+								: (item.subjectReference ?? ""),
+					}))
+				)
+			: null
+		requirementResults.push({
+			identity: JSON.stringify([
+				version.id,
+				requirement.key,
+				effectiveContext.jurisdictionCodes ?? [],
+			]),
+			policyVersionId: version.id,
+			key: requirement.key,
+			territoryIds: effectiveContext.jurisdictionCodes ?? [],
+			package: packageResult,
+		})
+		const applicable = packageResult
+			? packageResult.satisfied
+				? eligible[0]
+				: undefined
+			: eligible[0]
+		if (!applicable) {
+			const failure = evidenceFailureState(accepted, evidenceContext, now, evidenceScope)
+			const submitted =
+				requirement.documentAcceptance && packageResult
+					? evaluateDocumentAcceptance(
+							requirement.documentAcceptance,
+							packageResult.subjects.map((subject) => subject.subjectId),
+							accepted
+								.filter(
+									(item) =>
+										(item.status === "verified" || item.status === "pending") &&
+										!evidenceAppliesToContext(item, evidenceContext, now, evidenceScope)
 								)
-									? (effectiveContext.providerId ?? "")
-									: (item.subjectReference ?? ""),
-						}))
-					)
-				: null
-			requirementResults.push({
-				identity: JSON.stringify([
-					version.id,
-					requirement.key,
-					effectiveContext.jurisdictionCodes ?? [],
-				]),
+								.map((item) => ({
+									id: item.id,
+									definitionVersionId: item.definitionVersionId ?? null,
+									subjectId: item.subjectReference ?? "",
+								}))
+						)
+					: null
+			blockers.push({
+				id: `requirement_${requirement.key}`,
+				capabilities: requirement.capabilities,
+				action: requirement.blockingAction,
 				policyVersionId: version.id,
-				key: requirement.key,
-				territoryIds: effectiveContext.jurisdictionCodes ?? [],
-				package: packageResult,
+				evidenceState: packageResult
+					? submitted?.satisfied
+						? "pending_review"
+						: failure === "pending_review" || failure === "out_of_scope"
+							? "missing"
+							: failure
+					: failure,
 			})
-			const applicable = packageResult
-				? packageResult.satisfied
-					? eligible[0]
-					: undefined
-				: eligible[0]
-			if (!applicable) {
-				const failure = evidenceFailureState(accepted, evidenceContext, now, evidenceScope)
-				const submitted =
-					requirement.documentAcceptance && packageResult
-						? evaluateDocumentAcceptance(
-								requirement.documentAcceptance,
-								packageResult.subjects.map((subject) => subject.subjectId),
-								accepted
-									.filter(
-										(item) =>
-											(item.status === "verified" || item.status === "pending") &&
-											!evidenceAppliesToContext(item, evidenceContext, now, evidenceScope)
-									)
-									.map((item) => ({
-										id: item.id,
-										definitionVersionId: item.definitionVersionId ?? null,
-										subjectId: item.subjectReference ?? "",
-									}))
-							)
-						: null
-				blockers.push({
-					id: `requirement_${requirement.key}`,
-					capabilities: requirement.capabilities,
-					action: requirement.blockingAction,
-					policyVersionId: version.id,
-					evidenceState: packageResult
-						? submitted?.satisfied
-							? "pending_review"
-							: failure === "pending_review" || failure === "out_of_scope"
-								? "missing"
-								: failure
-						: failure,
-				})
-			} else {
-				satisfiedRequirements.push({
-					key: requirement.key,
-					evidenceId: applicable.id,
-					...(packageResult
-						? {
-								evidenceIds: packageResult.subjects.flatMap(
-									(subject) => subject.satisfiedBy?.evidenceIds ?? []
-								),
-							}
-						: {}),
-					policyVersionId: version.id,
-					evidenceScope,
-				})
-			}
+		} else {
+			satisfiedRequirements.push({
+				key: requirement.key,
+				evidenceId: applicable.id,
+				...(packageResult
+					? {
+							evidenceIds: packageResult.subjects.flatMap(
+								(subject) => subject.satisfiedBy?.evidenceIds ?? []
+							),
+						}
+					: {}),
+				policyVersionId: version.id,
+				evidenceScope,
+			})
 		}
 	}
 	const capabilityStates = Object.fromEntries(
@@ -922,15 +947,10 @@ export function evaluateCommercialPolicy(input: {
 		satisfiedRequirements,
 		policyVersionIds: selected.map((row) => row.id),
 		compositionTrace,
-		applicableRequirements: selected.flatMap((version) =>
-			version.requirements
-				.filter(
-					(requirement) =>
-						requirement.required &&
-						requirementApplies(requirement.condition, versionContext(version))
-				)
-				.map((requirement) => ({ ...requirement, policyVersionId: version.id }))
-		),
+		applicableRequirements: effectiveRequirements.map(({ version, requirement }) => ({
+			...requirement,
+			policyVersionId: version.id,
+		})),
 		capabilityStates,
 	}
 }

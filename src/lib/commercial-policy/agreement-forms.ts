@@ -1,6 +1,24 @@
 import { bindProposalReview } from "./proposal-review"
 
 const messages: Record<string, string> = {
+	policy_set_already_exists:
+		"Esa política ya existe. Vuelve al listado y usa Nueva versión desde la política correspondiente.",
+	invalid_policy_version_base:
+		"La versión de origen ya no está disponible. Vuelve al listado y elige otra.",
+	document_review_not_pending: "El documento ya no está pendiente. Actualiza la ficha.",
+	document_review_start_failed: "No se pudo iniciar la revisión. Intenta de nuevo.",
+	case_already_assigned: "Esta revisión ya tiene responsable. Actualiza la ficha.",
+	case_version_conflict: "La revisión cambió. Actualiza la ficha antes de asignártela.",
+	case_deadline_invalid: "Indica un plazo de entre 1 y 168 horas.",
+	case_deadline_not_running:
+		"El plazo está pausado o cerrado. Actualiza la ficha para ver su estado.",
+	active_document_review_exists:
+		"Este documento ya tiene una revisión activa. Abre esa revisión en lugar de retirar la verificación desde aquí.",
+	document_not_verified:
+		"El documento ya no figura como verificado. Actualiza la ficha para ver su estado.",
+	not_pending: "El estado del documento cambió. Actualiza la ficha antes de continuar.",
+	invalid_verification_withdrawal:
+		"No se pudo validar el retiro. Abre la ficha de nuevo e indica un motivo de entre 10 y 500 caracteres.",
 	commercial_policy_approval_exists:
 		"Esta área ya tiene una aprobación. Actualiza la página antes de continuar.",
 	commercial_policy_not_draft:
@@ -29,7 +47,7 @@ export function bindAgreementForms() {
 		// A field named "action" shadows HTMLFormElement.action in the browser.
 		const action = new URL(form.getAttribute("action") || location.href, document.baseURI)
 		form.dataset.bound = "true"
-		const draftKey = `commercial-form:${location.pathname}:${action.href}:${form.querySelector<HTMLInputElement>('[name="agreementId"], [name="versionId"]')?.value ?? "new"}:${form.querySelector<HTMLInputElement>('[name="approvalArea"]')?.value ?? ""}`
+		const draftKey = `commercial-form:${location.pathname}:${action.href}:${form.querySelector<HTMLInputElement>('[name="agreementId"], [name="versionId"], [name="documentId"]')?.value ?? "new"}:${form.querySelector<HTMLInputElement>('[name="approvalArea"]')?.value ?? ""}`
 		if (action.pathname.startsWith("/api/admin/")) {
 			try {
 				const saved = sessionStorage.getItem(draftKey)
@@ -136,7 +154,11 @@ export function bindAgreementForms() {
 				}
 				url.searchParams.delete("error")
 				url.searchParams.delete("result")
-				window.location.assign(url.href)
+				const destination =
+					form.hasAttribute("data-follow-command-redirect") && typeof data.redirectTo === "string"
+						? new URL(data.redirectTo, url)
+						: url
+				window.location.assign(destination.origin === url.origin ? destination.href : url.href)
 			} catch {
 				feedback.textContent = "No se pudo conectar. Tus datos siguen aquí; inténtalo de nuevo."
 			} finally {

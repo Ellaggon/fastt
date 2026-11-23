@@ -1,11 +1,13 @@
 import type { previewCommercialPolicyPackage } from "./package-ratification"
-type Preview = Awaited<ReturnType<typeof previewCommercialPolicyPackage>>
+type Preview = Awaited<ReturnType<typeof previewCommercialPolicyPackage>> & { canRetire?: boolean }
 const messages: Record<string, string> = {
 	policy_package_changed: "El paquete cambió. Vuelve a revisar las versiones antes de aprobar.",
 	policy_package_invalid:
 		"Hay controles pendientes en el paquete. No se guardó ninguna aprobación.",
 	policy_package_in_progress: "La aprobación está en curso. Conserva esta pantalla.",
 	forbidden: "Tu cuenta no tiene los tres permisos de ratificación.",
+	retirement_forbidden:
+		"Tu cuenta no tiene permiso para retirar estas políticas. No se aplicó ningún cambio.",
 	idempotency_key_reused_with_different_payload: "La solicitud cambió. Revisa otra vez el paquete.",
 }
 
@@ -65,7 +67,12 @@ export function bindPolicyPackageReview() {
 					method: "POST",
 					credentials: "same-origin",
 					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ action: "preview", versionIds: selected() }),
+					body: JSON.stringify({
+						action: "preview",
+						versionIds: selected(),
+						cleanup:
+							root.querySelector<HTMLInputElement>('[name="packageCleanup"]')?.checked || undefined,
+					}),
 				})
 				const data = await response.json()
 				if (!response.ok || !data.ok) {
@@ -98,6 +105,20 @@ export function bindPolicyPackageReview() {
 						: "sin fin definido"
 					details.textContent = `${version.country} · ${version.requirements.length} requisitos · ${version.pendingAreas.length} aprobaciones pendientes · vigencia ${start} — ${end}`
 					item.append(link, details)
+					const replacements = version.context?.composition?.replacesVersionIds ?? []
+					for (const replacementId of replacements) {
+						const targetId = `policy-${replacementId}`
+						const title = document
+							.getElementById(targetId)
+							?.querySelector("h2")
+							?.textContent?.trim()
+						const substitution = document.createElement("p")
+						substitution.className = "mt-1 text-slate-700"
+						substitution.textContent = title
+							? `Sustituye al entrar en vigor: ${title}.`
+							: "Sustituye una versión anterior al entrar en vigor."
+						item.append(substitution)
+					}
 					if (version.errors.length) {
 						const warning = document.createElement("p")
 						warning.textContent = "Contrato incompleto: requiere corrección antes de ratificar."
@@ -107,8 +128,31 @@ export function bindPolicyPackageReview() {
 					list.append(item)
 				}
 				dialog.querySelector<HTMLElement>("[data-package-preview-summary]")!.textContent =
-					`${preview.versions.length} versiones · Políticas, Finanzas y Operaciones Tours`
-				submit.disabled = !allowed || preview.versions.some((version) => version.errors.length)
+					`${preview.versions.length} versiones · Políticas, Finanzas y Operaciones Tours. ${preview.retirements.length ? "Se retiran: " + preview.retirements.map((item) => `${item.label} · versión ${item.version}`).join("; ") + ". Las políticas del titular no cambian." : "Este paquete no retira otras políticas."}`
+				const retiring = preview.retirements.length > 0
+				const retirementPanel = dialog.querySelector<HTMLElement>("[data-package-retirements]")!
+				retirementPanel.hidden = !retiring
+				const retirementList = dialog.querySelector<HTMLElement>("[data-package-retirement-list]")!
+				retirementList.replaceChildren()
+				for (const target of preview.retirements) {
+					const item = document.createElement("li")
+					item.textContent = `${target.label} · versión ${target.version}`
+					retirementList.append(item)
+				}
+				const confirmation = form.querySelector<HTMLInputElement>('[name="confirmRetirements"]')!
+				confirmation.required = retiring
+				confirmation.disabled = !retiring || !preview.canRetire
+				dialog.querySelector<HTMLElement>("[data-package-retirement-permission]")!.textContent =
+					preview.canRetire
+						? "Tu cuenta tiene permiso de retiro."
+						: "Falta autorización de retiro. Un administrador de accesos debe concederla; el acceso de ratificación no la incluye. No se aplicará ningún cambio."
+				submit.textContent = retiring
+					? "Publicar Admisión v2 y retirar duplicados"
+					: "Aprobar y publicar paquete"
+				submit.disabled =
+					!allowed ||
+					(retiring && !preview.canRetire) ||
+					preview.versions.some((version) => version.errors.length)
 				feedback.textContent = ""
 				dialog.showModal()
 			} catch {
@@ -124,6 +168,7 @@ export function bindPolicyPackageReview() {
 			const fields = new FormData(form)
 			const payload = JSON.stringify({
 				action: "approve",
+				cleanup: preview.retirements.length > 0 || undefined,
 				versionIds: preview.versions.map((version) => version.id),
 				fingerprint: preview.fingerprint,
 				approvalReference: fields.get("approvalReference"),

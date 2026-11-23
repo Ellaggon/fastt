@@ -2,7 +2,11 @@ import { z } from "zod"
 import { prepareLaPazReviewPackage } from "./la-paz-review-package"
 
 /** Administrative draft payloads; effective date is provisional until ratification. */
-export function prepareLaPazPolicyForms(effectiveFrom: string, definitions: Map<string, string>) {
+export function prepareLaPazPolicyForms(
+	effectiveFrom: string,
+	definitions: Map<string, string>,
+	options: { reuseTeamProviderPolicies?: boolean; reuseGuideProviderPolicies?: boolean } = {}
+) {
 	z.iso.date().parse(effectiveFrom)
 	const review = prepareLaPazReviewPackage()
 	for (const definition of review.definitions)
@@ -17,6 +21,11 @@ export function prepareLaPazPolicyForms(effectiveFrom: string, definitions: Map<
 	]
 	const result: { form: FormData; rule: FormData | null }[] = []
 	for (const team of [true, false]) {
+		const productFamilies = (
+			team ? options.reuseTeamProviderPolicies : options.reuseGuideProviderPolicies
+		)
+			? families.filter((family) => family !== "identity" && family !== "fiscal")
+			: families
 		const base = {
 			country: "BO",
 			holderType: team ? "entidad" : "persona_natural",
@@ -33,7 +42,7 @@ export function prepareLaPazPolicyForms(effectiveFrom: string, definitions: Map<
 		}
 		const groups = [
 			{ role: "product", family: "platform_standards", admission: true },
-			...families.map((family) => ({ role: "product", family, admission: false })),
+			...productFamilies.map((family) => ({ role: "product", family, admission: false })),
 			{ role: "holder", family: "identity", admission: false },
 			{ role: "tax", family: "fiscal", admission: false },
 		]
@@ -51,7 +60,8 @@ export function prepareLaPazPolicyForms(effectiveFrom: string, definitions: Map<
 				form.set("contractMode", "composable")
 				form.set("policyKind", group.admission ? "admission" : "requirements")
 				form.set("policyFamily", group.family)
-				if (group.admission) for (const family of families) form.append("requiredFamilies", family)
+				if (group.admission)
+					for (const family of productFamilies) form.append("requiredFamilies", family)
 			}
 			if (group.admission) {
 				result.push({ form, rule: null })

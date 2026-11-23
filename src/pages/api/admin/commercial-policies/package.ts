@@ -8,8 +8,10 @@ import {
 	IdempotencyKeyError,
 } from "@/lib/commands/command-idempotency"
 import { CommercialPolicyRatificationError } from "@/lib/commercial-policy/ratification"
+import { canRetireCommercialVersion } from "@/lib/commercial-policy/retirement-access"
 import {
 	packageVersionIdsSchema,
+	laPazGuideCleanup,
 	packageApprovalAreas,
 	PolicyPackageError,
 	previewCommercialPolicyPackage,
@@ -17,10 +19,17 @@ import {
 } from "@/lib/commercial-policy/package-ratification"
 
 const schema = z.discriminatedUnion("action", [
-	z.object({ action: z.literal("preview"), versionIds: packageVersionIdsSchema }).strict(),
+	z
+		.object({
+			action: z.literal("preview"),
+			versionIds: packageVersionIdsSchema,
+			cleanup: z.boolean().optional(),
+		})
+		.strict(),
 	z
 		.object({
 			action: z.literal("approve"),
+			cleanup: z.boolean().optional(),
 			versionIds: packageVersionIdsSchema,
 			fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
 			approvalReference: z.string().trim().min(8).max(500),
@@ -46,7 +55,18 @@ export const POST: APIRoute = async ({ request }) => {
 		const principal = await requireInternalPermission(request, "internal.admin.access")
 		const body = parsed.data
 		if (body.action === "preview")
-			return json({ ok: true, ...(await previewCommercialPolicyPackage(body.versionIds)) })
+			return json({
+				ok: true,
+				canRetire: laPazGuideCleanup.retire.every((id) =>
+					canRetireCommercialVersion(principal, id)
+				),
+				...(await previewCommercialPolicyPackage(body.versionIds, body.cleanup)),
+			})
+		if (
+			body.cleanup &&
+			!laPazGuideCleanup.retire.every((id) => canRetireCommercialVersion(principal, id))
+		)
+			return json({ error: "retirement_forbidden" }, 403)
 		for (const permission of [
 			"commercial_policy.policy.approve",
 			"commercial_policy.finance.approve",
