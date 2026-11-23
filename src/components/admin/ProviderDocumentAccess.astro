@@ -1,0 +1,88 @@
+---
+import Button from "@/components/ui/Button.astro"
+import type { ProviderDocumentRecord } from "@/lib/provider-documents"
+interface Props {
+	document: ProviderDocumentRecord
+	canPreview: boolean
+	cases: { id: string; sourceType: string; sourceRef: string; status: string }[]
+}
+const { document: doc, canPreview, cases } = Astro.props
+const related = cases.find(
+	(item) => item.sourceType === "ProviderDocument" && item.sourceRef === doc.id
+)
+---
+
+<div class="mt-3 space-y-2" data-document-access>
+	{doc.reviewNotes && <p class="text-sm text-slate-600">{doc.reviewNotes}</p>}
+	<div class="flex flex-wrap gap-3">
+		{
+			canPreview && doc.fileUrl && (
+				<Button
+					variant="secondary"
+					size="sm"
+					data-document-open={doc.id}
+					data-document-provider={doc.providerId}
+				>
+					Abrir documento
+				</Button>
+			)
+		}
+		{
+			related && (
+				<a
+					class="text-sm font-semibold underline underline-offset-4"
+					href={`/admin/cases/${related.id}`}
+				>
+					Ver expediente
+				</a>
+			)
+		}
+	</div>
+	<p role="status" data-document-feedback class="text-sm text-slate-600"></p>
+</div>
+<script>
+	document.addEventListener("click", async (event) => {
+		const button =
+			event.target instanceof Element
+				? event.target.closest<HTMLButtonElement>("[data-document-open]")
+				: null
+		if (!button || button.disabled) return
+		const feedback = button
+			.closest("[data-document-access]")
+			?.querySelector<HTMLElement>("[data-document-feedback]")
+		const preview = window.open("about:blank", "_blank")
+		if (preview) preview.opener = null
+		button.disabled = true
+		try {
+			const query = new URLSearchParams({
+				providerId: button.dataset.documentProvider ?? "",
+				documentId: button.dataset.documentOpen ?? "",
+				reason: "case_review",
+			})
+			const response = await fetch(`/api/admin/providers/documents/preview?${query}`)
+			const body = await response.json()
+			if (!response.ok || !body.url) {
+				preview?.close()
+				if (response.status === 401) {
+					window.location.assign(
+						`/auth/mfa?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`
+					)
+					return
+				}
+				throw new Error(
+					"No se pudo abrir el documento. Comprueba tus permisos y el estado de seguridad del archivo."
+				)
+			}
+			if (preview) preview.location.replace(body.url)
+			else if (feedback)
+				feedback.textContent = "Permite las ventanas emergentes y vuelve a abrir el documento."
+		} catch {
+			preview?.close()
+			if (feedback)
+				feedback.textContent =
+					"No se pudo abrir el documento. Comprueba tus permisos y el estado de seguridad del archivo."
+		} finally {
+			button.disabled = false
+		}
+	})
+</script>

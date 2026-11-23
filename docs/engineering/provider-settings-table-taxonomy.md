@@ -3,7 +3,7 @@
 Status: active
 Document type: canonical
 Owner: Engineering
-Last verified: 2026-10-24
+Last verified: 2026-11-23
 Scope: propiedad y semántica de datos de configuración del proveedor
 Source of truth: src/shared/infrastructure/db/schema/ y contratos de dominio
 Review trigger: cambio de contrato, controles o procedimiento; revisar evidencia del entorno antes de ejecutar
@@ -602,3 +602,25 @@ Update this document in the same PR that introduces the table.
   stores; resolve permissions in code.
 - Do not reintroduce legacy contractual or readiness columns when a source
   already exists — migrate readers, then drop the duplicate.
+
+## Áreas funcionales compartidas de verificación
+
+La ficha administrativa y el expediente consumen el modelo de verificación del
+proveedor para mostrar áreas, aplicabilidad y estados. Tours presenta Identidad,
+Negocio y Datos fiscales; las áreas disponibles se resuelven por línea mediante
+`src/lib/verification/navigation.ts`. Cobros aparece únicamente donde esa misma
+navegación lo incluye. Los permisos administrativos agregan acciones, no áreas
+ni resultados alternativos.
+
+`src/lib/verification/areas.ts` adapta ese modelo a la navegación administrativa.
+Los dominios persistidos de casework siguen siendo claves internas para permisos,
+colas y comandos: no constituyen la clasificación visible de verificaciones.
+Los archivos de identidad, registro mercantil y fiscalidad pertenecen a sus áreas;
+las versiones anteriores se conservan como historial y no se cuentan como nuevos
+requisitos. El documento seleccionado para el requisito respeta los slots del
+modelo del proveedor. La evidencia específica de una experiencia conserva su
+alcance y no se convierte automáticamente en verificación de cuenta.
+
+Validación: `tests/unit/verification-areas.test.ts` y
+`tests/render/provider-document-access.test.ts`. Revisar al cambiar las áreas,
+los requisitos aplicables o la selección del documento que satisface un slot.

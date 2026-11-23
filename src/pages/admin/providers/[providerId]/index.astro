@@ -1,4 +1,10 @@
 ---
+import { loadProviderVerificationWorkspace } from "@/lib/provider-verification-workspace"
+import {
+	verificationAreas,
+	areaDocumentGroups,
+	caseVerificationArea,
+} from "@/lib/verification/areas"
 import { ChevronDown, FileText, ShieldMinus } from "@lucide/astro"
 import { getFeatureFlag } from "@/config/featureFlags"
 import CaseStatusBadge from "@/components/admin/cases/CaseStatusBadge.astro"
@@ -11,6 +17,7 @@ import {
 	requireInternalPermission,
 } from "@/lib/auth/internal-authorization"
 import { listProviderDocuments, providerDocumentTypes } from "@/lib/provider-documents"
+import ProviderDocumentAccess from "@/components/admin/ProviderDocumentAccess.astro"
 import DocumentReuseForm from "@/components/admin/DocumentReuseForm.astro"
 import { listPublishedDocumentDefinitions } from "@/lib/documents/document-definitions"
 import { definedUploadType } from "@/lib/documents/definition-upload-type"
@@ -59,16 +66,30 @@ const funnelStatus = canReadComplianceHistory ? getSettingsFunnelQueryStatus() :
 const funnelSummary = funnelStatus?.queryable
 	? await summarizeProviderSettingsFunnel({ providerId }).catch(() => null)
 	: null
-const verifiedDocuments =
+const providerDocuments =
 	view &&
 	principal &&
 	principalHasPermission(principal, "provider.document.review", {
 		type: "provider",
 		id: providerId,
 	})
-		? (await listProviderDocuments(providerId)).filter((doc) => doc.status === "verified")
+		? await listProviderDocuments(providerId)
 		: []
 
+const verifiedDocuments = providerDocuments.filter((doc) => doc.status === "verified")
+const canPreviewDocuments = Boolean(
+	principal &&
+	principalHasPermission(principal, "sensitive_data.reveal", { type: "provider", id: providerId })
+)
+
+const verificationModel = view
+	? await loadProviderVerificationWorkspace({
+			providerId,
+			providerRoleLabel: "Administrador",
+			url: Astro.url,
+		})
+	: null
+const functionalAreas = verificationModel ? verificationAreas(verificationModel) : []
 const fmt = new Intl.DateTimeFormat("es-BO", { dateStyle: "medium" })
 const reuseDefinitions =
 	verifiedDocuments.length && view?.provider.status !== "archived"
@@ -165,13 +186,6 @@ function nextActionExplanation(item: (typeof pendingCases)[number] | null) {
 function sourceDateLabel(value: Date | null) {
 	return value ? fmt.format(value) : "Sin evaluación registrada"
 }
-function operationalTone(status: string) {
-	if (status === "verified") return "bg-emerald-100 text-emerald-800"
-	if (status === "attention") return "bg-red-100 text-red-800"
-	if (status === "reconciliation_needed") return "bg-amber-100 text-amber-800"
-	if (status === "in_review") return "bg-sky-100 text-sky-800"
-	return "bg-slate-100 text-slate-700"
-}
 function availabilityLabel(value: boolean | null) {
 	return value === true
 		? "Habilitado"
@@ -258,11 +272,15 @@ function availabilityLabel(value: boolean | null) {
 													)}
 													<p class="font-semibold text-slate-950">{caseTitle(item)}</p>
 													<p class="mt-1 text-sm text-slate-600">
-														{
-															PROVIDER_WORK_VOCABULARY.domains[
-																item.domain as keyof typeof PROVIDER_WORK_VOCABULARY.domains
-															]
-														}{" "}
+														{functionalAreas.find(
+															(area) =>
+																area.id ===
+																caseVerificationArea(
+																	item,
+																	providerDocuments,
+																	verificationModel ?? undefined
+																)
+														)?.label ?? "Revisión específica"}{" "}
 														· {deadlineLabel(item)} · {item.assigneeEmail || "Sin asignar"}
 													</p>
 													{item.id === nextCase?.id && (
@@ -398,87 +416,54 @@ function availabilityLabel(value: boolean | null) {
 							<Card>
 								<h2 class="text-lg font-semibold">Estado por área</h2>
 								<p class="mt-2 text-sm text-slate-600">
-									Cada resultado indica su fuente, la fecha de evaluación y la evidencia que falta.
+									Las áreas y sus estados corresponden a la misma línea de negocio que ve el
+									proveedor.
 								</p>
+								{verificationModel?.navigation && verificationModel.navigation.lines.length > 1 && (
+									<nav aria-label="Línea de negocio" class="mt-4 flex gap-4">
+										{verificationModel.navigation.lines.map((line) => (
+											<a
+												class="text-sm font-semibold underline"
+												aria-current={
+													verificationModel.navigation?.line === line ? "page" : undefined
+												}
+												href={`?line=${line}`}
+											>
+												{line === "tour" ? "Tours" : "Alojamientos"}
+											</a>
+										))}
+									</nav>
+								)}
 								<div class="mt-4 grid gap-4 sm:grid-cols-2">
-									{Object.entries(PROVIDER_WORK_VOCABULARY.domains).map(([domain, label]) => {
-										const area = operational?.areas[domain as keyof typeof operational.areas]
-										const replacements = operational?.identityDocumentsToReplace ?? []
-										const needsIdentityReplacement =
-											domain === "verification" && replacements.length > 0
-										const missingEvidence = [
-											...new Set([
-												...(area?.missingEvidence ?? []),
-												...(needsIdentityReplacement ? replacements : []),
-											]),
-										]
-										const activeCase = pendingCases.find((item) => item.domain === domain)
-										const areaDocuments = verifiedDocuments.filter((doc) => {
-											if (doc.type === "government_id" || doc.type === "business_registration")
-												return domain === "verification"
-											if (doc.type === "tax_document") return domain === "fiscal"
-											return domain === "documents"
-										})
+									{functionalAreas.map((area) => {
+										const domain = area.id
+										const label = area.label
+										const grouped = areaDocumentGroups(
+											providerDocuments,
+											domain,
+											verificationModel!
+										)
+										const areaDocuments = grouped.current
+										const activeCase = pendingCases.find(
+											(item) =>
+												caseVerificationArea(item, providerDocuments, verificationModel!) === domain
+										)
 										return (
-											<article class="rounded-xl border border-slate-200 p-4">
+											<article
+												id={`verification-${area.id}`}
+												class="scroll-mt-24 rounded-xl border border-slate-200 p-4"
+											>
 												<div class="flex items-start justify-between gap-3">
-													<h3 class="font-semibold text-slate-950">
-														{domain === "documents" ? "Archivo documental" : label}
-													</h3>
-													{area && (
-														<span
-															class={`rounded-full px-2 py-1 text-xs font-semibold ${operationalTone(needsIdentityReplacement ? "attention" : area.status)}`}
-														>
-															{needsIdentityReplacement
-																? "Respaldos por reemplazar"
-																: area.statusLabel}
-														</span>
-													)}
+													<h3 class="font-semibold text-slate-950">{label}</h3>
+													<span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold">
+														{area.stateLabel}
+													</span>
 												</div>
-												{area && (
-													<>
-														<p class="mt-3 text-sm text-slate-700">
-															{needsIdentityReplacement
-																? area.status === "verified"
-																	? "La verificación anterior sigue registrada."
-																	: area.reason
-																: area.reason}
-														</p>
-														<dl class="mt-3 space-y-1 text-xs text-slate-500">
-															<div>
-																<dt class="inline font-semibold text-slate-600">Fuente: </dt>
-																<dd class="inline">{area.source}</dd>
-															</div>
-															<div>
-																<dt class="inline font-semibold text-slate-600">
-																	Revisión registrada:{" "}
-																</dt>
-																<dd class="inline">
-																	{sourceDateLabel(area.sourceEvaluatedAt ?? null)}
-																</dd>
-																<dt class="inline font-semibold text-slate-600">
-																	{" "}
-																	· Fuente actualizada:{" "}
-																</dt>
-																<dd class="inline">{sourceDateLabel(area.sourceUpdatedAt)}</dd>
-															</div>
-														</dl>
-														{missingEvidence.length > 0 && (
-															<p class="mt-3 text-sm text-slate-700">
-																<span class="font-semibold">
-																	{domain === "documents" && area.status === "attention"
-																		? "Archivos rechazados: "
-																		: "Falta: "}
-																</span>
-																{missingEvidence.join(", ")}
-															</p>
-														)}
-													</>
-												)}
+												{area.reason && <p class="mt-3 text-sm text-slate-700">{area.reason}</p>}
 												{areaDocuments.length > 0 && (
-													<details class="mt-4 border-y border-slate-200 py-3">
+													<details open class="mt-4 border-y border-slate-200 py-3">
 														<summary class="cursor-pointer font-semibold">
-															Verificaciones documentales
+															Documentos ({areaDocuments.length})
 														</summary>
 														{areaDocuments.map((doc) => (
 															<div class="mt-3 rounded-lg border border-slate-200 p-3">
@@ -497,59 +482,93 @@ function availabilityLabel(value: boolean | null) {
 																			</p>
 																		)}
 																	</div>
-																	<span class="shrink-0 text-xs font-medium text-emerald-700">
-																		Verificado
+																	<span
+																		class={`shrink-0 text-xs font-medium ${doc.status === "verified" ? "text-emerald-700" : doc.status === "rejected" ? "text-rose-700" : "text-slate-600"}`}
+																	>
+																		{doc.statusLabel}
 																	</span>
 																</div>
-																<DocumentReuseForm
+																<ProviderDocumentAccess
 																	document={doc}
-																	definitions={reuseDefinitions.filter(
-																		(def) =>
-																			definedUploadType(def) === doc.type &&
-																			def.id !== doc.definitionVersionId
-																	)}
+																	canPreview={canPreviewDocuments}
+																	cases={view?.cases ?? []}
 																/>
-																<details class="group mt-3">
-																	<summary class="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-50 focus-visible:outline-2 focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden">
-																		<ShieldMinus class="size-4" aria-hidden="true" />
-																		Retirar verificación
-																		<ChevronDown
-																			class="size-4 transition-transform group-open:rotate-180"
-																			aria-hidden="true"
+																{doc.status === "verified" && (
+																	<>
+																		<DocumentReuseForm
+																			document={doc}
+																			definitions={reuseDefinitions.filter(
+																				(def) =>
+																					definedUploadType(def) === doc.type &&
+																					def.id !== doc.definitionVersionId
+																			)}
 																		/>
-																	</summary>
-																	<form
-																		action="/api/admin/providers/documents"
-																		method="post"
-																		data-agreement-form
-																		data-idempotent-command
-																		class="mt-2 space-y-3 border-t border-slate-200 pt-3"
-																	>
-																		<input type="hidden" name="providerId" value={providerId} />
-																		<input type="hidden" name="documentId" value={doc.id} />
-																		<input type="hidden" name="status" value="rejected" />
-																		<input type="hidden" name="withdrawVerification" value="true" />
-																		<label class="block text-sm font-medium text-slate-800">
-																			Motivo visible para el proveedor
-																			<textarea
-																				name="reviewNotes"
-																				required
-																				minlength="10"
-																				maxlength="500"
-																				rows="3"
-																				class="fastt-field mt-1 block w-full resize-y"
-																			/>
-																		</label>
-																		<Button
-																			type="submit"
-																			variant="secondary"
-																			class="border-rose-200 text-rose-700 hover:bg-rose-50"
-																		>
-																			Confirmar retiro
-																		</Button>
-																		<p role="status" data-agreement-feedback class="text-sm" />
-																	</form>
-																</details>
+																		<details class="group mt-3">
+																			<summary class="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-50 focus-visible:outline-2 focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden">
+																				<ShieldMinus class="size-4" aria-hidden="true" />
+																				Retirar verificación
+																				<ChevronDown
+																					class="size-4 transition-transform group-open:rotate-180"
+																					aria-hidden="true"
+																				/>
+																			</summary>
+																			<form
+																				action="/api/admin/providers/documents"
+																				method="post"
+																				data-agreement-form
+																				data-idempotent-command
+																				class="mt-2 space-y-3 border-t border-slate-200 pt-3"
+																			>
+																				<input type="hidden" name="providerId" value={providerId} />
+																				<input type="hidden" name="documentId" value={doc.id} />
+																				<input type="hidden" name="status" value="rejected" />
+																				<input
+																					type="hidden"
+																					name="withdrawVerification"
+																					value="true"
+																				/>
+																				<label class="block text-sm font-medium text-slate-800">
+																					Motivo visible para el proveedor
+																					<textarea
+																						name="reviewNotes"
+																						required
+																						minlength="10"
+																						maxlength="500"
+																						rows="3"
+																						class="fastt-field mt-1 block w-full resize-y"
+																					/>
+																				</label>
+																				<Button
+																					type="submit"
+																					variant="secondary"
+																					class="border-rose-200 text-rose-700 hover:bg-rose-50"
+																				>
+																					Confirmar retiro
+																				</Button>
+																				<p role="status" data-agreement-feedback class="text-sm" />
+																			</form>
+																		</details>
+																	</>
+																)}
+															</div>
+														))}
+													</details>
+												)}
+												{grouped.history.length > 0 && (
+													<details class="mt-4 border-t border-slate-200 pt-3">
+														<summary class="cursor-pointer text-sm font-semibold">
+															Versiones anteriores ({grouped.history.length})
+														</summary>
+														{grouped.history.map((doc) => (
+															<div class="mt-3">
+																<p class="text-sm font-medium">
+																	{doc.typeLabel} · {doc.statusLabel}
+																</p>
+																<ProviderDocumentAccess
+																	document={doc}
+																	canPreview={canPreviewDocuments}
+																	cases={view?.cases ?? []}
+																/>
 															</div>
 														))}
 													</details>
@@ -575,6 +594,50 @@ function availabilityLabel(value: boolean | null) {
 								</p>
 							</Card>
 
+							{verificationModel &&
+								providerDocuments.some(
+									(doc) =>
+										!["government_id", "business_registration", "tax_document"].includes(
+											doc.type
+										) &&
+										!verificationModel.accountPolicyEvidence?.items.some((item) =>
+											item.documents.some((itemDoc) => itemDoc.id === doc.id)
+										)
+								) && (
+									<Card>
+										<details>
+											<summary class="cursor-pointer font-semibold">
+												Respaldos de experiencias y otros antecedentes
+											</summary>
+											<p class="mt-2 text-sm text-slate-600">
+												Estos archivos conservan su alcance específico y no son verificaciones
+												adicionales de la cuenta.
+											</p>
+											{providerDocuments
+												.filter(
+													(doc) =>
+														!["government_id", "business_registration", "tax_document"].includes(
+															doc.type
+														) &&
+														!verificationModel.accountPolicyEvidence?.items.some((item) =>
+															item.documents.some((itemDoc) => itemDoc.id === doc.id)
+														)
+												)
+												.map((doc) => (
+													<div class="mt-4">
+														<p class="text-sm font-semibold">
+															{doc.typeLabel} · {doc.statusLabel}
+														</p>
+														<ProviderDocumentAccess
+															document={doc}
+															canPreview={canPreviewDocuments}
+															cases={view?.cases ?? []}
+														/>
+													</div>
+												))}
+										</details>
+									</Card>
+								)}
 							<Card id="historial">
 								<div class="flex items-baseline justify-between gap-3">
 									<>
@@ -591,11 +654,15 @@ function availabilityLabel(value: boolean | null) {
 												<div>
 													<p class="font-semibold text-slate-950">{caseTitle(item)}</p>
 													<p class="mt-1 text-sm text-slate-600">
-														{
-															PROVIDER_WORK_VOCABULARY.domains[
-																item.domain as keyof typeof PROVIDER_WORK_VOCABULARY.domains
-															]
-														}{" "}
+														{functionalAreas.find(
+															(area) =>
+																area.id ===
+																caseVerificationArea(
+																	item,
+																	providerDocuments,
+																	verificationModel ?? undefined
+																)
+														)?.label ?? "Revisión específica"}{" "}
 														· Abierto {fmt.format(item.openedAt)}
 													</p>
 												</div>
