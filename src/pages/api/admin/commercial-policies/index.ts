@@ -1,11 +1,13 @@
 import type { APIRoute } from "astro"
 import { ZodError } from "zod"
+import { canRetireCommercialVersion } from "@/lib/commercial-policy/retirement-access"
 import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import { withPostgresTransaction } from "@/shared/infrastructure/db/client"
 import { db, AuditEvent, CompliancePolicyVersion, eq } from "@/shared/infrastructure/db/compat"
 import {
 	createCommercialPolicyDraft,
+	createCommercialPolicyDraftFromVersion,
 	addCommercialPolicyDraftRule,
 	removeCommercialPolicyDraftRule,
 	retireCommercialTourPolicy,
@@ -22,10 +24,15 @@ export const POST: APIRoute = async ({ request }) => {
 		const form = await request.formData()
 		const principal = await requireInternalPermission(
 			request,
-			form.get("action") === "retire" ? "policy.publish" : "policy.edit"
+			form.get("action") === "retire" ? "internal.admin.access" : "policy.edit"
 		)
+		if (
+			form.get("action") === "retire" &&
+			!canRetireCommercialVersion(principal, String(form.get("versionId") ?? ""))
+		)
+			return Response.json({ error: "forbidden" }, { status: 403 })
 		await requireRecentInternalAuthentication({ request, user: principal.user })
-		await withPostgresTransaction(async () => {
+		const entityId = await withPostgresTransaction(async () => {
 			let entityId = String(form.get("versionId") ?? "")
 			const [before] = entityId
 				? await db
@@ -33,7 +40,10 @@ export const POST: APIRoute = async ({ request }) => {
 						.from(CompliancePolicyVersion)
 						.where(eq(CompliancePolicyVersion.id, entityId))
 				: []
-			if (form.get("action") === "create") entityId = (await createCommercialPolicyDraft(form)).id
+			if (form.get("action") === "create")
+				entityId = (await createCommercialPolicyDraft(form, { newPolicyOnly: true })).id
+			else if (form.get("action") === "create_version")
+				entityId = (await createCommercialPolicyDraftFromVersion(form)).id
 			else if (form.get("action") === "rule") await addCommercialPolicyDraftRule(form)
 			else if (form.get("action") === "remove_rule")
 				await removeCommercialPolicyDraftRule(
@@ -59,8 +69,14 @@ export const POST: APIRoute = async ({ request }) => {
 				beforeJson: before ?? null,
 				afterJson: Object.fromEntries(form),
 			})
+			return entityId
 		})
-		return Response.json({ ok: true })
+		return Response.json({
+			ok: true,
+			...(["create", "create_version"].includes(String(form.get("action"))) && {
+				redirectTo: `/admin/commercial-policies?${new URLSearchParams({ view: "policies", version: entityId, result: "draft_saved" })}`,
+			}),
+		})
 	} catch (error) {
 		if (error instanceof Response) return error
 		if (error instanceof ZodError)

@@ -14,6 +14,8 @@ import {
 } from "@/shared/infrastructure/db/compat"
 import { withPostgresTransaction } from "@/shared/infrastructure/db/client"
 import { commandPayloadHash } from "@/lib/commands/command-idempotency"
+import { requiresTerritorialTransition } from "./territorial-redesign-guard"
+import { isCoordinatedTerritorialVersion } from "./territorial-transition-context"
 import {
 	tourPolicyPublicationErrors,
 	hasRequiredTourApprovals,
@@ -146,6 +148,20 @@ export async function ratifyCommercialTourPolicy(params: {
 			throw new CommercialPolicyRatificationError("commercial_policy_not_tour")
 		if (version.status !== "draft")
 			throw new CommercialPolicyRatificationError("commercial_policy_not_draft")
+		const pendingBundles = await tx
+			.select({ value: AuditEvent.afterJson })
+			.from(AuditEvent)
+			.where(eq(AuditEvent.action, "commercial_policy.territorial_drafts_prepared"))
+		if (
+			!isCoordinatedTerritorialVersion(version.id) &&
+			requiresTerritorialTransition(
+				version.id,
+				pendingBundles.map((bundle) => bundle.value)
+			)
+		)
+			throw new CommercialPolicyRatificationError("commercial_policy_not_publishable", {
+				errors: ["territorial_transition_review_required"],
+			})
 		const resumePublication = params.resumePublication === true
 		if (resumePublication && !hasRequiredTourApprovals(version))
 			throw new CommercialPolicyRatificationError("commercial_policy_not_publishable")

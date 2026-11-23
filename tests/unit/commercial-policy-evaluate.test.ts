@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { TourOperation } from "@/shared/domain/tour-operation"
+import { operationActivityClasses, type TourOperation } from "@/shared/domain/tour-operation"
 import {
 	evaluateCommercialPolicy,
 	tourPolicyPublicationErrors,
@@ -19,6 +19,206 @@ const context: CommercialPolicyContext = {
 	jurisdictionCode: "BO-LP",
 	activityClasses: ["guided_nature"],
 }
+
+it("keeps provider policies mandatory when product admission no longer repeats their families", () => {
+	const tourContext = { ...context, experienceFormat: "guided_tour" as const }
+	const holder = version("holder", "CL")
+	const tax = version("tax", "CL")
+	const product = version("product", "BO")
+	const admission: CommercialPolicyVersion = {
+		...product,
+		id: "admission",
+		context: {
+			...product.context,
+			contextVersion: 3,
+			experienceFormats: ["guided_tour"],
+			composition: {
+				kind: "admission",
+				family: "tourism",
+				requiredFamilies: [
+					"tourism",
+					"regulated_place",
+					"operational_resources",
+					"platform_standards",
+				],
+				replacesVersionIds: ["previous-admission"],
+			},
+		},
+		requirements: [],
+	}
+	product.context = {
+		...product.context,
+		contextVersion: 3,
+		experienceFormats: ["guided_tour"],
+		composition: {
+			kind: "requirements",
+			family: "tourism",
+			requiredFamilies: [],
+			replacesVersionIds: [],
+		},
+	}
+	const now = new Date("2026-11-13")
+	const additionalFamilies = (["regulated_place", "operational_resources", "platform_standards"] as const).map(
+		(family): CommercialPolicyVersion => ({
+			...product,
+			id: family,
+			context: {
+				...product.context,
+				composition: { kind: "requirements", family, requiredFamilies: [], replacesVersionIds: [] },
+			},
+		requirements: product.requirements.map((rule) => ({
+			...rule,
+			key: family,
+		})),
+		})
+	)
+	const run = (versions: CommercialPolicyVersion[], verifiedEvidence: string[] = []) =>
+		evaluateCommercialPolicy({
+			context: tourContext,
+			versions: [...versions, ...additionalFamilies],
+			now,
+			verifiedEvidence,
+		})
+	const previousAdmission: CommercialPolicyVersion = {
+		...admission,
+		id: "previous-admission",
+		context: {
+			...admission.context,
+			composition: {
+				...admission.context!.composition!,
+				requiredFamilies: [
+					...admission.context!.composition!.requiredFamilies,
+					"identity",
+					"fiscal",
+				],
+				replacesVersionIds: [],
+			},
+		},
+	}
+	const proposed = [holder, tax, previousAdmission, admission, product]
+	const complete = run(proposed)
+	const evidence = ["holder-verified", "tax-verified", "product-verified"]
+	const ready = run(proposed, evidence)
+	expect(ready.policyVersionIds).toHaveLength(7)
+	expect(ready.capabilities).toMatchObject({ publish: true, booking: true })
+	for (const role of ["holder", "tax"]) {
+		const missing = run(proposed, evidence.filter((item) => item !== `${role}-verified`))
+		expect(missing.policyVersionIds).toEqual(ready.policyVersionIds)
+	expect(missing.blockers.map((blocker) => blocker.id)).toContain(`requirement_${role}-identity`)
+		expect(missing.capabilities).toMatchObject({ publish: false, booking: false })
+	}
+	const redundant: CommercialPolicyVersion = {
+		...product,
+		id: "redundant-identity",
+		context: {
+			...product.context,
+			composition: {
+				kind: "requirements",
+				family: "identity",
+				requiredFamilies: [],
+				replacesVersionIds: [],
+			},
+		},
+	}
+	const redundantFiscal: CommercialPolicyVersion = {
+		...redundant,
+		id: "redundant-fiscal",
+		context: {
+			...redundant.context,
+			composition: { ...redundant.context!.composition!, family: "fiscal" },
+		},
+	}
+	const duplicates = [redundant, redundantFiscal]
+	const before = run([holder, tax, previousAdmission, product, ...duplicates], evidence)
+	expect(before.policyVersionIds).toHaveLength(9)
+	expect(before.capabilities).toMatchObject({ publish: true, booking: true })
+	const onlyAdmission = run([...proposed, ...duplicates], evidence)
+	expect(onlyAdmission.policyVersionIds).not.toContain(previousAdmission.id)
+	expect(onlyAdmission.policyVersionIds).toEqual(
+		expect.arrayContaining([admission.id, redundant.id, redundantFiscal.id])
+	)
+	const afterRetirement = run([
+		...proposed,
+		...duplicates.map((policy) => ({ ...policy, status: "retired" as const })),
+	])
+	expect(afterRetirement.policyVersionIds).toEqual(complete.policyVersionIds)
+	expect(afterRetirement.capabilityStates).toEqual(complete.capabilityStates)
+	expect(complete.policyVersionIds).toEqual(
+		expect.arrayContaining([holder.id, tax.id, admission.id])
+	)
+	expect(
+		complete.blockers.some((blocker) => blocker.id === "policy_context_unsupported_product")
+	).toBe(false)
+	for (const providedBy of ["business", "external"] as const) {
+		const operation: TourOperation = {
+			version: 2,
+			executionMode: "self",
+			guidingService: true,
+			characteristics: ["guided_nature"],
+			operatorResourceId: null,
+			waterActivity: false,
+			airActivity: false,
+			foodHandling: "none",
+			resourceIds: [],
+			transportServices: [
+				{
+					id: "transport",
+					label: "Transfer",
+					providedBy,
+					operatorResourceId: providedBy === "external" ? "transport-provider" : null,
+				},
+			],
+		}
+		const result = evaluateCommercialPolicy({
+			context: { ...tourContext, operation, activityClasses: operationActivityClasses(operation) },
+			versions: [holder, tax, admission, product],
+			now,
+		})
+		expect(result.policyVersionIds).not.toContain(admission.id)
+		expect(result.capabilities.publish).toBe(false)
+		expect(result.capabilities.booking).toBe(false)
+	}
+	for (const [role, remaining] of [
+		["holder", tax],
+		["tax", holder],
+	] as const) {
+		const missing = run([remaining, admission, product])
+		expect(missing.blockers.map((blocker) => blocker.id)).toContain(
+			`policy_context_unsupported_${role}`
+		)
+		expect(missing.capabilities.publish).toBe(false)
+		expect(missing.capabilities.booking).toBe(false)
+	}
+})
+
+it("reuses an equivalent holder rule without dropping a distinct product rule", () => {
+	const holder = version("holder", "CL")
+	const product = version("product", "BO")
+	const tax = version("tax", "CL")
+	const rule: CommercialPolicyVersion["requirements"][number] = {
+		...holder.requirements[0],
+		key: "holder_identity",
+		condition: { evidenceScope: "provider", evidenceSubjectSelector: "holder" },
+		documentAcceptance: {
+			version: 1,
+			alternatives: [{ id: "primary", allOf: [{ definitionVersionId: "identity-v1" }] }],
+		},
+	}
+	holder.requirements = [rule]
+	product.requirements = [
+		{ ...rule, key: "product_identity" },
+		{ ...rule, key: "product_only", capabilities: ["booking"] },
+	]
+	const result = evaluateCommercialPolicy({
+		context,
+		versions: [holder, product, tax],
+		now: new Date("2026-10-29"),
+	})
+	expect(result.applicableRequirements?.map((item) => item.key)).toContain("holder_identity")
+	expect(result.applicableRequirements?.map((item) => item.key)).not.toContain("product_identity")
+	expect(result.applicableRequirements?.map((item) => item.key)).toContain("product_only")
+	expect(result.capabilities.publish).toBe(false)
+})
 
 it("preserves deterministic evaluation provenance without granting missing coverage", () => {
 	const now = new Date("2026-10-29T12:00:00Z")
