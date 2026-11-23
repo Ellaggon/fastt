@@ -7,7 +7,6 @@ const props = {
 	caseVersion: 3,
 	status: "open",
 	commandsEnabled: true,
-	caseInPilot: true,
 	canAssignCase: true,
 	hasUnassignedTask: true,
 	pendingDecisionReview: false,
@@ -35,10 +34,7 @@ describe("case next action availability", () => {
 		expect(html).not.toContain("Continuar revisión del área")
 		expect(html).not.toContain("Tomar caso")
 	})
-	it("distinguishes pilot scope from assignment permission", async () => {
-		const outsidePilot = await render({ caseInPilot: false })
-		expect(outsidePilot).toContain("proveedor aún no están habilitadas")
-		expect(outsidePilot).not.toContain("no tiene permiso")
+	it("explains assignment permission when commands are available", async () => {
 		const denied = await render({ canAssignCase: false })
 		expect(denied).toContain("no tiene permiso para asignarlo")
 		expect(denied).not.toContain("data-case-command")
