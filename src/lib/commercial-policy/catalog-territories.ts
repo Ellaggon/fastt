@@ -67,7 +67,7 @@ export function matchesCatalogTerritory(
 	selected: string,
 	country: string,
 	scopes: string[],
-	ancestors: Record<string, string[]>
+	ancestors: Record<string, readonly string[]>
 ) {
 	if (!selected) return true
 	if (selected.startsWith("country:")) return selected === `country:${country}`

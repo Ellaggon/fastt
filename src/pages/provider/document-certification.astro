@@ -94,7 +94,6 @@ const definitions = (await listPublishedDocumentDefinitions())
 				canManageDocuments={session.provider.permissions.canManageDocuments}
 				documentTypes={[{ value: "government_id", label: "Identidad nacional del titular" }]}
 				documentDefinitions={definitions}
-				holderSubject={{ type: "person", reference: providerId }}
 				documents={documents}
 				availableProducts={[]}
 				scopeProductId={null}

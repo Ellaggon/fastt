@@ -235,7 +235,7 @@ const holderFilter = ["entidad", "persona_natural"].includes(
 )
 	? Astro.url.searchParams.get("holder")
 	: null
-const familyFilter = Astro.url.searchParams.get("family") ?? ""
+const familyFilter: string = Astro.url.searchParams.get("family") ?? ""
 const statusFilter = Astro.url.searchParams.get("status") ?? "current"
 const requestedTerritory = Astro.url.searchParams.get("territory") ?? ""
 const territoryFilter = canonicalByAlias.get(requestedTerritory) ?? requestedTerritory
@@ -265,7 +265,7 @@ const catalogRows = applicableRows.filter(({ set, version }) => {
 	return (
 		(!familyFilter || familyFilter === family) &&
 		(!search ||
-			`${set.label} ${set.key} ${policyFamilyLabels[family] ?? family}`
+			`${set.label} ${set.key} ${catalogFamilyLabel(family)}`
 				.toLocaleLowerCase()
 				.includes(search)) &&
 		(statusFilter === "all" ||
@@ -284,6 +284,13 @@ function getComposition(context: unknown) {
 	if (!context || typeof context !== "object") return null
 	const parsed = compositionSchema.safeParse((context as Record<string, unknown>).composition)
 	return parsed.success ? parsed.data : null
+}
+function catalogFamilyLabel(family: string | undefined) {
+	if (family === "admission") return "Admisión"
+	if (family === "other") return "Otras"
+	if (family && (policyFamilies as readonly string[]).includes(family))
+		return policyFamilyLabels[family as (typeof policyFamilies)[number]]
+	return family ?? ""
 }
 function policyLifecycle(version: (typeof rows)[number]["version"]) {
 	if (version.status === "draft") return "Borrador"
@@ -312,7 +319,7 @@ const areas = [
 ]
 ---
 
-<InternalAdminLayout title="Políticas comerciales" wide
+<InternalAdminLayout title="Políticas comerciales"
 	>{
 		Astro.url.searchParams.get("task") === "reorganization" ? (
 			<TerritorialPolicyRedesign canEdit={canEdit} principal={principal} />
@@ -425,9 +432,8 @@ const areas = [
 									Tours ·{" "}
 									{getComposition(baseRow.version.contextJson)?.kind === "admission"
 										? "Admisión"
-										: (policyFamilyLabels[
-												getComposition(baseRow.version.contextJson)?.family ?? ""
-											] ?? "Política integral")}
+										: catalogFamilyLabel(getComposition(baseRow.version.contextJson)?.family) ||
+											"Política integral"}
 								</p>
 								<h2 class="text-lg font-semibold">{baseRow.set.label}</h2>
 								<p class="text-sm text-slate-600">
@@ -938,7 +944,7 @@ const areas = [
 										Tours ·{" "}
 										{familyFilter === "admission"
 											? "Admisión"
-											: (policyFamilyLabels[familyFilter] ?? "Todas las familias")}
+											: catalogFamilyLabel(familyFilter) || "Todas las familias"}
 									</h2>
 									<a
 										class="text-sm font-semibold text-white underline"
