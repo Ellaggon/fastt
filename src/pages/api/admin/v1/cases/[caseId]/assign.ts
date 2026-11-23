@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro"
 import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 
-import { getFeatureFlag } from "@/config/featureFlags"
+import { getFeatureFlag, canUseCommandCenterDecisionForCase } from "@/config/featureFlags"
 import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import {
 	idempotencyKeyFromRequest,
@@ -51,8 +51,8 @@ export const POST: APIRoute = async ({ request, params, redirect }) => {
 				await requireRecentInternalAuthentication({ request, user: principal.user })
 				const workspace = await getCaseWorkspace(caseId)
 				if (!workspace) throw Object.assign(new Error("case_not_found"), { status: 404 })
-				if (workspace.case.providerStatus === "archived")
-					throw Response.json({ error: "case_provider_archived" }, { status: 409 })
+				if (!canUseCommandCenterDecisionForCase(workspace.case))
+					throw Response.json({ error: "case_provider_outside_command_scope" }, { status: 409 })
 				audit.actorUserId = principal.user.id
 				audit.actorRoleKeys = principal.roles
 				;(audit as SensitiveCommandAudit & { actorEmail?: string }).actorEmail =

@@ -76,9 +76,9 @@ describe("command center phase 3 operational UI", () => {
 	it("keeps legacy visible as an explicit rollback path", () => {
 		const legacy = read("src/pages/admin/providers.astro")
 		const shell = read("src/layouts/InternalAdminLayout.astro")
-		expect(legacy).toContain("Página legacy")
-		expect(legacy).toContain("/admin/queues/all")
-		expect(shell).toContain(">Legacy<")
+		expect(legacy).toContain("Panel anterior de revisión")
+		expect(legacy).toContain("COMMAND_CENTER_LEGACY_WRITE_ENABLED")
+		expect(shell).toContain("Panel anterior")
 	})
 
 	it("includes keyboard navigation and accessible command feedback", () => {

@@ -45,8 +45,13 @@ export const POST: APIRoute = async ({ request, params }) => {
 			authorize: async () => {
 				await requireInternalPermission(request, "case.decision.propose")
 				const context = await informationRequestContext(decisionId)
-				if (!canUseCommandCenterDecisionForCase(context))
-					throw Object.assign(new Error("case_provider_archived"), { status: 403 })
+				if (
+					!canUseCommandCenterDecisionForCase({
+						...context.case,
+						providerStatus: context.providerStatus,
+					})
+				)
+					throw Object.assign(new Error("case_provider_outside_command_scope"), { status: 403 })
 				const principal = await requireInternalPermission(request, "case.decision.propose", {
 					type: "provider",
 					id: context.case.providerId,
