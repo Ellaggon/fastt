@@ -13,6 +13,11 @@ import {
 } from "@/lib/commands/command-idempotency"
 import { readPublishedDocumentDefinition } from "@/lib/documents/document-definitions"
 import { validateDocumentCapture } from "@/shared/domain/document-definition"
+import { definedUploadType } from "@/lib/documents/definition-upload-type"
+import {
+	isPersonalHolderDefinition,
+	isNationalPersonalHolderSubject,
+} from "@/lib/documents/holder-evidence-subject"
 import { validateCoverageReviewNotes } from "@/lib/documents/coverage-review"
 import { withPostgresTransaction } from "@/shared/infrastructure/db/client"
 import {
@@ -36,6 +41,7 @@ import {
 	Booking,
 	Product,
 	ProviderDocument,
+	ProviderHolderProfile,
 	DocumentDefinition,
 	DocumentDefinitionVersion,
 	ProviderDocumentInspection,
@@ -247,6 +253,12 @@ export const providerDocumentTypes: Array<{
 		description: "Factura de servicios u otro respaldo de dirección (payouts).",
 	},
 ]
+
+export function providerDocumentTypeForDefinition(definition: { key?: string; family: string }) {
+	const mapped = definedUploadType(definition)
+	if (mapped !== null) return mapped
+	return providerDocumentTypes.find((type) => type.value === definition.family)?.value
+}
 
 export type ProviderKycSlotState = "missing" | "pending" | "verified" | "rejected"
 
@@ -1194,10 +1206,11 @@ export async function listExpiredProviderDocumentsForAdmin(
  * provider before we persist them. This prevents a direct request from
  * attaching a valid-looking document to somebody else's hotel or guide.
  */
-async function assertEvidenceScopeBelongsToProvider(
+export async function assertEvidenceScopeBelongsToProvider(
 	providerId: string,
 	evidence: ReturnType<typeof parseProviderDocumentEvidence>,
-	expectedProductType?: "tour" | "hotel"
+	expectedProductType?: "tour" | "hotel",
+	definitionKey?: string
 ) {
 	if (evidence.productIds.length) {
 		const products = await db
@@ -1232,6 +1245,23 @@ async function assertEvidenceScopeBelongsToProvider(
 			evidence.subjectType === "resource" ||
 			evidence.subjectType === "third_party")
 	) {
+		if (evidence.subjectType === "person" && isPersonalHolderDefinition(definitionKey)) {
+			const [holder] = await db
+				.select({ holderType: ProviderHolderProfile.holderType })
+				.from(ProviderHolderProfile)
+				.where(eq(ProviderHolderProfile.providerId, providerId))
+			if (
+				!isNationalPersonalHolderSubject({
+					definitionKey,
+					subjectType: evidence.subjectType,
+					subjectReference: evidence.subjectReference,
+					providerId,
+					holderType: holder?.holderType ?? null,
+				})
+			)
+				throw new Error("document_subject_not_found")
+			return
+		}
 		const subject = await db
 			.select({ id: TourOperationalResource.id, type: TourOperationalResource.type })
 			.from(TourOperationalResource)
@@ -1469,11 +1499,18 @@ async function submitProviderDocumentAttempt(
 			code: canonicalIds[index],
 		}))
 	}
-	await assertEvidenceScopeBelongsToProvider(params.providerId, evidence, params.scopeProductType)
 	const definitionVersionId = String(params.definitionVersionId ?? "").trim() || null
-	if (definitionVersionId) {
-		const definition = await readPublishedDocumentDefinition(definitionVersionId)
-		if (definition.family !== type)
+	const definition = definitionVersionId
+		? await readPublishedDocumentDefinition(definitionVersionId)
+		: null
+	await assertEvidenceScopeBelongsToProvider(
+		params.providerId,
+		evidence,
+		params.scopeProductType,
+		definition?.key
+	)
+	if (definition) {
+		if (providerDocumentTypeForDefinition(definition) !== type)
 			throw Object.assign(new Error("document_family_mismatch"), { status: 422 })
 		validateDocumentCapture(definition.capture, {
 			...evidence,
@@ -1781,6 +1818,7 @@ export async function reviewProviderDocument(params: {
 	status: unknown
 	reviewNotes?: unknown
 	withdrawVerification?: boolean
+	requireVerifiedPredecessor?: boolean
 }) {
 	const nextStatus = asDocumentStatus(params.status)
 	if (nextStatus !== "verified" && nextStatus !== "rejected") {
@@ -1821,6 +1859,8 @@ export async function reviewProviderDocument(params: {
 		reviewNotes,
 	})
 	const withdrawing = existing.status === "verified" && params.withdrawVerification === true
+	if (params.requireVerifiedPredecessor && !withdrawing)
+		throw Object.assign(new Error("document_not_verified"), { status: 409 })
 	if (nextStatus === "verified" && isProviderDocumentExpired(existing.expiresAt)) {
 		const error = new Error("document_expired")
 		;(error as Error & { status?: number }).status = 422

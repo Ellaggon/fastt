@@ -3,8 +3,25 @@ import { pathToFileURL } from "node:url"
 
 export function dispatcherConfig(env) {
 	const target = new URL(env.DOCUMENT_PROCESSING_APP_ORIGIN ?? "")
+	const localCertification =
+		env.DOCUMENT_PROCESSING_LOCAL_CERTIFICATION === "true" &&
+		env.FASTT_DATA_ENV === "test" &&
+		env.NODE_ENV !== "production" &&
+		!env.VERCEL &&
+		target.protocol === "http:" &&
+		target.hostname === "127.0.0.1" &&
+		target.port === "4333"
+	const localPortal =
+		env.FASTT_DOCUMENT_LOCAL_PORTAL_ENABLED === "true" &&
+		env.FASTT_DOCUMENT_PIPELINE_ENABLED === "true" &&
+		env.R2_DOCUMENTS_BUCKET_NAME?.endsWith("-development") &&
+		env.NODE_ENV === "development" &&
+		!env.VERCEL &&
+		target.protocol === "http:" &&
+		target.hostname === "localhost" &&
+		target.port === "4321"
 	if (
-		target.protocol !== "https:" ||
+		(target.protocol !== "https:" && !localCertification && !localPortal) ||
 		target.username ||
 		target.password ||
 		target.pathname !== "/" ||
@@ -14,7 +31,11 @@ export function dispatcherConfig(env) {
 		throw new Error("worker_https_origin_required")
 	const token = env.DOCUMENT_PROCESSING_WORKER_TOKEN ?? ""
 	if (token.length < 32) throw new Error("worker_token_required")
-	return { url: new URL("/api/cron/document-processing", target), token }
+	return {
+		url: new URL("/api/cron/document-processing", target),
+		token,
+		intervalMs: localCertification ? 2000 : localPortal ? 10000 : 60000,
+	}
 }
 
 export async function dispatch(config, fetcher = fetch) {
@@ -54,7 +75,7 @@ async function main() {
 			)
 		}
 		// Sequential ticks; no overlapping requests or customer data in logs.
-		await delay(Math.min(60_000 * Math.max(failures, 1), 300_000), undefined, {
+		await delay(Math.min(config.intervalMs * Math.max(failures, 1), 300_000), undefined, {
 			signal: stop.signal,
 		}).catch(() => {})
 	}
