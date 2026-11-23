@@ -223,6 +223,11 @@ const providerNotice = providerGovernance?.blockers[0]
 			href: providerGovernance.blockers[0].href || routes.providerSettings(),
 		}
 	: null
+const publicationVerificationHref = providerGovernance?.blockers.find(
+	(blocker) =>
+		(blocker.id === "documents" || blocker.id === "verification") &&
+		blocker.capabilities.includes("publish")
+)?.href
 const Layout = addRoomPlaybook.active && !isTourWorkspace ? PlaybookLayout : WorkspaceLayout
 const layoutProps = addRoomPlaybook.active
 	? {
@@ -305,6 +310,7 @@ function addAnotherServiceCopy() {
 				providerId={providerId}
 				userId={String(user.id)}
 				providerNotice={providerNotice}
+				publicationVerificationHref={publicationVerificationHref}
 			/>
 		) : (
 			<section class="space-y-6 md:space-y-8">
@@ -459,7 +465,12 @@ function addAnotherServiceCopy() {
 							) : null}
 
 							{hasTour && (
-								<TourBusinessOverview providerId={providerId} userId={String(user.id)} embedded />
+								<TourBusinessOverview
+									providerId={providerId}
+									userId={String(user.id)}
+									publicationVerificationHref={publicationVerificationHref}
+									embedded
+								/>
 							)}
 							<div class="grid gap-4">
 								{products

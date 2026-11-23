@@ -69,6 +69,32 @@ async function render(
 	})
 }
 describe("requirement-specific tour evidence", () => {
+	it("keeps national holder evidence independent from tour and territorial scopes", async () => {
+		const html = await (
+			await AstroContainer.create()
+		).renderToString(Evidence, {
+			props: {
+				surface: "tour-activity",
+				canManageDocuments: true,
+				scopeProductId: null,
+				availableProducts: [],
+				holderSubject: { type: "person", reference: "provider-a" },
+				policyRequirement: {
+					key: "national.persona_natural.personal_identity",
+					versionId: "policy-a",
+					contextProductId: "tour-a",
+				},
+				documentTypes: [{ value: "government_id", label: "Identidad" }],
+			},
+		})
+		expect(html).toContain('name="subjectReference" value="provider-a"')
+		expect(html).toContain('name="subjectType" value="person"')
+		expect(html).toContain('name="policyProductId" value="tour-a"')
+		expect(html).not.toContain('name="scopeProductId"')
+		expect(html).not.toContain('name="territoryCode"')
+		expect(html).not.toContain('name="activityClass"')
+		expect(html).not.toContain("data-evidence-subject-resource")
+	})
 	it.each(["ready", "in_review"])(
 		"does not invite resubmission of a requirement that is %s",
 		async (state) => {

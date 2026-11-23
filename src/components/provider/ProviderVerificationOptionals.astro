@@ -25,11 +25,15 @@ import {
 	newDocumentSubmissionHref,
 } from "@/lib/verification/document-upload-presentation"
 import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
+import { Upload } from "@lucide/astro"
 
 type OptionalDocType = { value: string; label: string; description?: string }
 
 type Props = {
-	policyRequirement?: { key: string; versionId: string }
+	compact?: boolean
+	holderSubject?: { type: "person" | "legal_entity"; reference: string }
+	uploadLabel?: string
+	policyRequirement?: { key: string; versionId: string; contextProductId?: string }
 	documentDefinitions?: Array<{ id: string; label: string; family: string; capture?: unknown }>
 	documentPresentation?: Record<string, DocumentListPresentation>
 	guideResources?: Array<{ id: string; name: string }>
@@ -57,6 +61,9 @@ type Props = {
 }
 
 const {
+	compact = false,
+	holderSubject,
+	uploadLabel,
 	policyRequirement,
 	documentDefinitions = [],
 	documentPresentation = {},
@@ -88,7 +95,10 @@ const expiredDocuments = documents.filter(
 )
 const expiringDocuments = documents.filter((doc) => documentRenewalNotice(doc)?.kind === "due_soon")
 const renewalDocument = documents.find((document) => document.id === renewalDocumentId) ?? null
-const renewalAvailable = Boolean(renewalDocument && documentRenewalNotice(renewalDocument))
+const replacingRejected = renewalDocument?.status === "rejected"
+const renewalAvailable = Boolean(
+	renewalDocument && (replacingRejected || documentRenewalNotice(renewalDocument))
+)
 const uploadTypes = renewalAvailable
 	? documentTypes.filter(
 			(item) =>
@@ -174,7 +184,10 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 			</Notice>
 		) : null
 	}
-	<div class="space-y-3" data-optional-documents-list>
+	<div
+		class:list={["space-y-3", compact && !documents.length && "hidden"]}
+		data-optional-documents-list
+	>
 		{
 			documents.length ? (
 				documents.map((doc) => (
@@ -291,25 +304,27 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 							/>
 						) : null}
 						{!readOnlyArchive &&
-						doc.status === "verified" &&
-						documentRenewalNotice(doc) &&
+						(doc.status === "rejected" ||
+							(doc.status === "verified" && documentRenewalNotice(doc))) &&
 						(!tourSurface || doc.scopes.some((scope) => scope.productId === scopeProductId)) ? (
 							<a
 								href={renewalHref(doc.id)}
 								class="inline-flex text-sm font-semibold text-slate-900 underline underline-offset-2"
 							>
-								Renovar esta evidencia →
+								{doc.status === "rejected" ? "Reemplazar documento" : "Renovar esta evidencia"}
 							</a>
 						) : null}
 					</Card>
 				))
-			) : (
+			) : !compact ? (
 				<Card variant="soft" class="text-sm text-slate-600" data-optional-empty>
-					{tourSurface
-						? "Todavía no hay evidencia enviada para esta área de la experiencia."
-						: "Todavía no hay evidencia enviada para esta línea."}
+					{holderSubject
+						? "Todavía no hay un respaldo enviado para este requisito del titular."
+						: tourSurface
+							? "Todavía no hay evidencia enviada para esta área de la experiencia."
+							: "Todavía no hay evidencia enviada para esta línea."}
 				</Card>
-			)
+			) : null
 		}
 	</div>
 
@@ -324,8 +339,23 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 				open={!tourSurface || Boolean(defaultUploadType) || renewalAvailable}
 				data-evidence-editor
 			>
-				<summary class="cursor-pointer text-sm font-semibold text-slate-900">
-					{renewalAvailable ? "Renovar documento" : "Subir documento"}
+				<summary
+					class:list={[
+						"cursor-pointer text-sm font-semibold text-slate-900",
+						compact &&
+							"inline-flex list-none items-center gap-2 [&::-webkit-details-marker]:hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-slate-900",
+						tourSurface &&
+							"w-fit rounded-md border border-slate-300 bg-white px-3 py-2 hover:bg-slate-50",
+					]}
+				>
+					{compact && <Upload size={16} aria-hidden="true" />}
+					{replacingRejected
+						? "Reemplazar documento"
+						: renewalAvailable
+							? "Renovar documento"
+							: tourSurface
+								? (uploadLabel ?? "Enviar respaldo")
+								: "Subir documento"}
 				</summary>
 				<form
 					class="fastt-notice space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
@@ -354,6 +384,13 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 						<>
 							<input type="hidden" name="policyRequirementKey" value={policyRequirement.key} />
 							<input type="hidden" name="policyVersionId" value={policyRequirement.versionId} />
+							{policyRequirement.contextProductId && (
+								<input
+									type="hidden"
+									name="policyProductId"
+									value={policyRequirement.contextProductId}
+								/>
+							)}
 						</>
 					)}
 					<input type="hidden" name="action" value="submit" />
@@ -392,17 +429,21 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 						<div>
 							<h3 class="text-base font-semibold text-slate-950">
 								{renewalAvailable
-									? `Renovar ${renewalDocument?.typeLabel}`
-									: tourSurface
-										? "Enviar evidencia de esta experiencia"
-										: "Enviar evidencia"}
+									? `${replacingRejected ? "Reemplazar" : "Renovar"} ${renewalDocument?.typeLabel}`
+									: holderSubject
+										? "Enviar respaldo del titular"
+										: tourSurface
+											? "Enviar evidencia de esta experiencia"
+											: "Enviar evidencia"}
 							</h3>
 							<p class="mt-1 text-sm leading-6 text-slate-600">
 								{renewalAvailable
-									? "La evidencia anterior queda en el historial. Declara de nuevo el alcance real de la renovación; no se copiará por suposición."
-									: tourSurface
-										? "Adjunta el respaldo que corresponde a esta actividad. Se revisará su titular, territorio y vigencia antes de habilitarla."
-										: "Adjunta PDF o imagen (máx. 12 MB). La revisión determinará si cubre el requisito y la oferta indicados."}
+									? "La evidencia anterior queda en el historial. Declara el alcance del nuevo documento."
+									: holderSubject
+										? "El respaldo corresponde al titular del negocio y se revisará para el requisito seleccionado."
+										: tourSurface
+											? "Adjunta el respaldo que corresponde a esta actividad. Se revisará su titular, territorio y vigencia antes de habilitarla."
+											: "Adjunta PDF o imagen (máx. 12 MB). La revisión determinará si cubre el requisito y la oferta indicados."}
 							</p>
 						</div>
 						{!tourSurface && (
@@ -473,6 +514,7 @@ if (tourSurface && scopeProductId) uploadAction.searchParams.set("experience", s
 							otherProducts={otherProducts}
 							guideResources={guideResources}
 							resourceChoices={resourceChoices}
+							holderSubject={holderSubject}
 						/>
 					) : (
 						<details

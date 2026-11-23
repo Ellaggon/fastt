@@ -4,6 +4,7 @@ import FormSkeleton from "@/components/ui/FormSkeleton.astro"
 import ProviderDocumentsAccessDenied from "@/components/provider/ProviderDocumentsAccessDenied.astro"
 import ProviderIdentityVendorCard from "@/components/provider/ProviderIdentityVendorCard.astro"
 import ProviderKycSlotsCard from "@/components/provider/ProviderKycSlotsCard.astro"
+import ProviderAccountPolicyEvidence from "@/components/provider/ProviderAccountPolicyEvidence.astro"
 import ProviderTourBusinessVerification from "@/components/provider/ProviderTourBusinessVerification.astro"
 import ProviderPaymentAccountsCard from "@/components/provider/ProviderPaymentAccountsCard.astro"
 import ProviderTaxProfileCard from "@/components/provider/ProviderTaxProfileCard.astro"
@@ -15,6 +16,7 @@ import ProviderVerificationNextStep from "@/components/provider/ProviderVerifica
 import ProviderVerificationView from "@/components/provider/ProviderVerificationView.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Notice from "@/components/ui/Notice.astro"
+import BottomToast from "@/components/ui/BottomToast.astro"
 import { resolveProviderRejectCategory } from "@/lib/provider-reject-categories"
 import type { ProviderVerificationWorkspaceModel } from "@/lib/provider-verification-workspace"
 import { routes } from "@/lib/routes"
@@ -236,6 +238,21 @@ const paymentErrorMessages: Record<
 	data-verification-initial-url={Astro.url.pathname + Astro.url.search}
 >
 	{
+		hubActive &&
+			identitySlots.some((slot) => slot.state === "rejected") &&
+			businessSlots.some(
+				(slot) => slot.type === "business_registration" && slot.state === "rejected"
+			) && (
+				<div data-verification-hub-chrome>
+					<BottomToast
+						variant="warning"
+						autoDismissMs={8000}
+						message="Tienes dos documentos rechazados. Revisa el motivo en Identidad y Negocio para reemplazarlos."
+					/>
+				</div>
+			)
+	}
+	{
 		hubActive && documentResult && documentResultMessages[documentResult] ? (
 			<div data-verification-hub-chrome>
 				<Notice
@@ -389,6 +406,7 @@ const paymentErrorMessages: Record<
 					/>
 				) : null
 			}
+			<ProviderAccountPolicyEvidence model={model} area="identity" />
 			{
 				selectedLine !== "tour" && model.historicalBusinessRegistrationDocuments.length > 0 && (
 					<Notice variant="info" title="Registro mercantil en historial">
@@ -519,11 +537,15 @@ const paymentErrorMessages: Record<
 			}
 			<ProviderTaxProfileCard
 				taxConfiguration={taxConfiguration}
+				separateDocumentEvidence={model.accountPolicyEvidence?.items.some(
+					(item) => item.area === "fiscal"
+				)}
 				canManageFiscality={canManageFiscality}
 				reviewAssignment={fiscalAssignment}
 				formReturnTo="verificationFiscal"
 				saveError={fiscalError}
 			/>
+			<ProviderAccountPolicyEvidence model={model} area="fiscal" />
 		</section>
 
 		<section

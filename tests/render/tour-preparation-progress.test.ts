@@ -32,7 +32,7 @@ describe("tour preparation and review rendered contract", () => {
 			"Modalidad y territorio",
 			"Verificación y respaldos",
 			"Acuerdo comercial",
-			"Preparación de la experiencia",
+			"Preparación de la ficha",
 		])
 			expect(html).toContain(label)
 		expect(html).toContain("Revisar propuesta")

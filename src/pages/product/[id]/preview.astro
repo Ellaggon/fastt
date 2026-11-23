@@ -1,6 +1,9 @@
 ---
 import TourPublishedReviewAction from "@/components/tours/TourPublishedReviewAction.astro"
 import TourReviewStatus from "@/components/tours/TourReviewStatus.astro"
+import TourExperienceRequirements from "@/components/tours/TourExperienceRequirements.astro"
+import { getProviderSessionSurfaceFromRequest } from "@/lib/auth/providerSessionSurface"
+import { loadProviderVerificationWorkspace } from "@/lib/provider-verification-workspace"
 import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import { findActiveComplianceCase } from "@/lib/casework/compliance-casework"
 import { readProviderHolderProfile } from "@/lib/provider-holder-profile"
@@ -235,6 +238,34 @@ if (tourPresentation) {
 	}
 }
 const readinessPercent = publishState.readinessPercent
+const evidenceStep = isTour && Astro.url.searchParams.get("view") === "requirements"
+const reviewUrl = new URL(Astro.url)
+reviewUrl.searchParams.delete("view")
+const reviewHref = reviewUrl.pathname + reviewUrl.search
+const evidenceUrl = new URL(reviewUrl)
+evidenceUrl.searchParams.set("view", "requirements")
+const evidenceSession = evidenceStep
+	? await getProviderSessionSurfaceFromRequest(Astro.request)
+	: null
+const experienceEvidence =
+	evidenceSession?.providerId === providerId
+		? await loadProviderVerificationWorkspace({
+				providerId,
+				sessionPermissions: evidenceSession.permissions,
+				providerRoleLabel: "Operaciones",
+				url: new URL(
+					`/provider/settings/verification?${new URLSearchParams({
+						line: "tour",
+						experience: productId,
+						returnTo: reviewHref,
+					})}`,
+					Astro.url
+				),
+				experienceWorkspace: true,
+			})
+		: null
+if (evidenceStep && !experienceEvidence)
+	return new Response("Acceso no disponible", { status: 403 })
 const blockerLabels = publishState.blockers
 	.filter((check) => check.sectionKey !== "preview")
 	.map((check) => check.label)
@@ -446,153 +477,51 @@ if (!isTour) {
 	productDisplayName={aggregate.displayName}
 	hideFooter={playbook.active && stepId === "preview" && playbookId !== "complete-to-publish"}
 >
-	<section class="space-y-7">
-		{
-			isPublished && publicDetailHref ? (
-				<div class="flex justify-end">
-					<Button href={publicDetailHref} variant="secondary">
-						Abrir página pública
-					</Button>
-				</div>
-			) : null
-		}
-
-		{
-			!isTour && !isPublished && !publicationEligible ? (
-				<Card
-					variant="soft"
-					class="border-amber-200 bg-amber-50 text-slate-900"
-					data-provider-publish-blocked
-				>
-					<div class="flex flex-wrap items-center justify-between gap-4">
-						<div>
-							<p class="font-semibold">Hay un requisito del negocio pendiente</p>
-							<p class="mt-1 text-sm leading-6 text-slate-700">
-								{publicationBlocker
-									? `Pendiente: ${publicationBlocker.label}. Al resolverlo, volveremos a comprobar los demás requisitos de publicación.`
-									: "Completa la configuración requerida del negocio antes de publicar esta ficha."}
-							</p>
-						</div>
-						{publicationBlocker ? (
-							<Button href={publicationBlocker.href} variant="secondary">
-								Resolver configuración
-							</Button>
-						) : null}
+	{
+		evidenceStep && experienceEvidence ? (
+			<div class="space-y-5">
+				<Button href={reviewHref} variant="secondary">
+					Volver a pendientes para publicar
+				</Button>
+				<TourExperienceRequirements model={experienceEvidence} productId={productId} lightSurface />
+			</div>
+		) : (
+			<section class="space-y-7">
+				{isPublished && publicDetailHref ? (
+					<div class="flex justify-end">
+						<Button href={publicDetailHref} variant="secondary">
+							Abrir página pública
+						</Button>
 					</div>
-				</Card>
-			) : null
-		}
+				) : null}
 
-		<Card variant="panel" class="fastt-workspace-panel">
-			<div class="space-y-6">
-				<div class="flex flex-wrap items-start justify-between gap-4">
-					<div class="flex min-w-0 items-start gap-3">
-						<span class="fastt-section-icon">
-							{
-								isPublished || readyToPublish ? (
-									<CircleCheck class="size-4" aria-hidden="true" />
-								) : (
-									<ClipboardList class="size-4" aria-hidden="true" />
-								)
-							}
-						</span>
-						<div class="min-w-0">
-							<p class="text-xl font-semibold text-slate-950">
-								{
-									isPublished
-										? `${vertical.labels.workspaceSingular} publicado`
-										: readyToPublish && publicationEligible
-											? "Listo para publicar"
-											: "Pendientes para publicar"
-								}
-							</p>
-							<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-								{
-									tourPresentation
-										? "Revisa la operación admitida, los respaldos, el acuerdo y la preparación antes de publicar."
-										: isPublished
-											? "La ficha ya está activa. Usa esta revisión para comprobar cómo la verá el viajero."
-											: readyToPublish && publicationEligible
-												? "Todo lo obligatorio está listo. Publica cuando estés preparado para recibir reservas."
-												: readyToPublish
-													? "La ficha está lista. Completa la configuración del negocio para poder publicarla."
-													: `${actionableCompletedChecks} requisitos listos. ${blockerLabels.length ? `Faltan ${blockerLabels.length}: ${blockerLabels.join(", ")}.` : ""}`
-								}
-							</p>
-						</div>
-					</div>
-					<Badge
-						variant={isPublished || (readyToPublish && publicationEligible) ? "success" : "warning"}
+				{!isTour && !isPublished && !publicationEligible ? (
+					<Card
+						variant="soft"
+						class="border-amber-200 bg-amber-50 text-slate-900"
+						data-provider-publish-blocked
 					>
-						{
-							isPublished
-								? "Publicado"
-								: readyToPublish && publicationEligible
-									? "Listo"
-									: tourPresentation
-										? tourPresentation.reviewStatusLabel
-										: readyToPublish
-											? "Negocio pendiente"
-											: `${readinessPercent}% listo`
-						}
-					</Badge>
-				</div>
-
-				{
-					tourPresentation ? (
-						<TourReviewStatus
-							holderReviewHref={holderReviewHref}
-							diagnosis={publishState.tourDiagnostic!}
-							reviewHref={Astro.url.pathname + Astro.url.search}
-							published={isPublished}
-						/>
-					) : (
-						<div class="flex items-center gap-3">
-							<div
-								role="progressbar"
-								aria-label="Preparación de la ficha"
-								aria-valuemin="0"
-								aria-valuemax="100"
-								aria-valuenow={readinessPercent}
-								class="h-1 flex-1 overflow-hidden rounded-full bg-slate-200"
-							>
-								<div
-									class="h-full rounded-full"
-									style={`width: ${Math.max(0, Math.min(100, readinessPercent))}%; background-color: var(--fastt-color-selection);`}
-								/>
+						<div class="flex flex-wrap items-center justify-between gap-4">
+							<div>
+								<p class="font-semibold">Hay un requisito del negocio pendiente</p>
+								<p class="mt-1 text-sm leading-6 text-slate-700">
+									{publicationBlocker
+										? `Pendiente: ${publicationBlocker.label}. Al resolverlo, volveremos a comprobar los demás requisitos de publicación.`
+										: "Completa la configuración requerida del negocio antes de publicar esta ficha."}
+								</p>
 							</div>
-							<p class="shrink-0 text-xs font-medium text-slate-500 tabular-nums">
-								{actionableCompletedChecks} de{" "}
-								{publishState.tourDiagnostic ? publishState.totalChecks : actionableChecks.length}
-							</p>
+							{publicationBlocker ? (
+								<Button href={publicationBlocker.href} variant="secondary">
+									Resolver configuración
+								</Button>
+							) : null}
 						</div>
-					)
-				}
+					</Card>
+				) : null}
 
-				{
-					isTour && !isPublished && tourPresentation && !(readyToPublish && publicationEligible) ? (
-						<div class="flex justify-end">
-							<Button
-								href={`${routes.productDetail(productId)}?${new URLSearchParams({ ...(previewVariantId ? { variantId: previewVariantId } : {}), ...(previewRatePlanId ? { ratePlanId: previewRatePlanId } : {}) })}`}
-								variant="secondary"
-							>
-								{playbook.active ? "Salir y volver a la ficha" : "Volver a la ficha"}
-							</Button>
-						</div>
-					) : null
-				}
-
-				{
-					!isPublished &&
-					tourPresentation &&
-					!(readyToPublish && publicationEligible) ? null : isPublished && tourPresentation ? (
-						<TourPublishedReviewAction
-							presentation={tourPresentation}
-							backHref={`${routes.productDetail(productId)}?${new URLSearchParams({ ...(previewVariantId ? { variantId: previewVariantId } : {}), ...(previewRatePlanId ? { ratePlanId: previewRatePlanId } : {}) })}`}
-							backLabel={playbook.active ? "Salir y volver a la ficha" : "Volver a la ficha"}
-						/>
-					) : (
-						<div class="flex flex-col gap-4 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
+				<Card variant="panel" class="fastt-workspace-panel">
+					<div class="space-y-6">
+						<div class="flex flex-wrap items-start justify-between gap-4">
 							<div class="flex min-w-0 items-start gap-3">
 								<span class="fastt-section-icon">
 									{isPublished || readyToPublish ? (
@@ -602,448 +531,551 @@ if (!isTour) {
 									)}
 								</span>
 								<div class="min-w-0">
-									<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+									<p class="text-xl font-semibold text-slate-950">
 										{isPublished
-											? "Revisión"
+											? `${vertical.labels.workspaceSingular} publicado`
 											: readyToPublish && publicationEligible
-												? "Siguiente acción"
-												: "Siguiente requisito"}
+												? "Listo para publicar"
+												: "Pendientes para publicar"}
 									</p>
-									<p class="mt-1 text-base font-semibold text-slate-950">
-										{isPublished
-											? "La página pública ya está disponible"
-											: readyToPublish && publicationEligible
-												? `Publicar ${vertical.labels.singular.toLowerCase()}`
-												: readyToPublish
-													? (publicationBlocker?.label ?? "Configura el negocio para publicar")
-													: (nextBlocker?.label ?? "Revisa los requisitos pendientes")}
-									</p>
-									<p class="mt-1 max-w-xl text-sm leading-6 text-slate-600">
+									<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
 										{tourPresentation
-											? tourPresentation.support
+											? "Revisa la operación admitida, los respaldos, el acuerdo y la preparación antes de publicar."
 											: isPublished
-												? "Puedes volver a la ficha para operar el alojamiento o revisar el resultado público."
+												? "La ficha ya está activa. Usa esta revisión para comprobar cómo la verá el viajero."
 												: readyToPublish && publicationEligible
-													? `Revisa la ficha pública debajo y confirma que representa correctamente tu ${vertical.labels.singular.toLowerCase()}.`
+													? "Todo lo obligatorio está listo. Publica cuando estés preparado para recibir reservas."
 													: readyToPublish
-														? "La ficha ya está preparada. Resuelve este requisito del negocio para publicarla."
-														: (nextBlocker?.detail ??
-															"Completa el siguiente requisito para continuar.")}
+														? "La ficha está lista. Completa la configuración del negocio para poder publicarla."
+														: `${actionableCompletedChecks} requisitos listos. ${blockerLabels.length ? `Faltan ${blockerLabels.length}: ${blockerLabels.join(", ")}.` : ""}`}
 									</p>
 								</div>
 							</div>
-							<div class="flex shrink-0 flex-wrap items-center gap-2">
-								<Button
-									href={
-										isTour
-											? `${routes.productDetail(productId)}?${new URLSearchParams({ ...(previewVariantId ? { variantId: previewVariantId } : {}), ...(previewRatePlanId ? { ratePlanId: previewRatePlanId } : {}) })}`
-											: routes.productDetail(productId)
+							{!tourPresentation && (
+								<Badge
+									variant={
+										isPublished || (readyToPublish && publicationEligible) ? "success" : "warning"
 									}
+								>
+									{isPublished
+										? "Publicado"
+										: readyToPublish && publicationEligible
+											? "Listo"
+											: readyToPublish
+												? "Negocio pendiente"
+												: `${readinessPercent}% listo`}
+								</Badge>
+							)}
+						</div>
+
+						{tourPresentation ? (
+							<TourReviewStatus
+								experienceEvidenceHref={
+									isTour ? evidenceUrl.pathname + evidenceUrl.search : undefined
+								}
+								holderReviewHref={holderReviewHref}
+								diagnosis={publishState.tourDiagnostic!}
+								reviewHref={Astro.url.pathname + Astro.url.search}
+								published={isPublished}
+							/>
+						) : (
+							<div class="flex items-center gap-3">
+								<div
+									role="progressbar"
+									aria-label="Preparación de la ficha"
+									aria-valuemin="0"
+									aria-valuemax="100"
+									aria-valuenow={readinessPercent}
+									class="h-1 flex-1 overflow-hidden rounded-full bg-slate-200"
+								>
+									<div
+										class="h-full rounded-full"
+										style={`width: ${Math.max(0, Math.min(100, readinessPercent))}%; background-color: var(--fastt-color-selection);`}
+									/>
+								</div>
+								<p class="shrink-0 text-xs font-medium text-slate-500 tabular-nums">
+									{actionableCompletedChecks} de{" "}
+									{publishState.tourDiagnostic ? publishState.totalChecks : actionableChecks.length}
+								</p>
+							</div>
+						)}
+
+						{isTour &&
+						!isPublished &&
+						tourPresentation &&
+						!(readyToPublish && publicationEligible) ? (
+							<div class="flex justify-end border-t border-slate-200 pt-5 sm:pt-6">
+								<Button
+									href={`${routes.productDetail(productId)}?${new URLSearchParams({ ...(previewVariantId ? { variantId: previewVariantId } : {}), ...(previewRatePlanId ? { ratePlanId: previewRatePlanId } : {}) })}`}
 									variant="secondary"
 								>
 									{playbook.active ? "Salir y volver a la ficha" : "Volver a la ficha"}
 								</Button>
-								{isPublished ? null : readyToPublish && publicationEligible ? (
-									<Button
-										class="publish-product-button fastt-playbook-cta"
-										type="button"
-										variant="selection"
-									>
-										Publicar {vertical.labels.singular}
-									</Button>
-								) : tourPresentation?.preparation.complete &&
-								  tourPresentation.activation.allowed ? null : readyToPublish &&
-								  publicationBlocker ? (
-									<Button
-										href={publicationBlocker.href}
-										variant="selection"
-										className="fastt-playbook-cta"
-									>
-										Resolver configuración
-									</Button>
-								) : (
+							</div>
+						) : null}
+
+						{!isPublished &&
+						tourPresentation &&
+						!(readyToPublish && publicationEligible) ? null : isPublished && tourPresentation ? (
+							<TourPublishedReviewAction
+								presentation={tourPresentation}
+								backHref={`${routes.productDetail(productId)}?${new URLSearchParams({ ...(previewVariantId ? { variantId: previewVariantId } : {}), ...(previewRatePlanId ? { ratePlanId: previewRatePlanId } : {}) })}`}
+								backLabel={playbook.active ? "Salir y volver a la ficha" : "Volver a la ficha"}
+							/>
+						) : (
+							<div class="flex flex-col gap-4 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
+								<div class="flex min-w-0 items-start gap-3">
+									<span class="fastt-section-icon">
+										{isPublished || readyToPublish ? (
+											<CircleCheck class="size-4" aria-hidden="true" />
+										) : (
+											<ClipboardList class="size-4" aria-hidden="true" />
+										)}
+									</span>
+									<div class="min-w-0">
+										<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+											{isPublished
+												? "Revisión"
+												: readyToPublish && publicationEligible
+													? "Siguiente acción"
+													: "Siguiente requisito"}
+										</p>
+										<p class="mt-1 text-base font-semibold text-slate-950">
+											{isPublished
+												? "La página pública ya está disponible"
+												: readyToPublish && publicationEligible
+													? `Publicar ${vertical.labels.singular.toLowerCase()}`
+													: readyToPublish
+														? (publicationBlocker?.label ?? "Configura el negocio para publicar")
+														: (nextBlocker?.label ?? "Revisa los requisitos pendientes")}
+										</p>
+										<p class="mt-1 max-w-xl text-sm leading-6 text-slate-600">
+											{tourPresentation
+												? tourPresentation.support
+												: isPublished
+													? "Puedes volver a la ficha para operar el alojamiento o revisar el resultado público."
+													: readyToPublish && publicationEligible
+														? `Revisa la ficha pública debajo y confirma que representa correctamente tu ${vertical.labels.singular.toLowerCase()}.`
+														: readyToPublish
+															? "La ficha ya está preparada. Resuelve este requisito del negocio para publicarla."
+															: (nextBlocker?.detail ??
+																"Completa el siguiente requisito para continuar.")}
+										</p>
+									</div>
+								</div>
+								<div class="flex shrink-0 flex-wrap items-center gap-2">
 									<Button
 										href={
-											nextBlocker
-												? checkHref(nextBlocker)
-												: (tourPresentation?.primaryAction.href ?? completePreparationHref)
+											isTour
+												? `${routes.productDetail(productId)}?${new URLSearchParams({ ...(previewVariantId ? { variantId: previewVariantId } : {}), ...(previewRatePlanId ? { ratePlanId: previewRatePlanId } : {}) })}`
+												: routes.productDetail(productId)
 										}
-										variant="selection"
-										class="fastt-playbook-cta"
+										variant="secondary"
 									>
-										{nextBlocker?.cta ??
-											tourPresentation?.primaryAction.label ??
-											"Completar preparación"}
-										<ArrowRight class="h-4 w-4" aria-hidden="true" />
+										{playbook.active ? "Salir y volver a la ficha" : "Volver a la ficha"}
 									</Button>
-								)}
+									{isPublished ? null : readyToPublish && publicationEligible ? (
+										<Button
+											class="publish-product-button fastt-playbook-cta"
+											type="button"
+											variant="selection"
+										>
+											Publicar {vertical.labels.singular}
+										</Button>
+									) : tourPresentation?.preparation.complete &&
+									  tourPresentation.activation.allowed ? null : readyToPublish &&
+									  publicationBlocker ? (
+										<Button
+											href={publicationBlocker.href}
+											variant="selection"
+											className="fastt-playbook-cta"
+										>
+											Resolver configuración
+										</Button>
+									) : (
+										<Button
+											href={
+												nextBlocker
+													? checkHref(nextBlocker)
+													: (tourPresentation?.primaryAction.href ?? completePreparationHref)
+											}
+											variant="selection"
+											class="fastt-playbook-cta"
+										>
+											{nextBlocker?.cta ??
+												tourPresentation?.primaryAction.label ??
+												"Completar preparación"}
+											<ArrowRight class="h-4 w-4" aria-hidden="true" />
+										</Button>
+									)}
+								</div>
 							</div>
-						</div>
-					)
-				}
+						)}
 
-				<div
-					id="publishFeedback"
-					class="hidden rounded-[var(--fastt-radius-control)] border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700"
-					role="status"
-				>
-				</div>
-				<a
-					id="providerBlockerAction"
-					class="mt-3 hidden text-sm font-semibold text-slate-900 underline"
-					href="#"
-				>
-					Resolver configuración del negocio
-				</a>
-			</div>
-		</Card>
-
-		{
-			realTourPreviewHref &&
-			(isPublished ||
-				(tourPresentation?.preparation.complete &&
-					publishState.tourDiagnostic?.requirements.provider_authorization.result.state ===
-						"ready" &&
-					publishState.tourDiagnostic?.requirements.experience_authorization.result.state ===
-						"ready")) ? (
-				<section class="space-y-3" data-real-public-preview>
-					{previewVariantId || previewRatePlanId ? (
-						<aside
-							class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sky-950"
-							aria-label="Selección comercial en revisión"
-							data-selected-tour-review
+						<div
+							id="publishFeedback"
+							class="hidden rounded-[var(--fastt-radius-control)] border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700"
+							role="status"
+						/>
+						<a
+							id="providerBlockerAction"
+							class="mt-3 hidden text-sm font-semibold text-slate-900 underline"
+							href="#"
 						>
-							{selectedTourReviewOffer ? (
-								<div class="flex w-full flex-wrap items-center justify-between gap-3">
-									<div class="min-w-0">
-										<p class="text-xs font-semibold tracking-wide text-sky-800 uppercase">
-											Oferta seleccionada para revisar
-										</p>
-										<p class="mt-1 font-semibold">
-											{String(selectedTourReviewOffer.variantName ?? "Salida")}
-										</p>
-										<p class="mt-0.5 text-sm text-sky-900">
-											Tarifa: {String(selectedTourReviewOffer.ratePlanName ?? "Sin nombre")}
-										</p>
-									</div>
-									<Badge
-										variant={
-											selectedTourReviewOffer.ratePlanIsActive &&
+							Resolver configuración del negocio
+						</a>
+					</div>
+				</Card>
+
+				{realTourPreviewHref &&
+				(isPublished ||
+					(tourPresentation?.preparation.complete &&
+						publishState.tourDiagnostic?.requirements.provider_authorization.result.state ===
+							"ready" &&
+						publishState.tourDiagnostic?.requirements.experience_authorization.result.state ===
+							"ready")) ? (
+					<section class="space-y-3" data-real-public-preview>
+						{previewVariantId || previewRatePlanId ? (
+							<aside
+								class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sky-950"
+								aria-label="Selección comercial en revisión"
+								data-selected-tour-review
+							>
+								{selectedTourReviewOffer ? (
+									<div class="flex w-full flex-wrap items-center justify-between gap-3">
+										<div class="min-w-0">
+											<p class="text-xs font-semibold tracking-wide text-sky-800 uppercase">
+												Oferta seleccionada para revisar
+											</p>
+											<p class="mt-1 font-semibold">
+												{String(selectedTourReviewOffer.variantName ?? "Salida")}
+											</p>
+											<p class="mt-0.5 text-sm text-sky-900">
+												Tarifa: {String(selectedTourReviewOffer.ratePlanName ?? "Sin nombre")}
+											</p>
+										</div>
+										<Badge
+											variant={
+												selectedTourReviewOffer.ratePlanIsActive &&
+												selectedTourReviewOffer.ratePlanIsDefault &&
+												selectedTourReviewOffer.salesEnabled
+													? "success"
+													: "warning"
+											}
+										>
+											{selectedTourReviewOffer.ratePlanIsActive &&
 											selectedTourReviewOffer.ratePlanIsDefault &&
 											selectedTourReviewOffer.salesEnabled
-												? "success"
-												: "warning"
-										}
-									>
-										{selectedTourReviewOffer.ratePlanIsActive &&
-										selectedTourReviewOffer.ratePlanIsDefault &&
-										selectedTourReviewOffer.salesEnabled
-											? "Tarifa activada"
-											: "Revisar activación"}
-									</Badge>
-								</div>
-							) : (
-								<p class="text-sm font-medium" role="status">
-									No pudimos vincular esta selección con una opción y tarifa de este tour. Vuelve a
-									revisar disponibilidad y precio.
+												? "Tarifa activada"
+												: "Revisar activación"}
+										</Badge>
+									</div>
+								) : (
+									<p class="text-sm font-medium" role="status">
+										No pudimos vincular esta selección con una opción y tarifa de este tour. Vuelve
+										a revisar disponibilidad y precio.
+									</p>
+								)}
+							</aside>
+						) : null}
+						<header class="flex flex-wrap items-end justify-between gap-3">
+							<div>
+								<p class="text-sm font-semibold text-white">Vista final del viajero</p>
+								<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
+									Esta es la página pública real del tour. Las reservas permanecen desactivadas
+									hasta publicarlo.
 								</p>
-							)}
-						</aside>
-					) : null}
-					<header class="flex flex-wrap items-end justify-between gap-3">
-						<div>
-							<p class="text-sm font-semibold text-white">Vista final del viajero</p>
-							<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
-								Esta es la página pública real del tour. Las reservas permanecen desactivadas hasta
-								publicarlo.
-							</p>
-						</div>
-						<Button href={realTourPreviewWithReturn} variant="secondary">
-							Abrir vista del viajero
-						</Button>
-					</header>
-					<div class="overflow-hidden rounded-xl border border-slate-700 bg-white shadow-xl">
-						<iframe
-							title={`Vista pública de ${aggregate.displayName}`}
-							src={realTourPreviewEmbedded}
-							class="h-[48rem] w-full bg-white"
-							loading="eager"
-						/>
-					</div>
-				</section>
-			) : null
-		}
-
-		{
-			!isTour ? (
-				<div class="space-y-7" data-provider-legacy-preview>
-					<section class="space-y-4">
-						<header class="space-y-1">
-							<h2 class="text-lg font-semibold text-slate-100">Ficha pública</h2>
-							<p class="text-sm leading-6 text-slate-400">
-								Así leerá el viajero el contenido principal.
-							</p>
+							</div>
+							<Button href={realTourPreviewWithReturn} variant="secondary">
+								Abrir vista del viajero
+							</Button>
 						</header>
-						<Card className="overflow-hidden bg-white p-0 text-slate-800">
-							{primaryImage ? (
-								<img
-									src={primaryImage}
-									alt={aggregate.displayName}
-									class="h-80 w-full object-cover"
-								/>
-							) : (
-								<div class="flex h-80 items-center justify-center bg-slate-100 text-sm text-slate-500">
-									Agrega fotos para dar una primera impresión clara.
-								</div>
-							)}
-							<div class="space-y-6 p-5 md:p-6">
-								<div class="flex flex-wrap items-start justify-between gap-4">
-									<div class="space-y-1">
-										<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-											{vertical.labels.workspaceSingular}
-										</p>
-										<h2 class="text-2xl font-semibold text-slate-950">{aggregate.displayName}</h2>
-										<p class="text-sm text-slate-500">
-											{aggregate.location.address || "Ubicación pendiente"}
-										</p>
-									</div>
-									<Badge variant={readyToPublish || isPublished ? "success" : "warning"}>
-										{readyToPublish || isPublished ? "Lista para viajeros" : "Borrador"}
-									</Badge>
-								</div>
+						<div class="overflow-hidden rounded-xl border border-slate-700 bg-white shadow-xl">
+							<iframe
+								title={`Vista pública de ${aggregate.displayName}`}
+								src={realTourPreviewEmbedded}
+								class="h-[48rem] w-full bg-white"
+								loading="eager"
+							/>
+						</div>
+					</section>
+				) : null}
 
-								{imagePreviews.length > 1 ? (
-									<div class="grid grid-cols-3 gap-2 md:grid-cols-6">
-										{imagePreviews.map((image) => (
-											<img
-												src={image.url}
-												alt="Vista previa"
-												class="h-20 rounded-lg object-cover"
-											/>
-										))}
+				{!isTour ? (
+					<div class="space-y-7" data-provider-legacy-preview>
+						<section class="space-y-4">
+							<header class="space-y-1">
+								<h2 class="text-lg font-semibold text-slate-100">Ficha pública</h2>
+								<p class="text-sm leading-6 text-slate-400">
+									Así leerá el viajero el contenido principal.
+								</p>
+							</header>
+							<Card className="overflow-hidden bg-white p-0 text-slate-800">
+								{primaryImage ? (
+									<img
+										src={primaryImage}
+										alt={aggregate.displayName}
+										class="h-80 w-full object-cover"
+									/>
+								) : (
+									<div class="flex h-80 items-center justify-center bg-slate-100 text-sm text-slate-500">
+										Agrega fotos para dar una primera impresión clara.
 									</div>
-								) : null}
-
-								<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-									<div class="space-y-5">
-										<div>
-											<p class="text-sm font-semibold text-slate-900">
-												Sobre{" "}
-												{vertical.labels.singular === "alojamiento"
-													? "este alojamiento"
-													: `este ${vertical.labels.singular}`}
+								)}
+								<div class="space-y-6 p-5 md:p-6">
+									<div class="flex flex-wrap items-start justify-between gap-4">
+										<div class="space-y-1">
+											<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+												{vertical.labels.workspaceSingular}
 											</p>
-											<p class="mt-2 text-sm leading-7 text-slate-700">
-												{description ||
-													`Agrega una descripción clara para que el viajero entienda ${vertical.labels.singular === "alojamiento" ? "el alojamiento" : `este ${vertical.labels.singular}`}.`}
+											<h2 class="text-2xl font-semibold text-slate-950">{aggregate.displayName}</h2>
+											<p class="text-sm text-slate-500">
+												{aggregate.location.address || "Ubicación pendiente"}
 											</p>
 										</div>
-										<div>
-											<p class="text-sm font-semibold text-slate-900">Destacados</p>
-											{highlights.length ? (
-												<ul class="mt-3 flex flex-wrap gap-2 text-sm text-slate-700">
-													{highlights.map((item) => (
-														<li class="rounded-full bg-slate-100 px-3 py-1.5">{String(item)}</li>
-													))}
-												</ul>
-											) : (
-												<p class="mt-2 text-sm text-slate-500">
-													Agrega al menos un destacado visible para viajeros.
-												</p>
-											)}
-										</div>
+										<Badge variant={readyToPublish || isPublished ? "success" : "warning"}>
+											{readyToPublish || isPublished ? "Lista para viajeros" : "Borrador"}
+										</Badge>
 									</div>
 
-									<div class="space-y-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
-										<p class="flex items-center gap-2 text-sm font-semibold text-slate-900">
-											<ShieldCheck class="h-4 w-4 text-slate-500" aria-hidden="true" />
-											Confianza de reserva
-										</p>
-										<p class="text-sm leading-6 text-slate-600">
-											El huésped debe entender cancelación, pagos, no presentación e ingreso antes
-											de reservar.
-										</p>
-										<div class="flex flex-wrap gap-2">
-											{requiredPolicyCategories.map((category) => (
-												<Badge variant={policyCategorySet.has(category) ? "success" : "neutral"}>
-													{POLICY_CATEGORY_ORDER[category as keyof typeof POLICY_CATEGORY_ORDER] ??
-														category}
-												</Badge>
+									{imagePreviews.length > 1 ? (
+										<div class="grid grid-cols-3 gap-2 md:grid-cols-6">
+											{imagePreviews.map((image) => (
+												<img
+													src={image.url}
+													alt="Vista previa"
+													class="h-20 rounded-lg object-cover"
+												/>
 											))}
 										</div>
+									) : null}
+
+									<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+										<div class="space-y-5">
+											<div>
+												<p class="text-sm font-semibold text-slate-900">
+													Sobre{" "}
+													{vertical.labels.singular === "alojamiento"
+														? "este alojamiento"
+														: `este ${vertical.labels.singular}`}
+												</p>
+												<p class="mt-2 text-sm leading-7 text-slate-700">
+													{description ||
+														`Agrega una descripción clara para que el viajero entienda ${vertical.labels.singular === "alojamiento" ? "el alojamiento" : `este ${vertical.labels.singular}`}.`}
+												</p>
+											</div>
+											<div>
+												<p class="text-sm font-semibold text-slate-900">Destacados</p>
+												{highlights.length ? (
+													<ul class="mt-3 flex flex-wrap gap-2 text-sm text-slate-700">
+														{highlights.map((item) => (
+															<li class="rounded-full bg-slate-100 px-3 py-1.5">{String(item)}</li>
+														))}
+													</ul>
+												) : (
+													<p class="mt-2 text-sm text-slate-500">
+														Agrega al menos un destacado visible para viajeros.
+													</p>
+												)}
+											</div>
+										</div>
+
+										<div class="space-y-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+											<p class="flex items-center gap-2 text-sm font-semibold text-slate-900">
+												<ShieldCheck class="h-4 w-4 text-slate-500" aria-hidden="true" />
+												Confianza de reserva
+											</p>
+											<p class="text-sm leading-6 text-slate-600">
+												El huésped debe entender cancelación, pagos, no presentación e ingreso antes
+												de reservar.
+											</p>
+											<div class="flex flex-wrap gap-2">
+												{requiredPolicyCategories.map((category) => (
+													<Badge variant={policyCategorySet.has(category) ? "success" : "neutral"}>
+														{POLICY_CATEGORY_ORDER[
+															category as keyof typeof POLICY_CATEGORY_ORDER
+														] ?? category}
+													</Badge>
+												))}
+											</div>
+										</div>
 									</div>
 								</div>
-							</div>
-						</Card>
-					</section>
+							</Card>
+						</section>
 
-					{isHotel ? (
+						{isHotel ? (
+							<section class="space-y-4">
+								<header class="flex flex-wrap items-end justify-between gap-3">
+									<div class="space-y-1">
+										<h2 class="text-lg font-semibold text-slate-100">
+											Dónde dormirán los huéspedes
+										</h2>
+										<p class="text-sm leading-6 text-slate-400">
+											Habitaciones que el huésped podrá revisar antes de reservar.
+										</p>
+									</div>
+									<Button
+										href={`/product/${encodeURIComponent(productId)}/rooms`}
+										variant="secondary"
+										size="sm"
+									>
+										<BedDouble class="h-4 w-4" aria-hidden="true" />
+										Editar habitaciones
+									</Button>
+								</header>
+								{guestRoomPreviews.length ? (
+									<GuestRoomPreviewCards
+										previews={guestRoomPreviews}
+										cardClass="fastt-row-card bg-white text-slate-900 ring-1 ring-slate-200/70"
+										gridClass="grid gap-4 lg:grid-cols-2"
+									/>
+								) : (
+									<Card className="border-amber-200 bg-amber-50 text-amber-950">
+										<p class="text-sm font-semibold">
+											Aún no hay habitaciones listas para preview.
+										</p>
+										<p class="mt-1 text-sm leading-6">
+											Completa camas, baño, capacidad, fotos y notas para que el huésped entienda
+											dónde dormirá.
+										</p>
+									</Card>
+								)}
+							</section>
+						) : null}
+
+						{vertical.vertical === "package" ? (
+							<section class="space-y-4">
+								<header class="space-y-1">
+									<h2 class="text-lg font-semibold text-slate-100">Incluye / No incluye</h2>
+									<p class="text-sm leading-6 text-slate-400">
+										Listas visibles del paquete antes de publicar.
+									</p>
+								</header>
+								<div class="grid gap-4 md:grid-cols-2">
+									<Card className="bg-white text-slate-800">
+										<p class="text-sm font-semibold text-slate-900">Incluye</p>
+										{packageInclusionItems.length ? (
+											<ul class="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+												{packageInclusionItems.map((item) => (
+													<li class="rounded-md bg-slate-50 px-3 py-2">{item}</li>
+												))}
+											</ul>
+										) : (
+											<p class="mt-2 text-sm text-slate-500">
+												Agrega inclusiones visibles antes de publicar.
+											</p>
+										)}
+									</Card>
+									<Card className="bg-white text-slate-800">
+										<p class="text-sm font-semibold text-slate-900">No incluye</p>
+										{packageExclusionItems.length ? (
+											<ul class="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+												{packageExclusionItems.map((item) => (
+													<li class="rounded-md bg-slate-50 px-3 py-2">{item}</li>
+												))}
+											</ul>
+										) : (
+											<p class="mt-2 text-sm text-slate-500">
+												Las exclusiones ayudan a evitar dudas antes de reservar.
+											</p>
+										)}
+									</Card>
+								</div>
+							</section>
+						) : null}
+
 						<section class="space-y-4">
 							<header class="flex flex-wrap items-end justify-between gap-3">
 								<div class="space-y-1">
-									<h2 class="text-lg font-semibold text-slate-100">Dónde dormirán los huéspedes</h2>
+									<h2 class="text-lg font-semibold text-slate-100">
+										{isHotel
+											? "Condiciones que verá el huésped"
+											: "Condiciones que verá el viajero"}
+									</h2>
 									<p class="text-sm leading-6 text-slate-400">
-										Habitaciones que el huésped podrá revisar antes de reservar.
+										Resumen visible de cancelación, pago, no presentación y llegada.
 									</p>
 								</div>
-								<Button
-									href={`/product/${encodeURIComponent(productId)}/rooms`}
-									variant="secondary"
-									size="sm"
-								>
-									<BedDouble class="h-4 w-4" aria-hidden="true" />
-									Editar habitaciones
-								</Button>
+								{isHotel ? (
+									<Button href={conditionsHref} variant="secondary" size="sm">
+										Editar condiciones
+									</Button>
+								) : null}
 							</header>
-							{guestRoomPreviews.length ? (
-								<GuestRoomPreviewCards
-									previews={guestRoomPreviews}
-									cardClass="fastt-row-card bg-white text-slate-900 ring-1 ring-slate-200/70"
-									gridClass="grid gap-4 lg:grid-cols-2"
-								/>
-							) : (
-								<Card className="border-amber-200 bg-amber-50 text-amber-950">
-									<p class="text-sm font-semibold">Aún no hay habitaciones listas para preview.</p>
-									<p class="mt-1 text-sm leading-6">
-										Completa camas, baño, capacidad, fotos y notas para que el huésped entienda
-										dónde dormirá.
-									</p>
-								</Card>
-							)}
-						</section>
-					) : null}
-
-					{vertical.vertical === "package" ? (
-						<section class="space-y-4">
-							<header class="space-y-1">
-								<h2 class="text-lg font-semibold text-slate-100">Incluye / No incluye</h2>
-								<p class="text-sm leading-6 text-slate-400">
-									Listas visibles del paquete antes de publicar.
-								</p>
-							</header>
-							<div class="grid gap-4 md:grid-cols-2">
-								<Card className="bg-white text-slate-800">
-									<p class="text-sm font-semibold text-slate-900">Incluye</p>
-									{packageInclusionItems.length ? (
-										<ul class="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-											{packageInclusionItems.map((item) => (
-												<li class="rounded-md bg-slate-50 px-3 py-2">{item}</li>
-											))}
-										</ul>
-									) : (
-										<p class="mt-2 text-sm text-slate-500">
-											Agrega inclusiones visibles antes de publicar.
-										</p>
-									)}
-								</Card>
-								<Card className="bg-white text-slate-800">
-									<p class="text-sm font-semibold text-slate-900">No incluye</p>
-									{packageExclusionItems.length ? (
-										<ul class="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-											{packageExclusionItems.map((item) => (
-												<li class="rounded-md bg-slate-50 px-3 py-2">{item}</li>
-											))}
-										</ul>
-									) : (
-										<p class="mt-2 text-sm text-slate-500">
-											Las exclusiones ayudan a evitar dudas antes de reservar.
-										</p>
-									)}
-								</Card>
+							<div class="grid gap-3 md:grid-cols-2">
+								{policyResolutionError ? (
+									<Card className="border-red-200 bg-red-50 text-red-900">
+										<p class="font-semibold">No se pudieron resolver las condiciones.</p>
+										<p class="mt-1 text-sm">{policyResolutionError}</p>
+									</Card>
+								) : mappedPolicies.length ? (
+									mappedPolicies.map((policy: any) => {
+										const category = String(policy.category ?? "")
+										return (
+											<Card className="bg-white text-slate-800">
+												<p class="text-sm font-semibold text-slate-900">
+													{POLICY_CATEGORY_ORDER[category as keyof typeof POLICY_CATEGORY_ORDER] ??
+														category}
+												</p>
+												<p class="mt-2 text-sm leading-6 text-slate-600">
+													{String(policy.description ?? "Sin detalle visible.")}
+												</p>
+											</Card>
+										)
+									})
+								) : (
+									<Card className="bg-white text-slate-700">
+										<p class="font-semibold text-slate-900">Aún no hay condiciones visibles.</p>
+										<p class="mt-1 text-sm">Agrega condiciones antes de publicar.</p>
+									</Card>
+								)}
 							</div>
 						</section>
-					) : null}
+					</div>
+				) : null}
 
-					<section class="space-y-4">
+				{isHotel ? (
+					<section id="guest-house-rules" class="space-y-4">
 						<header class="flex flex-wrap items-end justify-between gap-3">
 							<div class="space-y-1">
-								<h2 class="text-lg font-semibold text-slate-100">
-									{isHotel ? "Condiciones que verá el huésped" : "Condiciones que verá el viajero"}
-								</h2>
+								<h2 class="text-lg font-semibold text-slate-100">Reglas para huéspedes</h2>
 								<p class="text-sm leading-6 text-slate-400">
-									Resumen visible de cancelación, pago, no presentación y llegada.
+									Comportamiento, llegada y operación de estadía
+									{previewVariantId ? " para el espacio seleccionado" : " del alojamiento"}.
 								</p>
 							</div>
-							{isHotel ? (
-								<Button href={conditionsHref} variant="secondary" size="sm">
-									Editar condiciones
-								</Button>
-							) : null}
+							<Button href={routes.providerHouseRules()} variant="secondary" size="sm">
+								Editar reglas
+							</Button>
 						</header>
-						<div class="grid gap-3 md:grid-cols-2">
-							{policyResolutionError ? (
-								<Card className="border-red-200 bg-red-50 text-red-900">
-									<p class="font-semibold">No se pudieron resolver las condiciones.</p>
-									<p class="mt-1 text-sm">{policyResolutionError}</p>
-								</Card>
-							) : mappedPolicies.length ? (
-								mappedPolicies.map((policy: any) => {
-									const category = String(policy.category ?? "")
-									return (
-										<Card className="bg-white text-slate-800">
-											<p class="text-sm font-semibold text-slate-900">
-												{POLICY_CATEGORY_ORDER[category as keyof typeof POLICY_CATEGORY_ORDER] ??
-													category}
-											</p>
-											<p class="mt-2 text-sm leading-6 text-slate-600">
-												{String(policy.description ?? "Sin detalle visible.")}
-											</p>
-										</Card>
-									)
-								})
-							) : (
-								<Card className="bg-white text-slate-700">
-									<p class="font-semibold text-slate-900">Aún no hay condiciones visibles.</p>
-									<p class="mt-1 text-sm">Agrega condiciones antes de publicar.</p>
-								</Card>
-							)}
-						</div>
-					</section>
-				</div>
-			) : null
-		}
-
-		{
-			isHotel ? (
-				<section id="guest-house-rules" class="space-y-4">
-					<header class="flex flex-wrap items-end justify-between gap-3">
-						<div class="space-y-1">
-							<h2 class="text-lg font-semibold text-slate-100">Reglas para huéspedes</h2>
-							<p class="text-sm leading-6 text-slate-400">
-								Comportamiento, llegada y operación de estadía
-								{previewVariantId ? " para el espacio seleccionado" : " del alojamiento"}.
-							</p>
-						</div>
-						<Button href={routes.providerHouseRules()} variant="secondary" size="sm">
-							Editar reglas
-						</Button>
-					</header>
-					{guestRoomPreviews.length ? (
-						<div class="flex flex-wrap gap-2">
-							<a href={previewHouseRulesHref()}>
-								<Badge variant={previewVariantId ? "neutral" : "info"}>Todo el alojamiento</Badge>
-							</a>
-							{guestRoomPreviews.map((preview) => (
-								<a href={previewHouseRulesHref(preview.variantId)}>
-									<Badge variant={previewVariantId === preview.variantId ? "info" : "neutral"}>
-										{preview.roomName}
-									</Badge>
+						{guestRoomPreviews.length ? (
+							<div class="flex flex-wrap gap-2">
+								<a href={previewHouseRulesHref()}>
+									<Badge variant={previewVariantId ? "neutral" : "info"}>Todo el alojamiento</Badge>
 								</a>
-							))}
-						</div>
-					) : null}
-					<Card className="bg-white text-slate-800">
-						<GuestHouseRulesPanel
-							hotelSnapshot={hotelGuestExpectationsSnapshot}
-							roomSnapshot={roomGuestExpectationsSnapshot}
-							roomLabel={previewVariantId ? previewRoomLabel : null}
-							surface="preview"
-						/>
-					</Card>
-				</section>
-			) : null
-		}
-	</section>
+								{guestRoomPreviews.map((preview) => (
+									<a href={previewHouseRulesHref(preview.variantId)}>
+										<Badge variant={previewVariantId === preview.variantId ? "info" : "neutral"}>
+											{preview.roomName}
+										</Badge>
+									</a>
+								))}
+							</div>
+						) : null}
+						<Card className="bg-white text-slate-800">
+							<GuestHouseRulesPanel
+								hotelSnapshot={hotelGuestExpectationsSnapshot}
+								roomSnapshot={roomGuestExpectationsSnapshot}
+								roomLabel={previewVariantId ? previewRoomLabel : null}
+								surface="preview"
+							/>
+						</Card>
+					</section>
+				) : null}
+			</section>
+		)
+	}
 
 	<script
 		is:inline

@@ -138,15 +138,19 @@ export function projectAuthorizationDecisions(input: {
 							? "Verificado"
 							: "Requiere información",
 			tone: verificationReady ? "success" : coverageKnown ? "warning" : "neutral",
-			message:
-				[
-					...new Set([...(input.verification?.labels ?? []), ...evidence.map((b) => b.action)]),
-				].join(" · ") ||
-				(input.verification?.businessReady && !coverageKnown
-					? "Negocio: verificado. Experiencia: requisitos por definir por Fastt."
-					: verificationReady
-						? "Negocio y experiencia cumplen los respaldos evaluados."
-						: "La verificación de la experiencia depende de los requisitos aplicables."),
+			message: !input.verification
+				? "No pudimos comprobar los respaldos. Vuelve a intentarlo."
+				: inReview
+					? "Fastt está revisando la información enviada."
+					: !coverageKnown
+						? input.verification.businessReady
+							? "El negocio está verificado. Aún no se sabe qué respaldos necesita el paseo."
+							: "La verificación del negocio está pendiente. Aún no se sabe qué respaldos necesita el paseo."
+						: verificationReady
+							? "El negocio y el paseo cumplen los requisitos de verificación."
+							: input.verification.businessReady
+								? "Revisa qué respaldos del paseo siguen pendientes."
+								: "Revisa la verificación del negocio y los respaldos del paseo antes de publicar.",
 			actions:
 				input.verification &&
 				!verificationReady &&

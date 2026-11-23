@@ -1,4 +1,5 @@
 ---
+import ProviderAccountPolicyEvidence from "@/components/provider/ProviderAccountPolicyEvidence.astro"
 import ProviderKycSlotsCard from "@/components/provider/ProviderKycSlotsCard.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
@@ -7,10 +8,14 @@ import Notice from "@/components/ui/Notice.astro"
 import type { ProviderVerificationWorkspaceModel } from "@/lib/provider-verification-workspace"
 import { routes } from "@/lib/routes"
 import { legalFormForCountry } from "@/shared/domain/legal-forms"
+import { Pencil } from "@lucide/astro"
 
 const { model } = Astro.props as { model: ProviderVerificationWorkspaceModel }
 const { businessProfile, holderType, holderDeclarationInReview, latestVerification } = model
 const slots = model.kycSlots.filter((slot) => slot.type === "business_registration")
+const hasPolicyEvidence = model.accountPolicyEvidence?.items.some(
+	(item) => item.area === "business"
+)
 const country = businessProfile?.holderCountry
 const countryLabel =
 	country && /^[A-Z]{2}$/.test(country)
@@ -19,7 +24,7 @@ const countryLabel =
 ---
 
 <div class="space-y-6" data-tour-business-verification>
-	<Card>
+	<Card aria-label="Datos del negocio">
 		<div class="flex flex-wrap items-start justify-between gap-3">
 			<div>
 				<h3 class="text-lg font-semibold text-slate-950">Quién opera el negocio</h3>
@@ -35,13 +40,13 @@ const countryLabel =
 			</div>
 			{
 				model.canEditTourContext && (
-					<Button href={`${routes.providerSettingsProfile()}?edit=1`} variant="secondary">
-						Editar datos del negocio
+					<Button href={`${routes.providerSettingsProfile()}?edit=1`} variant="secondary" size="sm">
+						<Pencil size={14} aria-hidden="true" /> Editar datos
 					</Button>
 				)
 			}
 		</div>
-		<dl class="mt-5 grid gap-4 border-t border-slate-200 pt-4 sm:grid-cols-2">
+		<dl class="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
 			{
 				[
 					["Nombre comercial", businessProfile?.displayName],
@@ -94,7 +99,28 @@ const countryLabel =
 		) : null
 	}
 	{
-		holderType === "entidad" && slots.length ? (
+		hasPolicyEvidence ? (
+			<>
+				<ProviderAccountPolicyEvidence model={model} area="business" />
+				{slots.some((slot) => slot.documentId) && (
+					<details class="border-t border-white/15 py-4 text-slate-300">
+						<summary class="cursor-pointer text-sm font-semibold">
+							Registro empresarial anterior
+						</summary>
+						<ul class="mt-3 space-y-2 text-sm">
+							{slots
+								.filter((slot) => slot.documentId)
+								.map((slot) => (
+									<li>
+										{slot.fileName ?? slot.label} · {slot.stateLabel}
+										{slot.reviewNotes && <p class="mt-1 text-slate-600">{slot.reviewNotes}</p>}
+									</li>
+								))}
+						</ul>
+					</details>
+				)}
+			</>
+		) : holderType === "entidad" && slots.length ? (
 			<ProviderKycSlotsCard
 				slots={slots}
 				canManageDocuments={model.canManageDocuments}
