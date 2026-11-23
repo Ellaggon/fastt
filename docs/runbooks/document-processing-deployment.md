@@ -3,10 +3,10 @@
 Status: active
 Document type: runbook
 Owner: Platform / Security
-Last verified: 2026-11-08
+Last verified: 2026-11-23
 Scope: preparación, activación y certificación de gateway y dispatcher
 Source of truth: services/document-analysis, services/document-dispatcher y endpoints documentales
-Related code/tests: src/lib/provider-document-storage.ts, tests/unit/document-direct-upload.test.ts, tests/integration/document-gateway-live.test.ts
+Related code/tests: src/lib/provider-document-storage.ts, src/scripts/run-document-certification-workspace.ts, src/scripts/activate-document-portal-local.ts, tests/unit/document-certification-workspace.test.ts, tests/integration/document-gateway-live.test.ts
 Review trigger: cambio de hosting, protocolo, credenciales, límites o retención
 
 ## Antes de desplegar
@@ -208,36 +208,52 @@ decisiones bloqueadas y `provider.document.verification_withdrawn` con actor/mot
 confirmado en PostgreSQL. Politica historica de alojamiento usada solo como fixture:
 no acredita cobertura Tours. No se activaron cargas reales.
 
-Renovacion parcial adicional en Brave: aviso a quince dias, enlace de renovacion,
-alcance declarado y envio del PDF sintetico del repositorio mediante selector nativo.
-La extension no permitio `setFiles`; no se ampliaron sus permisos. Se uso S3rver 3.7.1
-solo como simulador temporal en `127.0.0.1:59039`, sin claves R2 operativas; no certifica
-compatibilidad completa con R2 ni sus precondiciones. El envio devolvio exito y PostgreSQL
-confirmo reemplazo `pending` con `replacesDocumentId` correcto y antecedente `verified`.
-Se resolvio la conexion del procesador con un puente HTTPS local: certificados confiados
-solo por los procesos de certificacion mediante `NODE_EXTRA_CA_CERTS`, sin instalarlos en
-macOS ni desactivar TLS. El puente restringe origen/ruta y conserva la firma S3 al reenviar
-al simulador. Contenedor separado, firmas ClamAV existentes en lectura y origen HTTPS fijo.
-El worker completo un trabajo sin reintentos: malware `clean`, OCR `completed`, extraccion
-`not_supported`. No equivale a autenticar una licencia ni certificar R2 hospedado.
-Con permisos temporales autorizados, MFA vencido detuvo la aprobacion; tras confirmarlo,
-Brave aprobo el fixture conocido con nota tecnica. SQL confirmo reemplazo `verified`,
-antecedente `superseded` y auditoria con actor; UI mostro historial sin aviso anterior y
-caso resuelto. Sin revelado protegido ni autenticidad documental certificada.
-Se revocaron los permisos temporales al finalizar. Regresion posterior detecto y corrigio
-que gobernanza KYC ignoraba vencimientos: ahora lee `expiresAt` y excluye vencidos.
-Prueba PostgreSQL: bloqueo/recuperacion de pagos e integraciones; publicar/reservar conserva
-sus controles independientes. Prueba del motor Tours: evidencia exigida vencida, retirada,
-sustituida o ajena bloquea publicar/reservar; renovacion vigente recupera solo lo aplicable.
-Brave local 2026-11-09: revision estructurada de seguro/ruta con sesion real y MFA;
-dos PDF sinteticos reinspeccionados (antivirus/OCR), sin extraccion avanzada. Vacio y
-permiso vencido bloqueados; dos sitios restaurados y luego decision aplicada por caso.
-SQL confirmo actor, notas JSON y auditoria pending/verified. Sin revelado protegido,
-poliza/permiso autenticos ni firmas; accesos revocados y servicios temporales detenidos.
-No certifica endpoints de publicacion/reserva ni activa cobertura. Pendiente: reapertura
-desde historial y certificacion hospedada. La primera puerta comercial sigue en borrador.
-Para retirar solo este recurso: `docker rm -f fastt-document-certification-postgres`.
-No usar limpieza global de Docker ni eliminar el procesador documental por este paso.
+Evidencia historica adicional de noviembre: renovacion y retirada con fixtures,
+revision estructurada de seguro/ruta, MFA y auditoria pasaron en Brave y PostgreSQL.
+El simulador S3rver y el puente TLS local no certificaron R2 hospedado. Los accesos
+temporales se revocaron. KYC excluye evidencia vencida; publicar/reservar conserva
+controles independientes. No usar esta evidencia como autorizacion de produccion.
+
+### Portal documental aislado y activacion local
+
+Con la base anterior y `fastt-r2-analysis-beta` en `127.0.0.1:4329` listos:
+
+```bash
+pnpm run certify:documents:workspace
+```
+
+El comando verifica bucket de desarrollo y base local, crea proveedor/usuario/PDF
+sinteticos y arranca Astro en `127.0.0.1:4333` con dispatcher cada dos segundos.
+Usar una ventana privada de Brave para no reutilizar cookies personales. La URL y
+el PDF temporales se imprimen sin secretos. Enviar desde el formulario real;
+comprobar antivirus limpio, OCR completado y estado pendiente, nunca autoaprobado.
+La sesion es QA local, no login Supabase certificado. No ampliar CORS para la prueba:
+el PDF pequeno puede usar el fallback multipart; la carga grande se prueba aparte.
+Detener con SIGTERM al supervisor para limpiar objetos propios cuya huella coincida
+y archivar el fixture. Si se mata todo el grupo, verificar y limpiar ese fixture
+por separado; nunca eliminar archivos desconocidos ni ejecutar limpiezas globales.
+
+Para activar el portal habitual **local**, con autorizacion expresa:
+
+```bash
+pnpm run documents:activate:local
+# Detener el servidor local anterior antes de arrancar el supervisor:
+pnpm run dev:documents
+```
+
+El configurador exige bucket de desarrollo, gateway certificado disponible y ausencia
+de Vercel/produccion. Actualiza solo `.env` local sin imprimir secretos. El supervisor
+mantiene portal y dispatcher juntos en `localhost:4321`, con ticks secuenciales cada
+diez segundos y backoff; `pnpm dev` solo no inicia el dispatcher. Fuera de estos
+limites el dispatcher conserva HTTPS obligatorio. No habilita entornos hospedados.
+Rollback local: parar supervisor, poner `FASTT_DOCUMENT_PIPELINE_ENABLED=false` y
+`FASTT_DOCUMENT_LOCAL_PORTAL_ENABLED=false` en `.env` y reiniciar. Conservar archivos,
+cola y auditoria; esperar firmas en vuelo como se indica arriba.
+
+Evidencia local del 2026-11-23: envio desde Brave privado con sesion QA, R2 de desarrollo,
+antivirus limpio/OCR completado por dispatcher automatico, documento pendiente y
+autorrevision denegada (403). Objeto sintetico eliminado y fixture archivado. No
+certifica autenticacion real, continuidad hospedada ni documentos autenticos.
 
 Pruebas: `document-renewal-notice`, `document-review-transition`,
 `document-verification-withdrawal`, `provider-document-review-evidence`,

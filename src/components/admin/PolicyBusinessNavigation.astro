@@ -1,0 +1,27 @@
+---
+const { business = "tour" } = Astro.props
+const businesses = [
+	{ id: "tour", label: "Tours" },
+	{ id: "lodging", label: "Alojamientos" },
+	{ id: "transport", label: "Transporte" },
+]
+---
+
+<nav aria-label="Línea de negocio" class="flex flex-wrap gap-6 border-b border-slate-600">
+	{
+		businesses.map((item) => (
+			<a
+				href={`/admin/commercial-policies?view=policies&business=${item.id}`}
+				aria-current={business === item.id ? "page" : undefined}
+				class:list={[
+					"border-b-2 px-1 py-3 text-sm font-semibold",
+					business === item.id
+						? "border-white text-white"
+						: "border-transparent text-slate-300 hover:text-white",
+				]}
+			>
+				{item.label}
+			</a>
+		))
+	}
+</nav>

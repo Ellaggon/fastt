@@ -1,0 +1,236 @@
+---
+import Button from "@/components/ui/Button.astro"
+import type { InternalPrincipal } from "@/lib/auth/internal-authorization"
+import { previewTerritorialRedesign } from "@/lib/commercial-policy/territorial-redesign-load"
+import {
+	previewTerritorialTransition,
+	readAppliedTerritorialTransition,
+} from "@/lib/commercial-policy/territorial-transition"
+import { canActivateTerritorialTransition } from "@/lib/commercial-policy/territorial-transition-access"
+const { canEdit = false, principal } = Astro.props as {
+	canEdit: boolean
+	principal: InternalPrincipal
+}
+const applied = await readAppliedTerritorialTransition()
+let transition: Awaited<ReturnType<typeof previewTerritorialTransition>> | null = null
+if (!applied) {
+	try {
+		transition = await previewTerritorialTransition()
+	} catch (error) {
+		console.error("commercial_policy.transition_preview_unavailable", error)
+	}
+}
+const canActivate = canActivateTerritorialTransition(principal)
+let plan: Awaited<ReturnType<typeof previewTerritorialRedesign>> | null = null
+try {
+	if (!applied) plan = await previewTerritorialRedesign()
+} catch (error) {
+	console.error("commercial_policy.redesign_preview_failed", error)
+}
+---
+
+<section class="mx-auto max-w-6xl space-y-6">
+	<a href="/admin/commercial-policies" class="text-sm text-slate-300 underline"
+		>Volver a Políticas</a
+	>
+	<header>
+		<h1 class="text-2xl font-semibold text-white">Reorganización territorial de Tours</h1><p
+			class="mt-2 text-sm text-slate-300"
+		>
+			Controles nacionales del titular y requisitos operativos locales. Las versiones vigentes no
+			cambian al preparar este paquete.
+		</p>
+	</header>
+	{
+		applied && (
+			<p
+				role="status"
+				class="fastt-notice rounded-md border border-emerald-700 bg-emerald-950 p-4 text-emerald-100"
+			>
+				Transición aplicada: se publicaron las siete políticas y las cuatro definiciones, y se
+				retiraron las cinco políticas anteriores previstas. Los archivos existentes y sus
+				aprobaciones no se modificaron. Santa Cruz no queda habilitado.
+			</p>
+		)
+	}
+	{
+		transition && (
+			<section class="space-y-4 border-t border-slate-700 pt-6">
+				<h2 class="text-lg font-semibold text-white">Activar la transición completa</h2>
+				<p class="text-sm text-slate-300">
+					7 políticas y 4 definiciones nuevas · 5 retiros coordinados
+				</p>
+				<details>
+					<>
+						<summary class="cursor-pointer text-sm text-slate-200">
+							Políticas que se retirarán
+						</summary>
+						<ul class="mt-3 space-y-2 text-sm text-slate-300">
+							{transition.retirements.map((v) => (
+								<li>
+									{v.label} · {v.holderType === "entidad" ? "Empresa o entidad" : "Persona natural"}{" "}
+									· Versión {v.version}
+								</li>
+							))}
+						</ul>
+					</>
+				</details>
+				<form
+					method="post"
+					action="/api/admin/commercial-policies/territorial-transition"
+					data-agreement-form
+					data-follow-command-redirect
+					class="space-y-4"
+				>
+					<input type="hidden" name="fingerprint" value={transition.fingerprint} />
+					<fieldset disabled={!canActivate} class="space-y-3 text-sm text-slate-200">
+						<legend class="mb-3 font-semibold">Confirmaciones de revisión</legend>
+						{[
+							[
+								"representation",
+								"Revisé identidad personal, existencia empresarial y facultades de representación por separado.",
+							],
+							[
+								"fiscal",
+								"Revisé los respaldos fiscales y sus excepciones, sin confundirlos con habilitación turística.",
+							],
+							["documentary", "Revisé la separación de seguridad, seguro y credencial del guía."],
+							[
+								"existing_evidence",
+								"Los archivos anteriores requieren nueva revisión; sus aprobaciones no se transfieren y pueden quedar pendientes.",
+							],
+							[
+								"territory",
+								"La admisión operativa sigue limitada a La Paz; no se habilitan otros departamentos.",
+							],
+						].map(([value, label]) => (
+							<label class="flex items-start gap-2">
+								<input
+									type="checkbox"
+									name="reviewed"
+									value={value}
+									required
+									class="fastt-check-input mt-1"
+								/>
+								<span>{label}</span>
+							</label>
+						))}
+						<label class="block">
+							Referencia de la revisión
+							<textarea
+								name="approvalReference"
+								required
+								minlength="10"
+								maxlength="500"
+								rows="3"
+								class="fastt-field fastt-field--on-dark mt-2 block w-full p-3 text-white"
+							/>
+						</label>
+						<Button type="submit" variant="selection">
+							Publicar paquete y retirar anteriores
+						</Button>
+					</fieldset>
+					{!canActivate && (
+						<p role="status" class="text-sm text-amber-200">
+							Tu cuenta necesita permiso de publicación documental, retiro de políticas y aprobación
+							de las tres áreas. No se amplían permisos desde este formulario.
+						</p>
+					)}
+					<p role="status" data-agreement-feedback class="text-sm text-slate-200" />
+				</form>
+			</section>
+		)
+	}
+	{
+		Astro.url.searchParams.get("result") === "drafts_prepared" && (
+			<p
+				role="status"
+				class="fastt-notice rounded-md border border-emerald-800 bg-emerald-950 p-4 text-emerald-100"
+			>
+				Paquete de borradores preparado. No se publicó ni retiró ninguna política. Las nuevas
+				definiciones documentales requieren revisión antes de ratificar.
+			</p>
+		)
+	}
+	{
+		plan ? (
+			<>
+				<div class="overflow-x-auto">
+					<table class="w-full text-left text-sm">
+						<>
+							<thead class="border-b border-slate-600 text-slate-300">
+								<tr>
+									<>
+										<th class="py-3 pr-4">Cambio propuesto</th>
+										<th class="py-3 pr-4">Alcance</th>
+										<th class="py-3">Controles</th>
+									</>
+								</tr>
+							</thead>
+							<tbody>
+								{plan.drafts.map((draft) => (
+									<tr class="border-b border-slate-800">
+										<td class="py-4 pr-4 font-medium text-white">{draft.label}</td>
+										<td class="py-4 pr-4 text-slate-300">
+											{draft.context.composition
+												? "La Paz · Conserva la operación actual"
+												: "Bolivia · Control del titular"}
+										</td>
+										<td class="py-4 text-slate-300">
+											{draft.requirements.length} requisitos · Sin aprobaciones heredadas
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</>
+					</table>
+				</div>
+				<section class="space-y-2">
+					<>
+						<h2 class="font-semibold text-white">Definiciones documentales nuevas</h2>
+						<ul class="list-disc space-y-1 pl-5 text-sm text-slate-300">
+							{plan.definitions.map((def) => (
+								<li>{def.label} · Borrador</li>
+							))}
+						</ul>
+					</>
+				</section>
+				<section class="space-y-2">
+					<>
+						<h2 class="font-semibold text-white">Pendiente antes de activar</h2>
+						<ul class="list-disc space-y-1 pl-5 text-sm text-slate-300">
+							{plan.pendingReview.map((item) => (
+								<li>{item}</li>
+							))}
+						</ul>
+					</>
+				</section>
+				<p class="text-sm text-amber-200">
+					Publicar los controles nacionales no habilita Santa Cruz ni amplía la admisión de Tours.
+					Las versiones anteriores deben resolverse en una transición coordinada; no publiques este
+					paquete por partes.
+				</p>
+				{canEdit && (
+					<form
+						method="post"
+						action="/api/admin/commercial-policies/territorial-redesign"
+						data-agreement-form
+						data-follow-command-redirect
+						class="space-y-3"
+					>
+						<Button type="submit" variant="selection">
+							Preparar borradores para revisión
+						</Button>
+						<p role="status" data-agreement-feedback class="text-sm text-slate-200" />
+					</form>
+				)}
+			</>
+		) : (
+			!applied && (
+				<p role="alert" class="text-amber-200">
+					No se pudo conciliar la configuración actual. No se modificó ninguna política.
+				</p>
+			)
+		)
+	}
+</section>

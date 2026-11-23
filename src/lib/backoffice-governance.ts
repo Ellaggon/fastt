@@ -414,6 +414,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 			"Canal piloto para responder solicitudes de información publicadas por el equipo de revisión.",
 	},
 	{
+		pattern: "/provider/document-certification",
+		status: "internal-only",
+		context: "internal-ops",
+		owner: "Quality Engineering",
+		rationale:
+			"Herramienta de certificación documental aislada para pruebas con un proveedor fixture; no es una superficie operativa ni aparece en navegación.",
+	},
+	{
 		pattern: "/provider/settings/**",
 		status: "canonical",
 		context: "governance",

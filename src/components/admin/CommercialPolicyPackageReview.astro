@@ -25,12 +25,12 @@ const unassignedPathwayCount = versions.filter((version) => !version.holderType)
 
 <section
 	data-policy-package
-	class="space-y-4 border-y border-slate-700 py-5"
+	class="fastt-soft-box space-y-4 rounded-lg border border-slate-200 bg-white p-4 text-slate-950 sm:p-5"
 	aria-labelledby="policy-package-heading"
 >
 	<div class="flex flex-wrap items-center justify-between gap-3">
 		<h2 id="policy-package-heading" class="text-lg font-semibold">Ratificación del paquete</h2>
-		<p class="text-sm text-slate-300" data-package-summary>
+		<p class="text-sm text-slate-600" data-package-summary>
 			{versions.filter((version) => version.status === "published").length} versiones publicadas · {
 				drafts.length
 			} borradores
@@ -39,10 +39,10 @@ const unassignedPathwayCount = versions.filter((version) => !version.holderType)
 	<div class="grid gap-3 sm:grid-cols-2">
 		{
 			pathways.map((pathway) => (
-				<div class="min-w-0 border-l-2 border-emerald-600 pl-3">
+				<div class="min-w-0 border-l-2 border-slate-300 pl-3">
 					<>
 						<h3 class="text-sm font-semibold">{pathway.label}</h3>
-						<p class="text-sm text-slate-300">
+						<p class="text-sm text-slate-600">
 							{
 								versions.filter(
 									(version) => version.holderType === pathway.type && version.status === "published"
@@ -64,7 +64,7 @@ const unassignedPathwayCount = versions.filter((version) => !version.holderType)
 			unassignedPathwayCount > 0 && (
 				<div class="min-w-0 border-l-2 border-amber-500 pl-3">
 					<h3 class="text-sm font-semibold">Sin vía asignada</h3>
-					<p class="text-sm text-slate-300">
+					<p class="text-sm text-slate-600">
 						{unassignedPathwayCount} versión(es) requieren clasificación.
 					</p>
 				</div>
@@ -73,7 +73,7 @@ const unassignedPathwayCount = versions.filter((version) => !version.holderType)
 	</div>
 	{
 		drafts.length === 0 ? (
-			<p role="status" class="text-sm font-medium text-emerald-300">
+			<p role="status" class="text-sm font-medium text-slate-600">
 				Sin borradores pendientes de ratificación.
 			</p>
 		) : (
@@ -82,19 +82,24 @@ const unassignedPathwayCount = versions.filter((version) => !version.holderType)
 					<legend class="mb-3 text-sm font-semibold">Versiones del paquete</legend>
 					{drafts.map((version) => (
 						<Checkbox
-							class="[&_span]:text-slate-200"
 							name="packageVersion"
 							value={version.id}
 							label={`${version.label} · versión ${version.version}`}
 						/>
 					))}
 				</fieldset>
+				{drafts.some((version) => version.id === "6f3282f4-f396-4942-9748-0f581f969ac8") && (
+					<Checkbox
+						name="packageCleanup"
+						label="Incluir retiro de Identidad y Fiscalidad duplicadas de la experiencia en La Paz (Persona Natural)"
+					/>
+				)}
 				<div class="flex flex-wrap items-center gap-3">
 					<>
 						<Button data-package-preview variant="secondary" disabled>
 							Revisar paquete
 						</Button>
-						<span data-package-count class="text-sm text-slate-300">
+						<span data-package-count class="text-sm text-slate-600">
 							0 seleccionadas
 						</span>
 					</>
@@ -102,7 +107,13 @@ const unassignedPathwayCount = versions.filter((version) => !version.holderType)
 			</>
 		)
 	}
-	<p role="status" aria-live="polite" data-package-feedback class="text-sm text-slate-300"></p>
+	<p
+		role="status"
+		aria-live="polite"
+		data-package-feedback
+		class="text-sm text-slate-600 empty:hidden"
+	>
+	</p>
 	{
 		drafts.length > 0 && (
 			<Dialog
@@ -124,6 +135,27 @@ const unassignedPathwayCount = versions.filter((version) => !version.holderType)
 					<p data-package-preview-summary class="text-sm font-semibold" />
 					<ol data-package-versions class="space-y-3" />
 					<form data-package-approval class="space-y-4 border-t border-slate-200 pt-4">
+						<section
+							data-package-retirements
+							hidden
+							class="space-y-3 border-l-2 border-amber-500 pl-4"
+						>
+							<h3 class="font-semibold">Políticas que se retirarán</h3>
+							<ul data-package-retirement-list class="list-disc space-y-1 pl-4 text-sm" />
+							<p class="text-sm text-slate-600">
+								Se conserva el historial. Identidad y Fiscalidad del titular siguen siendo
+								obligatorias; la credencial del guía no cambia.
+							</p>
+							<p
+								data-package-retirement-permission
+								role="status"
+								class="text-sm font-medium text-amber-900"
+							/>
+							<Checkbox
+								name="confirmRetirements"
+								label="Confirmo el retiro de estas dos políticas junto con la publicación de Admisión v2"
+							/>
+						</section>
 						<fieldset class="space-y-3">
 							<legend class="mb-3 font-semibold">Revisiones del responsable</legend>
 							<Checkbox

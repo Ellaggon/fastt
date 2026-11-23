@@ -1,4 +1,18 @@
 ---
+import { canRetireCommercialVersion } from "@/lib/commercial-policy/retirement-access"
+import PolicyBusinessNavigation from "@/components/admin/PolicyBusinessNavigation.astro"
+import CommercialPolicyCatalog from "@/components/admin/CommercialPolicyCatalog.astro"
+import TerritorialPolicyRedesign from "@/components/admin/TerritorialPolicyRedesign.astro"
+import {
+	readOperatingPlaces,
+	readTerritoryAncestors,
+	resolveOperatingPlaceAliases,
+} from "@/lib/tours/operating-geography"
+import {
+	buildCatalogTerritoryTree,
+	catalogTerritoryPath,
+	matchesCatalogTerritory,
+} from "@/lib/commercial-policy/catalog-territories"
 import DocumentDefinitionCatalog from "@/components/admin/DocumentDefinitionCatalog.astro"
 import CommercialPolicyReviewDetails from "@/components/admin/CommercialPolicyReviewDetails.astro"
 import CommercialPolicyPackageReview from "@/components/admin/CommercialPolicyPackageReview.astro"
@@ -59,6 +73,17 @@ try {
 	throw error
 }
 const providerId = Astro.url.searchParams.get("providerId")?.trim() ?? ""
+const business = ["lodging", "transport"].includes(Astro.url.searchParams.get("business") ?? "")
+	? Astro.url.searchParams.get("business")!
+	: "tour"
+const creatingVersion = Astro.url.searchParams.get("editor") === "create"
+const baseVersionId = creatingVersion
+	? (Astro.url.searchParams.get("base") ?? "").trim().slice(0, 200)
+	: ""
+const focusedVersionId = creatingVersion
+	? ""
+	: (Astro.url.searchParams.get("version") ?? "").trim().slice(0, 160)
+const canEdit = principalHasPermission(principal, "policy.edit")
 const workspaceViews = [
 	{ id: "policies", label: "Políticas" },
 	{ id: "documents", label: "Catálogo documental" },
@@ -77,22 +102,35 @@ if (
 	return new Response("Forbidden", { status: 403 })
 }
 let policyReadFailed = false
-const policyBlockers = providerId
-	? await loadAdminPolicyBlockers(providerId).catch((error) => {
-			policyReadFailed = true
-			console.error("admin.policy_diagnosis_failed", error)
-			return []
-		})
-	: []
-const rows = await db
-	.select({ version: CompliancePolicyVersion, set: CompliancePolicySet })
-	.from(CompliancePolicyVersion)
-	.innerJoin(CompliancePolicySet, eq(CompliancePolicySet.id, CompliancePolicyVersion.policySetId))
-	.where(
-		and(eq(CompliancePolicySet.policyScope, "commercial"), eq(CompliancePolicySet.vertical, "tour"))
-	)
-	.orderBy(desc(CompliancePolicyVersion.createdAt))
-	.limit(50)
+const policyBlockers =
+	providerId && !creatingVersion
+		? await loadAdminPolicyBlockers(providerId).catch((error) => {
+				policyReadFailed = true
+				console.error("admin.policy_diagnosis_failed", error)
+				return []
+			})
+		: []
+const rows =
+	business !== "tour" || (creatingVersion && !canEdit)
+		? []
+		: await db
+				.select({ version: CompliancePolicyVersion, set: CompliancePolicySet })
+				.from(CompliancePolicyVersion)
+				.innerJoin(
+					CompliancePolicySet,
+					eq(CompliancePolicySet.id, CompliancePolicyVersion.policySetId)
+				)
+				.where(
+					and(
+						eq(CompliancePolicySet.policyScope, "commercial"),
+						eq(CompliancePolicySet.vertical, "tour"),
+						focusedVersionId || baseVersionId
+							? eq(CompliancePolicyVersion.id, focusedVersionId || baseVersionId)
+							: undefined
+					)
+				)
+				.orderBy(desc(CompliancePolicyVersion.createdAt))
+				.limit(50)
 const replacementOptions = rows.filter(
 	(row) =>
 		row.version.status === "published" &&
@@ -100,7 +138,7 @@ const replacementOptions = rows.filter(
 			(row.version.contextJson as Record<string, unknown> | null)?.composition
 		).success
 )
-const ids = rows.map((row) => row.version.id)
+const ids = creatingVersion ? [] : rows.map((row) => row.version.id)
 const [rules, signatures] = ids.length
 	? await Promise.all([
 			db
@@ -113,7 +151,19 @@ const [rules, signatures] = ids.length
 				.where(inArray(CommercialPolicyApproval.policyVersionId, ids)),
 		])
 	: [[], []]
-const canEdit = principalHasPermission(principal, "policy.edit")
+const listUrl = new URL(Astro.url)
+listUrl.searchParams.delete("editor")
+listUrl.searchParams.delete("base")
+listUrl.searchParams.delete("version")
+listUrl.searchParams.set("view", "policies")
+const policyListHref = listUrl.pathname + listUrl.search
+const createUrl = new URL(listUrl)
+createUrl.searchParams.set("editor", "create")
+if (creatingVersion && !canEdit) Astro.response.status = 403
+const baseRow =
+	baseVersionId && rows[0]?.version.status === "published" && rows[0].set.status === "active"
+		? rows[0]
+		: null
 const evidenceIds = [
 	...new Set(
 		rules.flatMap((rule) => {
@@ -136,8 +186,24 @@ const territoryIds = [
 		})
 	),
 ]
+const canonicalTerritoryIds = territoryIds.length
+	? await resolveOperatingPlaceAliases(territoryIds)
+	: []
+const canonicalByAlias = new Map(
+	territoryIds.map((id, index) => [id, canonicalTerritoryIds[index]])
+)
+const catalogAncestors = canonicalTerritoryIds.length
+	? await readTerritoryAncestors(canonicalTerritoryIds)
+	: {}
+const catalogPlaces = await readOperatingPlaces([
+	...new Set([...canonicalTerritoryIds, ...Object.values(catalogAncestors).flat()]),
+])
+const catalogTerritoryNodes = buildCatalogTerritoryTree(
+	catalogPlaces,
+	rows.map((row) => row.set.country)
+)
 const [reviewDefinitions, reviewTerritories] =
-	workspaceView === "policies"
+	!creatingVersion && workspaceView === "policies"
 		? await Promise.all([
 				evidenceIds.length
 					? db
@@ -169,12 +235,62 @@ const holderFilter = ["entidad", "persona_natural"].includes(
 )
 	? Astro.url.searchParams.get("holder")
 	: null
-const visibleRows = holderFilter ? rows.filter((row) => row.set.holderType === holderFilter) : rows
-const documentDefinitions = canEdit ? await listPublishedDocumentDefinitions() : []
+const familyFilter: string = Astro.url.searchParams.get("family") ?? ""
+const statusFilter = Astro.url.searchParams.get("status") ?? "current"
+const requestedTerritory = Astro.url.searchParams.get("territory") ?? ""
+const territoryFilter = canonicalByAlias.get(requestedTerritory) ?? requestedTerritory
+const search = (Astro.url.searchParams.get("q") ?? "").trim().toLocaleLowerCase()
+const applicableRows = rows.filter((row) => !holderFilter || row.set.holderType === holderFilter)
+const catalogRows = applicableRows.filter(({ set, version }) => {
+	const scope = version.contextJson as { jurisdictionCodes?: string[] } | null
+	if (
+		!matchesCatalogTerritory(
+			territoryFilter,
+			set.country,
+			(scope?.jurisdictionCodes ?? []).map((id) => canonicalByAlias.get(id) ?? id),
+			catalogAncestors
+		)
+	)
+		return false
+	const composition = getComposition(version.contextJson)
+	const family =
+		composition?.kind === "admission"
+			? "admission"
+			: (composition?.family ??
+				(set.jurisdictionRole === "holder"
+					? "identity"
+					: set.jurisdictionRole === "tax"
+						? "fiscal"
+						: "other"))
+	return (
+		(!familyFilter || familyFilter === family) &&
+		(!search ||
+			`${set.label} ${set.key} ${catalogFamilyLabel(family)}`
+				.toLocaleLowerCase()
+				.includes(search)) &&
+		(statusFilter === "all" ||
+			(statusFilter === "draft"
+				? version.status === "draft"
+				: policyLifecycle(version) === "Vigente"))
+	)
+})
+const catalogGroups = new Map<string, typeof rows>()
+for (const row of catalogRows)
+	catalogGroups.set(row.set.id, [...(catalogGroups.get(row.set.id) ?? []), row])
+const visibleRows = focusedVersionId ? rows : []
+const documentDefinitions =
+	canEdit && !creatingVersion ? await listPublishedDocumentDefinitions() : []
 function getComposition(context: unknown) {
 	if (!context || typeof context !== "object") return null
 	const parsed = compositionSchema.safeParse((context as Record<string, unknown>).composition)
 	return parsed.success ? parsed.data : null
+}
+function catalogFamilyLabel(family: string | undefined) {
+	if (family === "admission") return "Admisión"
+	if (family === "other") return "Otras"
+	if (family && (policyFamilies as readonly string[]).includes(family))
+		return policyFamilyLabels[family as (typeof policyFamilies)[number]]
+	return family ?? ""
 }
 function policyLifecycle(version: (typeof rows)[number]["version"]) {
 	if (version.status === "draft") return "Borrador"
@@ -182,6 +298,15 @@ function policyLifecycle(version: (typeof rows)[number]["version"]) {
 	if (version.effectiveFrom.getTime() > Date.now()) return "Programada"
 	if (version.effectiveTo && version.effectiveTo.getTime() <= Date.now()) return "Finalizada"
 	return "Vigente"
+}
+const publishedSuccessors = new Map<string, string[]>()
+for (const { version, set } of rows) {
+	if (set.status !== "active" || policyLifecycle(version) !== "Vigente") continue
+	for (const replacedId of getComposition(version.contextJson)?.replacesVersionIds ?? []) {
+		const successors = publishedSuccessors.get(replacedId) ?? []
+		successors.push(`Versión ${version.version}`)
+		publishedSuccessors.set(replacedId, successors)
+	}
 }
 const areas = [
 	{ id: "policy", label: "Políticas", permission: "commercial_policy.policy.approve" as const },
@@ -194,713 +319,1081 @@ const areas = [
 ]
 ---
 
-<InternalAdminLayout title="Políticas comerciales de Tours"
-	><div class="space-y-6">
-		<div>
-			<h1 class="text-2xl font-semibold">Políticas comerciales de Tours</h1><p
-				class="mt-1 text-sm text-slate-400"
-			>
-				Requisitos generales, fuentes y aprobaciones por contexto. Los acuerdos particulares se
-				gestionan por proveedor.
-			</p>
-		</div>
-		{
-			providerId && (
-				<>
-					<Button
-						variant="secondary"
-						size="sm"
-						href={`/admin/providers?${new URLSearchParams({ filter: "payments", providerId })}#provider-review-payments`}
-					>
-						Volver al proveedor
-					</Button>
-					<ProviderPublicationPolicyBlockers
-						providerId={providerId}
-						blockers={policyBlockers}
-						failed={policyReadFailed}
-						linked={false}
-					/>
-					{!policyReadFailed && policyBlockers.length === 0 && (
-						<p role="status" class="text-sm text-slate-400">
-							No se detectaron bloqueos de configuración de políticas. Esto no implica que el
-							acuerdo o la publicación estén aprobados.
-						</p>
-					)}
-				</>
-			)
-		}
-		<SegmentedControl aria-label="Herramientas de cumplimiento" data-compliance-views>
-			{
-				workspaceViews.map((view) => {
-					const target = new URL(Astro.url)
-					target.searchParams.set("view", view.id)
-					return (
-						<Button
-							href={`${target.pathname}${target.search}`}
-							variant="ghost"
-							data-compliance-view={view.id}
-							aria-current={workspaceView === view.id ? "page" : undefined}
-						>
-							{view.label}
-						</Button>
-					)
-				})
-			}
-		</SegmentedControl>
-		<div data-compliance-panel="policies" hidden={workspaceView !== "policies"} class="space-y-6">
-			<CommercialPolicyPackageReview
-				versions={rows.map(({ version, set }) => ({
-					id: version.id,
-					label: commercialPolicyVersionLabel(set.label, version.contextJson),
-					version: version.version,
-					status: version.status,
-					holderType: set.holderType,
+<InternalAdminLayout title="Políticas comerciales"
+	>{
+		Astro.url.searchParams.get("task") === "reorganization" ? (
+			<TerritorialPolicyRedesign canEdit={canEdit} principal={principal} />
+		) : !creatingVersion &&
+		  !focusedVersionId &&
+		  workspaceView === "policies" &&
+		  Astro.url.searchParams.get("task") !== "ratification" ? (
+			<CommercialPolicyCatalog
+				business={business}
+				family={familyFilter}
+				holder={holderFilter}
+				search={search}
+				status={statusFilter}
+				territory={territoryFilter}
+				territoryNodes={catalogTerritoryNodes}
+				canEdit={canEdit}
+				territories={territoryIds.map((id) => ({
+					id,
+					label:
+						reviewTerritories.find((place) => place.id === id || `geo:${place.id}` === id)?.name ??
+						id.replace(/^geo:/, "").replaceAll("-", " "),
 				}))}
-				canApprove={areas.every((area) => principalHasPermission(principal, area.permission))}
-			/>
-			<nav
-				aria-label="Via del proveedor"
-				class="flex flex-wrap gap-2 border-b border-slate-200 pb-3"
-			>
-				{
-					[
-						{ value: "", label: "Todas" },
-						{ value: "entidad", label: "Empresas y entidades" },
-						{ value: "persona_natural", label: "Personas naturales" },
-					].map((choice) => {
-						const target = new URL(Astro.url)
-						target.searchParams.set("view", "policies")
-						if (choice.value) target.searchParams.set("holder", choice.value)
-						else target.searchParams.delete("holder")
-						return (
-							<Button
-								href={`${target.pathname}${target.search}`}
-								variant="ghost"
-								aria-current={(holderFilter ?? "") === choice.value ? "page" : undefined}
-							>
-								{choice.label}
-							</Button>
-						)
+				groups={[...catalogGroups.values()]
+					.map((group) => {
+						const { set, version } = group[0]
+						const composition = getComposition(version.contextJson)
+						const family =
+							composition?.kind === "admission"
+								? "Admisión"
+								: composition
+									? policyFamilyLabels[composition.family]
+									: set.jurisdictionRole === "holder"
+										? "Identidad y representación"
+										: "Fiscalidad"
+						return {
+							id: set.id,
+							label: commercialPolicyVersionLabel(set.label, version.contextJson),
+							holder: set.holderType,
+							country: set.country,
+							territorialScope: (() => {
+								const scope = version.contextJson as { jurisdictionCodes?: string[] } | null
+								const codes = scope?.jurisdictionCodes ?? []
+								const countryName =
+									catalogTerritoryPath(`country:${set.country}`, catalogTerritoryNodes) ||
+									set.country
+								return codes.length
+									? codes.map((id) => {
+											const canonical = canonicalByAlias.get(id) ?? id
+											const place = catalogPlaces.find((item) => item.id === canonical)
+											if (place?.placeType === "country") return `${countryName} · Nacional`
+											return (
+												catalogTerritoryPath(canonical, catalogTerritoryNodes) ||
+												`${countryName} · Territorio sin identificar`
+											)
+										})
+									: [`${countryName} · Sin territorio especificado`]
+							})(),
+							family,
+							versions: group.map(({ version: item }) => ({
+								id: item.id,
+								number: item.version,
+								state: policyLifecycle(item),
+								substituted: publishedSuccessors.has(item.id),
+							})),
+						}
 					})
-				}
-			</nav>
-			{
-				canEdit && (
-					<details class="border-b border-slate-200 pb-5">
-						<>
-							<summary class="cursor-pointer font-semibold">Crear versión de política</summary>
-							<form
-								action="/api/admin/commercial-policies"
-								method="post"
-								class="fastt-card mt-4 space-y-4 bg-white p-4 text-slate-900 sm:p-6"
-								data-agreement-form
-							>
-								<input type="hidden" name="action" value="create" />
-								<fieldset class="grid gap-4 border-b border-slate-200 pb-4 sm:grid-cols-3">
-									<legend class="mb-3 text-sm font-semibold">Contrato y composición</legend>
-									<FormField label="Modelo" htmlFor="policy-contract-mode">
-										<Select name="contractMode" id="policy-contract-mode">
+					.sort((a, b) => a.family.localeCompare(b.family) || a.label.localeCompare(b.label))}
+			/>
+		) : business !== "tour" ? (
+			<section class="space-y-6">
+				<h1 class="text-2xl font-semibold text-white">Políticas comerciales</h1>
+				<PolicyBusinessNavigation business={business} />
+				<div class="border-t border-slate-700 py-8 text-slate-200">
+					<h2 class="text-lg font-semibold">
+						{business === "lodging" ? "Alojamientos" : "Transporte"}
+					</h2>
+					<p class="mt-2 text-sm text-slate-300">
+						El catálogo de esta línea de negocio todavía no está integrado en esta herramienta.
+					</p>
+				</div>
+			</section>
+		) : creatingVersion ? (
+			<section class="mx-auto max-w-5xl space-y-6">
+				<header class="space-y-2">
+					<a
+						href={policyListHref}
+						data-policy-editor-back
+						class="text-sm font-medium text-slate-200 underline"
+					>
+						Volver a políticas
+					</a>
+					<h1 class="text-2xl font-semibold text-white">
+						{baseVersionId ? "Nueva versión" : "Nueva política de Tours"}
+					</h1>
+					<p class="text-sm text-slate-300">La versión se guardará como borrador.</p>
+				</header>
+				{canEdit && baseVersionId ? (
+					baseRow ? (
+						<form
+							action="/api/admin/commercial-policies"
+							method="post"
+							class="space-y-6"
+							data-agreement-form
+							data-follow-command-redirect
+						>
+							<input type="hidden" name="action" value="create_version" />
+							<input type="hidden" name="baseVersionId" value={baseRow.version.id} />
+							<Card class="space-y-3">
+								<p class="text-sm text-slate-600">
+									Tours ·{" "}
+									{getComposition(baseRow.version.contextJson)?.kind === "admission"
+										? "Admisión"
+										: catalogFamilyLabel(getComposition(baseRow.version.contextJson)?.family) ||
+											"Política integral"}
+								</p>
+								<h2 class="text-lg font-semibold">{baseRow.set.label}</h2>
+								<p class="text-sm text-slate-600">
+									Versión de origen: {baseRow.version.version}. El borrador copiará su alcance y
+									requisitos, sin copiar aprobaciones.
+								</p>
+								{getComposition(baseRow.version.contextJson) && (
+									<Checkbox
+										name="replaceBase"
+										value="1"
+										label="Proponer que el borrador sustituya a esta versión al publicarse"
+									/>
+								)}
+								{getComposition(baseRow.version.contextJson)?.kind === "admission" && (
+									<fieldset class="space-y-2 border-t border-slate-200 pt-3">
+										<legend class="text-sm font-semibold">Quitar familias del borrador</legend>
+										{getComposition(baseRow.version.contextJson)?.requiredFamilies.map((family) => (
+											<label class="fastt-row-card flex min-h-10 cursor-pointer items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 has-checked:border-slate-500 has-checked:bg-slate-100">
+												<input
+													type="checkbox"
+													name="removeRequiredFamily"
+													value={family}
+													class="fastt-check-input size-4 shrink-0 cursor-pointer appearance-auto"
+												/>
+												{policyFamilyLabels[family]}
+											</label>
+										))}
+									</fieldset>
+								)}
+							</Card>
+							<div class="flex flex-wrap justify-end gap-2">
+								<Button href={policyListHref} variant="onDark" data-policy-editor-back>
+									Cancelar
+								</Button>
+								<Button type="submit" variant="selection">
+									Guardar borrador
+								</Button>
+							</div>
+							<p role="status" data-agreement-feedback class="text-sm text-slate-200" />
+						</form>
+					) : (
+						<Card>La versión de origen no está disponible.</Card>
+					)
+				) : canEdit ? (
+					<form
+						action="/api/admin/commercial-policies"
+						method="post"
+						class="space-y-6"
+						data-agreement-form
+						data-follow-command-redirect
+					>
+						<input type="hidden" name="action" value="create" />
+						<Card class="space-y-4">
+							<fieldset class="grid gap-4 sm:grid-cols-3">
+								<legend class="mb-3 text-sm font-semibold">Política y composición</legend>
+								<FormField label="Modelo" htmlFor="policy-contract-mode">
+									<Select name="contractMode" id="policy-contract-mode">
+										<>
+											<option value="legacy">Política integral existente</option>
+											<option value="composable">Familias componibles</option>
+										</>
+									</Select>
+								</FormField>
+								<fieldset
+									data-policy-composition-fields
+									disabled
+									class="hidden gap-4 sm:col-span-3 sm:grid-cols-3"
+								>
+									<FormField label="Clave del conjunto" htmlFor="policy-code" required>
+										<Input
+											name="policyCode"
+											id="policy-code"
+											value="base"
+											pattern="[a-z][a-z0-9_-]{0,80}"
+											required
+										/>
+									</FormField>
+									<FormField label="Función" htmlFor="policy-kind">
+										<Select name="policyKind" id="policy-kind">
 											<>
-												<option value="legacy">Política integral existente</option>
-												<option value="composable">Familias componibles</option>
+												<option value="admission">Admisión de la operación</option>
+												<option value="requirements">Requisitos de una familia</option>
 											</>
 										</Select>
 									</FormField>
-									<fieldset
-										data-policy-composition-fields
-										disabled
-										class="hidden gap-4 sm:col-span-3 sm:grid-cols-3"
-									>
-										<FormField label="Clave del conjunto" htmlFor="policy-code" required>
-											<Input
-												name="policyCode"
-												id="policy-code"
-												value="base"
-												pattern="[a-z][a-z0-9_-]{0,80}"
-												required
-											/>
-										</FormField>
-										<FormField label="Función" htmlFor="policy-kind">
-											<Select name="policyKind" id="policy-kind">
-												<>
-													<option value="admission">Admisión de la operación</option>
-													<option value="requirements">Requisitos de una familia</option>
-												</>
-											</Select>
-										</FormField>
-										<FormField label="Familia" htmlFor="policy-family">
-											<Select name="policyFamily" id="policy-family">
+									<FormField label="Familia" htmlFor="policy-family">
+										<Select name="policyFamily" id="policy-family">
+											{policyFamilies.map((family) => (
+												<option value={family}>{policyFamilyLabels[family]}</option>
+											))}
+										</Select>
+									</FormField>
+									<fieldset class="space-y-2 sm:col-span-3">
+										<>
+											<legend class="text-sm font-medium">
+												Familias requeridas por la admisión
+											</legend>
+											<div class="flex flex-wrap gap-4">
 												{policyFamilies.map((family) => (
-													<option value={family}>{policyFamilyLabels[family]}</option>
+													<Checkbox
+														name="requiredFamilies"
+														value={family}
+														label={policyFamilyLabels[family]}
+													/>
 												))}
-											</Select>
-										</FormField>
-										<fieldset class="space-y-2 sm:col-span-3">
+											</div>
+										</>
+									</fieldset>
+									<details class="sm:col-span-3">
+										<>
+											<summary class="cursor-pointer text-sm font-medium">
+												Sustituir versiones aprobadas
+											</summary>
+											<div class="mt-3 grid gap-2">
+												{replacementOptions.map((row) => (
+													<Checkbox
+														name="replacesVersionIds"
+														value={row.version.id}
+														label={`${row.set.label} · v${row.version.version}`}
+													/>
+												))}
+											</div>
+										</>
+									</details>
+								</fieldset>
+							</fieldset>
+						</Card>
+						<Card class="space-y-5">
+							<h2 class="font-semibold">A quién y dónde aplica</h2>
+							<div class="grid gap-4 sm:grid-cols-3">
+								<>
+									<FormField label="País (código)" htmlFor="policy-country" required>
+										<Input
+											id="policy-country"
+											name="country"
+											pattern="[A-Z]{2}"
+											required
+											placeholder="BO"
+										/>
+									</FormField>
+									<FormField label="Titular" htmlFor="policy-holder" required>
+										<Select id="policy-holder" name="holderType">
 											<>
-												<legend class="text-sm font-medium">
-													Familias requeridas por la admisión
-												</legend>
-												<div class="flex flex-wrap gap-4">
-													{policyFamilies.map((family) => (
-														<Checkbox
-															name="requiredFamilies"
-															value={family}
-															label={policyFamilyLabels[family]}
-														/>
-													))}
-												</div>
+												<option value="persona_natural">Persona natural</option>
+												<option value="entidad">Entidad</option>
+											</>
+										</Select>
+									</FormField>
+									<FormField label="Ámbito" htmlFor="policy-role" required>
+										<Select id="policy-role" name="jurisdictionRole">
+											<>
+												<option value="holder">Titular</option>
+												<option value="product">Experiencia</option>
+												<option value="tax">Fiscalidad</option>
+											</>
+										</Select>
+									</FormField>
+								</>
+							</div>
+
+							<fieldset class="space-y-2">
+								<legend class="mb-2 font-medium">Papeles operativos</legend>
+								{tourOperatingRoles.map((role) => (
+									<Checkbox
+										name="operatingRoles"
+										value={role}
+										label={
+											{
+												guide: "Guía independiente",
+												operator: "Empresa operadora",
+												intermediary: "Intermediario",
+											}[role]
+										}
+									/>
+								))}
+							</fieldset>
+							<fieldset class="grid gap-2 sm:grid-cols-3">
+								<legend class="mb-2 font-medium">Actividades</legend>
+								{tourComplianceActivityClasses
+									.filter((activity) => activity !== "water_air")
+									.map((activity) => (
+										<Checkbox
+											name="activityClasses"
+											value={activity}
+											label={tourComplianceActivityLabels[activity]}
+										/>
+									))}
+							</fieldset>
+							<fieldset class="grid gap-2 sm:grid-cols-3">
+								<legend class="mb-2 font-medium">Territorios cubiertos</legend>
+								<OperatingTerritoryPicker name="jurisdictionCodes" places={[]} />
+							</fieldset>
+							<fieldset class="grid gap-2 sm:grid-cols-2">
+								<legend class="mb-2 font-medium">Formatos</legend>
+								{EXPERIENCE_FORMATS.map((format) => (
+									<Checkbox
+										name="experienceFormats"
+										value={format}
+										label={
+											{
+												guided_tour: "Tour guiado",
+												workshop: "Taller",
+												class: "Clase",
+												tasting: "Degustación",
+											}[format]
+										}
+									/>
+								))}
+							</fieldset>
+							<details class="border-t border-slate-200 pt-3">
+								<>
+									<summary class="cursor-pointer text-sm font-medium">
+										Limitar por declaración operativa
+									</summary>
+									<div class="mt-4 grid gap-4 sm:grid-cols-2">
+										<fieldset class="space-y-2">
+											<legend class="mb-2 font-medium">Formas jurídicas</legend>
+											{legalForms.map((form) => (
+												<Checkbox
+													name="legalFormCodes"
+													value={form.code}
+													label={`${form.country} · ${form.label}`}
+												/>
+											))}
+										</fieldset>
+										<fieldset class="space-y-2">
+											<legend class="mb-2 font-medium">Quién realiza la experiencia</legend>
+											{executionModes.map((mode) => (
+												<Checkbox
+													name="executionModes"
+													value={mode}
+													label={executionLabels[mode]}
+												/>
+											))}
+										</fieldset>
+										<fieldset class="space-y-2">
+											<>
+												<legend class="mb-2 font-medium">Prestación del transporte</legend>
+												<Checkbox
+													name="transportProviders"
+													value="business"
+													label="Por el negocio"
+												/>
+												<Checkbox
+													name="transportProviders"
+													value="external"
+													label="Por un tercero"
+												/>
 											</>
 										</fieldset>
-										<details class="sm:col-span-3">
-											<>
-												<summary class="cursor-pointer text-sm font-medium">
-													Sustituir versiones aprobadas
-												</summary>
-												<div class="mt-3 grid gap-2">
-													{replacementOptions.map((row) => (
-														<Checkbox
-															name="replacesVersionIds"
-															value={row.version.id}
-															label={`${row.set.label} · v${row.version.version}`}
-														/>
+										<fieldset class="space-y-2">
+											<legend class="mb-2 font-medium">Alimentos y bebidas</legend>
+											{[
+												{ value: "none", label: "No incluye" },
+												{ value: "visit", label: "Visita o degustación" },
+												{ value: "serve", label: "Servicio" },
+												{ value: "prepare", label: "Preparación" },
+											].map((choice) => (
+												<Checkbox
+													name="foodHandlingModes"
+													value={choice.value}
+													label={choice.label}
+												/>
+											))}
+										</fieldset>
+										<p class="text-xs text-slate-500 sm:col-span-2">
+											Sin selección, esa dimensión no limita la cobertura. Esto no sustituye los
+											requisitos ni sus aprobaciones.
+										</p>
+									</div>
+								</>
+							</details>
+						</Card>
+						<Card class="space-y-4">
+							<h2 class="font-semibold">Vigencia</h2>
+							<div class="grid gap-4 sm:grid-cols-2">
+								<FormField label="Aplicar esta política desde" htmlFor="policy-start-mode" required>
+									<Select id="policy-start-mode" name="startMode" data-policy-start-mode>
+										<>
+											<option value="now">Ahora, cuando se apruebe y publique</option>
+											<option value="scheduled">Programar fecha</option>
+										</>
+									</Select>
+								</FormField>
+								<div data-policy-start-date hidden>
+									<FormField label="Fecha de aplicación" htmlFor="policy-from">
+										<Input id="policy-from" type="date" name="effectiveFrom" disabled />
+									</FormField>
+								</div>
+							</div>
+							<details class="border-t border-slate-200 pt-3">
+								<>
+									<summary class="cursor-pointer text-sm font-medium">
+										Fecha de fin opcional
+									</summary>
+									<div class="mt-3 max-w-sm">
+										<>
+											<FormField label="Dejar de aplicar el" htmlFor="policy-to">
+												<Input id="policy-to" type="date" name="effectiveTo" />
+											</FormField>
+											<p class="mt-1 text-xs text-slate-500">
+												Opcional. Sin fecha, seguirá vigente hasta que se retire o sustituya.
+											</p>
+										</>
+									</div>
+								</>
+							</details>
+						</Card>
+						<div class="flex flex-wrap justify-end gap-2">
+							<Button href={policyListHref} variant="onDark" data-policy-editor-back>
+								Cancelar
+							</Button>
+							<Button type="submit" variant="selection">
+								Guardar borrador
+							</Button>
+						</div>
+						<p role="status" data-agreement-feedback class="text-sm text-slate-200" />
+					</form>
+				) : (
+					<Card>No tienes permiso para crear versiones.</Card>
+				)}
+			</section>
+		) : (
+			<div class="space-y-6">
+				<header class="space-y-2">
+					<h1 class="text-2xl font-semibold text-white">Políticas comerciales</h1>
+					<p class="max-w-2xl text-sm leading-6 text-slate-300">
+						Catálogo de Fastt por línea de negocio, familia y ámbito de aplicación.
+					</p>
+				</header>
+				<PolicyBusinessNavigation business={business} />
+				{providerId && (
+					<>
+						<Button
+							variant="secondary"
+							size="sm"
+							href={`/admin/providers/${encodeURIComponent(providerId)}`}
+						>
+							Volver al proveedor
+						</Button>
+						<ProviderPublicationPolicyBlockers
+							providerId={providerId}
+							blockers={policyBlockers}
+							failed={policyReadFailed}
+							linked={false}
+						/>
+						{!policyReadFailed && policyBlockers.length === 0 && (
+							<p role="status" class="text-sm text-slate-400">
+								No se detectaron bloqueos de configuración de políticas. Esto no implica que el
+								acuerdo o la publicación estén aprobados.
+							</p>
+						)}
+					</>
+				)}
+				{focusedVersionId &&
+					Astro.url.searchParams.get("result") === "draft_saved" &&
+					rows[0]?.version.status === "draft" && (
+						<div
+							role="status"
+							class="fastt-notice rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950"
+						>
+							<p class="font-semibold">Borrador guardado: versión {rows[0].version.version}</p>
+							<p>No se publicó ni se modificaron las políticas vigentes.</p>
+						</div>
+					)}
+				{focusedVersionId ? (
+					<Button href={policyListHref} variant="onDark" size="sm">
+						Volver a políticas
+					</Button>
+				) : (
+					<SegmentedControl
+						aria-label="Herramientas de cumplimiento"
+						data-compliance-views
+						class="flex-wrap"
+					>
+						{workspaceViews.map((view) => {
+							const target = new URL(Astro.url)
+							target.searchParams.set("view", view.id)
+							return (
+								<Button
+									href={`${target.pathname}${target.search}`}
+									variant="onDark"
+									data-compliance-view={view.id}
+									aria-current={workspaceView === view.id ? "page" : undefined}
+								>
+									{view.label}
+								</Button>
+							)
+						})}
+					</SegmentedControl>
+				)}
+				<div
+					data-compliance-panel="policies"
+					hidden={workspaceView !== "policies"}
+					class="space-y-6"
+				>
+					{!focusedVersionId && Astro.url.searchParams.get("task") === "ratification" && (
+						<CommercialPolicyPackageReview
+							versions={rows.map(({ version, set }) => ({
+								id: version.id,
+								label: commercialPolicyVersionLabel(set.label, version.contextJson),
+								version: version.version,
+								status: version.status,
+								holderType: set.holderType,
+							}))}
+							canApprove={areas.every((area) => principalHasPermission(principal, area.permission))}
+						/>
+					)}
+					{principal.mode === "iam" &&
+						principalHasPermission(principal, "commercial_policy.reviewer_access.request") &&
+						!areas.every((area) => principalHasPermission(principal, area.permission)) &&
+						rows.some(({ version }) => version.status === "draft") && (
+							<form
+								action="/api/admin/commercial-policies/reviewer-access"
+								data-agreement-form
+								class="flex flex-wrap items-center gap-3"
+							>
+								<Button type="submit" variant="secondary">
+									Habilitar mi acceso de ratificación por 2 horas
+								</Button>
+								<p role="status" data-agreement-feedback class="text-sm text-slate-600" />
+							</form>
+						)}
+					{rows.some(({ version }) => version.status === "draft") &&
+						!areas.every((area) => principalHasPermission(principal, area.permission)) &&
+						(principal.mode !== "iam" ||
+							!principalHasPermission(principal, "commercial_policy.reviewer_access.request")) && (
+							<p class="fastt-notice rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+								<strong>Ratificación no disponible para esta cuenta.</strong> Tu cuenta no está
+								autorizada para solicitar acceso temporal de ratificación. El MFA no concede esa
+								autorización.
+							</p>
+						)}
+					{!focusedVersionId && (
+						<div hidden class="space-y-2 border-t border-white/15 pt-4">
+							<h2 class="text-sm font-semibold text-white">Versiones de políticas</h2>
+							<SegmentedControl aria-label="Tipo de proveedor" class="flex-wrap">
+								{[
+									{ value: "", label: "Todas" },
+									{ value: "entidad", label: "Empresas y entidades" },
+									{ value: "persona_natural", label: "Personas naturales" },
+								].map((choice) => {
+									const target = new URL(Astro.url)
+									target.searchParams.set("view", "policies")
+									if (choice.value) target.searchParams.set("holder", choice.value)
+									else target.searchParams.delete("holder")
+									return (
+										<Button
+											href={`${target.pathname}${target.search}`}
+											variant="ghost"
+											aria-current={(holderFilter ?? "") === choice.value ? "page" : undefined}
+										>
+											{choice.label}
+										</Button>
+									)
+								})}
+							</SegmentedControl>
+						</div>
+					)}
+					{canEdit && !focusedVersionId && (
+						<div class="flex justify-end">
+							<Button href={createUrl.pathname + createUrl.search} variant="selection">
+								Nueva política
+							</Button>
+						</div>
+					)}
+					{rows.length === 0 && (
+						<p class="border-t border-slate-700 pt-4 text-sm text-slate-400" role="status">
+							No hay versiones de políticas comerciales de Tours configuradas.{" "}
+							{canEdit
+								? "Abre Crear versión de política para preparar una versión documentada y enviarla a las aprobaciones correspondientes."
+								: "El equipo con permiso de edición debe preparar las versiones y sus aprobaciones."}
+						</p>
+					)}
+					{!focusedVersionId && (
+						<section class="grid gap-6 border-t border-slate-600 pt-5 md:grid-cols-[13rem_minmax(0,1fr)]">
+							<nav
+								aria-label="Familias de políticas"
+								class="flex flex-wrap content-start gap-1 md:flex-col"
+							>
+								{Object.entries({
+									"": "Todas las familias",
+									"admission": "Admisión",
+									...policyFamilyLabels,
+									"other": "Otras",
+								}).map(([id, label]) => {
+									const url = new URL(Astro.url)
+									url.searchParams.set("family", id)
+									return (
+										<a
+											href={url.pathname + url.search}
+											aria-current={familyFilter === id ? "page" : undefined}
+											class:list={[
+												"rounded-md px-3 py-2 text-sm",
+												familyFilter === id
+													? "bg-white font-semibold text-slate-950"
+													: "text-slate-300 hover:bg-white/10",
+											]}
+										>
+											{id === "" ? "Todas las familias" : label}
+										</a>
+									)
+								})}
+							</nav>
+							<div class="min-w-0 space-y-4">
+								<div class="flex flex-wrap items-center justify-between gap-3">
+									<h2 class="text-lg font-semibold text-white">
+										Tours ·{" "}
+										{familyFilter === "admission"
+											? "Admisión"
+											: catalogFamilyLabel(familyFilter) || "Todas las familias"}
+									</h2>
+									<a
+										class="text-sm font-semibold text-white underline"
+										href="/admin/commercial-policies?view=policies&task=ratification"
+									>
+										Revisar borradores
+									</a>
+								</div>
+								<form class="flex flex-wrap items-end gap-3" method="get">
+									<input type="hidden" name="view" value="policies" />
+									<input type="hidden" name="family" value={familyFilter} />
+									<label class="text-sm text-slate-200">
+										Titular
+										<select
+											name="holder"
+											class="fastt-field mt-1 block bg-white px-3 py-2 text-slate-950"
+										>
+											<option value="" selected={!holderFilter}>
+												Todos
+											</option>
+											<option value="entidad" selected={holderFilter === "entidad"}>
+												Empresas y entidades
+											</option>
+											<option value="persona_natural" selected={holderFilter === "persona_natural"}>
+												Personas naturales
+											</option>
+										</select>
+									</label>
+									<label class="min-w-40 flex-1 text-sm text-slate-200">
+										Buscar política
+										<input
+											name="q"
+											value={search}
+											type="search"
+											class="fastt-field mt-1 block w-full bg-white px-3 py-2 text-slate-950"
+										/>
+									</label>
+									<label class="text-sm text-slate-200">
+										Territorio
+										<select
+											name="territory"
+											class="fastt-field mt-1 block bg-white px-3 py-2 text-slate-950"
+										>
+											<option value="">Todos</option>
+											{territoryIds.map((id) => (
+												<option value={id} selected={territoryFilter === id}>
+													{reviewTerritories.find(
+														(place) => place.id === id || `geo:${place.id}` === id
+													)?.name ?? id.replace(/^geo:/, "").replaceAll("-", " ")}
+												</option>
+											))}
+										</select>
+									</label>
+									<label class="text-sm text-slate-200">
+										Estado
+										<select
+											name="status"
+											class="fastt-field mt-1 block bg-white px-3 py-2 text-slate-950"
+										>
+											<option value="current" selected={statusFilter === "current"}>
+												Vigentes
+											</option>
+											<option value="draft" selected={statusFilter === "draft"}>
+												Borradores
+											</option>
+											<option value="all" selected={statusFilter === "all"}>
+												Todos, incluido historial
+											</option>
+										</select>
+									</label>
+									<Button type="submit" variant="secondary">
+										Buscar
+									</Button>
+								</form>
+								<p class="text-sm text-slate-400">{catalogGroups.size} políticas</p>
+								<div class="divide-y divide-slate-600">
+									{[...catalogGroups.values()].map((group) => {
+										const { set, version } = group[0]
+										const allVersions = rows.filter((row) => row.set.id === set.id)
+										return (
+											<div class="py-4">
+												<h3 class="font-semibold text-white">
+													{commercialPolicyVersionLabel(set.label, version.contextJson)}
+												</h3>
+												<p class="mt-1 text-sm text-slate-300">
+													{set.holderType === "persona_natural"
+														? "Persona natural"
+														: "Empresa o entidad"}{" "}
+													· {set.country}
+												</p>
+												<div class="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+													{allVersions.map(({ version: item }) => (
+														<a
+															class="text-sm text-slate-200 underline"
+															href={`/admin/commercial-policies?view=policies&version=${item.id}`}
+														>
+															Versión {item.version} · {policyLifecycle(item)}
+															{publishedSuccessors.has(item.id) ? " · Con sustitución" : ""}
+														</a>
 													))}
 												</div>
-											</>
-										</details>
-									</fieldset>
-								</fieldset>
-								<div class="grid gap-4 sm:grid-cols-3">
-									<>
-										<FormField label="País (código)" htmlFor="policy-country" required>
-											<Input
-												id="policy-country"
-												name="country"
-												pattern="[A-Z]{2}"
-												required
-												placeholder="BO"
-											/>
-										</FormField>
-										<FormField label="Titular" htmlFor="policy-holder" required>
-											<Select id="policy-holder" name="holderType">
-												<>
-													<option value="persona_natural">Persona natural</option>
-													<option value="entidad">Entidad</option>
-												</>
-											</Select>
-										</FormField>
-										<FormField label="Ámbito" htmlFor="policy-role" required>
-											<Select id="policy-role" name="jurisdictionRole">
-												<>
-													<option value="holder">Titular</option>
-													<option value="product">Experiencia</option>
-													<option value="tax">Fiscalidad</option>
-												</>
-											</Select>
-										</FormField>
-										<FormField
-											label="Aplicar esta política desde"
-											htmlFor="policy-start-mode"
-											required
-										>
-											<Select id="policy-start-mode" name="startMode" data-policy-start-mode>
-												<>
-													<option value="now">Ahora, cuando se apruebe y publique</option>
-													<option value="scheduled">Programar fecha</option>
-												</>
-											</Select>
-										</FormField>
-										<div data-policy-start-date hidden>
-											<FormField label="Fecha de aplicación" htmlFor="policy-from">
-												<Input id="policy-from" type="date" name="effectiveFrom" disabled />
-											</FormField>
-										</div>
-									</>
+											</div>
+										)
+									})}
 								</div>
-								<details class="border-t border-slate-200 pt-3">
-									<>
-										<summary class="cursor-pointer text-sm font-medium">Opciones avanzadas</summary>
-										<div class="mt-3 max-w-sm">
-											<>
-												<FormField label="Dejar de aplicar el" htmlFor="policy-to">
-													<Input id="policy-to" type="date" name="effectiveTo" />
-												</FormField>
-												<p class="mt-1 text-xs text-slate-500">
-													Opcional. Sin fecha, seguirá vigente hasta que se retire o sustituya.
-												</p>
-											</>
-										</div>
-									</>
-								</details>
-								<fieldset class="space-y-2">
-									<legend class="mb-2 font-medium">Papeles operativos</legend>
-									{tourOperatingRoles.map((role) => (
-										<Checkbox
-											name="operatingRoles"
-											value={role}
-											label={
-												{
-													guide: "Guía independiente",
-													operator: "Empresa operadora",
-													intermediary: "Intermediario",
-												}[role]
-											}
-										/>
-									))}
-								</fieldset>
-								<fieldset class="grid gap-2 sm:grid-cols-3">
-									<legend class="mb-2 font-medium">Actividades</legend>
-									{tourComplianceActivityClasses
-										.filter((activity) => activity !== "water_air")
-										.map((activity) => (
-											<Checkbox
-												name="activityClasses"
-												value={activity}
-												label={tourComplianceActivityLabels[activity]}
-											/>
-										))}
-								</fieldset>
-								<fieldset class="grid gap-2 sm:grid-cols-3">
-									<legend class="mb-2 font-medium">Territorios cubiertos</legend>
-									<OperatingTerritoryPicker name="jurisdictionCodes" />
-								</fieldset>
-								<fieldset class="grid gap-2 sm:grid-cols-2">
-									<legend class="mb-2 font-medium">Formatos</legend>
-									{EXPERIENCE_FORMATS.map((format) => (
-										<Checkbox
-											name="experienceFormats"
-											value={format}
-											label={
-												{
-													guided_tour: "Tour guiado",
-													workshop: "Taller",
-													class: "Clase",
-													tasting: "Degustación",
-												}[format]
-											}
-										/>
-									))}
-								</fieldset>
-								<details class="border-t border-slate-200 pt-3">
-									<>
-										<summary class="cursor-pointer text-sm font-medium">
-											Limitar por declaración operativa
-										</summary>
-										<div class="mt-4 grid gap-4 sm:grid-cols-2">
-											<fieldset class="space-y-2">
-												<legend class="mb-2 font-medium">Formas jurídicas</legend>
-												{legalForms.map((form) => (
-													<Checkbox
-														name="legalFormCodes"
-														value={form.code}
-														label={`${form.country} · ${form.label}`}
-													/>
-												))}
-											</fieldset>
-											<fieldset class="space-y-2">
-												<legend class="mb-2 font-medium">Quién realiza la experiencia</legend>
-												{executionModes.map((mode) => (
-													<Checkbox
-														name="executionModes"
-														value={mode}
-														label={executionLabels[mode]}
-													/>
-												))}
-											</fieldset>
-											<fieldset class="space-y-2">
-												<>
-													<legend class="mb-2 font-medium">Prestación del transporte</legend>
-													<Checkbox
-														name="transportProviders"
-														value="business"
-														label="Por el negocio"
-													/>
-													<Checkbox
-														name="transportProviders"
-														value="external"
-														label="Por un tercero"
-													/>
-												</>
-											</fieldset>
-											<fieldset class="space-y-2">
-												<legend class="mb-2 font-medium">Alimentos y bebidas</legend>
-												{[
-													{ value: "none", label: "No incluye" },
-													{ value: "visit", label: "Visita o degustación" },
-													{ value: "serve", label: "Servicio" },
-													{ value: "prepare", label: "Preparación" },
-												].map((choice) => (
-													<Checkbox
-														name="foodHandlingModes"
-														value={choice.value}
-														label={choice.label}
-													/>
-												))}
-											</fieldset>
-											<p class="text-xs text-slate-500 sm:col-span-2">
-												Sin selección, esa dimensión no limita la cobertura. Esto no sustituye los
-												requisitos ni sus aprobaciones.
-											</p>
-										</div>
-									</>
-								</details>
+								{catalogGroups.size === 0 && (
+									<p role="status" class="py-6 text-sm text-slate-300">
+										No hay políticas que coincidan con estos filtros.
+									</p>
+								)}
+							</div>
+						</section>
+					)}
+					{visibleRows.map(({ version, set }) => {
+						const approved = signatures.filter((s) => s.policyVersionId === version.id)
+						const included = rules.filter((r) => r.policyVersionId === version.id)
+						const composition = getComposition(version.contextJson)
+						const lifecycle = policyLifecycle(version)
+						const successors = publishedSuccessors.get(version.id) ?? []
+						return (
+							<Card id={`policy-${version.id}`} class="space-y-4">
 								<>
-									<Button type="submit" variant="selection">
-										Guardar borrador
-									</Button>
-									<p role="status" data-agreement-feedback class="text-sm text-slate-600" />
-								</>
-							</form>
-						</>
-					</details>
-				)
-			}
-			{
-				rows.length === 0 && (
-					<p class="border-t border-slate-700 pt-4 text-sm text-slate-400" role="status">
-						No hay versiones de políticas comerciales de Tours configuradas.{" "}
-						{canEdit
-							? "Abre Crear versión de política para preparar una versión documentada y enviarla a las aprobaciones correspondientes."
-							: "El equipo con permiso de edición debe preparar las versiones y sus aprobaciones."}
-					</p>
-				)
-			}
-			{
-				visibleRows.map(({ version, set }) => {
-					const approved = signatures.filter((s) => s.policyVersionId === version.id)
-					const included = rules.filter((r) => r.policyVersionId === version.id)
-					const composition = getComposition(version.contextJson)
-					const lifecycle = policyLifecycle(version)
-					return (
-						<Card id={`policy-${version.id}`} class="space-y-4">
-							<>
-								<div class="flex flex-wrap justify-between gap-3">
-									<>
-										<h2 class="font-semibold">
-											{composition &&
-												`${composition.kind === "admission" ? "Admision" : policyFamilyLabels[composition.family]} · `}
-											{set.label} · Versión {version.version}
-										</h2>
-										<Badge variant={version.status === "published" ? "success" : "neutral"}>
-											{lifecycle}
-										</Badge>
-									</>
-								</div>
-								<p class="text-sm text-slate-600">
-									{included.length} requisitos · {approved.length}/3 aprobaciones
-								</p>
-								<CommercialPolicyReviewDetails
-									context={version.contextJson}
-									country={set.country}
-									collectionModel={set.collectionModel}
-									jurisdictionRole={set.jurisdictionRole}
-									effectiveFrom={version.effectiveFrom}
-									effectiveTo={version.effectiveTo}
-									draft={version.status === "draft"}
-									territories={reviewTerritories}
-									definitions={reviewDefinitions}
-									rules={included}
-								/>
-								{version.status === "draft" && !approved.length && canEdit && (
-									<details>
-										<summary class="cursor-pointer text-sm font-semibold">Ajustar inicio</summary>
-										<form
-											action="/api/admin/commercial-policies"
-											method="post"
-											data-agreement-form
-											class="mt-3 flex flex-wrap items-end gap-3"
-										>
-											<input type="hidden" name="action" value="schedule" />
-											<input type="hidden" name="versionId" value={version.id} />
-											<FormField label="Fecha de inicio" htmlFor={`${version.id}-start`} required>
-												<Input
-													id={`${version.id}-start`}
-													name="effectiveFrom"
-													type="date"
-													required
-													value={version.effectiveFrom.toISOString().slice(0, 10)}
-												/>
-											</FormField>
-											<Button type="submit" variant="secondary">
-												Guardar inicio
-											</Button>
-											<p role="status" data-agreement-feedback class="text-sm text-slate-600" />
-										</form>
-									</details>
-								)}
-								{composition && (
-									<div class="space-y-2 text-sm text-slate-600">
-										<p class="font-medium text-slate-800">
-											{composition.kind === "admission" ? "Admisión" : "Requisitos"} ·{" "}
-											{policyFamilyLabels[composition.family]}
-										</p>
-										{composition.requiredFamilies.length > 0 && (
-											<p>
-												Cobertura exigida:{" "}
-												{composition.requiredFamilies
-													.map((family) => policyFamilyLabels[family])
-													.join(" · ")}
-											</p>
-										)}
-										{composition.replacesVersionIds.length > 0 && (
-											<details>
-												<summary class="cursor-pointer font-medium">
-													{composition.replacesVersionIds.length} sustituciones declaradas
-												</summary>
-												<ul class="mt-2 space-y-1">
-													{composition.replacesVersionIds.map((id) => {
-														const target = rows.find((row) => row.version.id === id)
-														return (
-															<li>
-																{target
-																	? `${target.set.label} · v${target.version.version}`
-																	: "Versión histórica fuera de esta lista"}
-															</li>
-														)
-													})}
-												</ul>
-											</details>
-										)}
+									<div class="flex flex-wrap justify-between gap-3">
+										<>
+											<h2 class="font-semibold">
+												{composition &&
+													`${composition.kind === "admission" ? "Admision" : policyFamilyLabels[composition.family]} · `}
+												{set.label} · Versión {version.version}
+											</h2>
+											<div class="flex flex-wrap items-center gap-2">
+												<Badge variant={version.status === "published" ? "success" : "neutral"}>
+													{lifecycle}
+												</Badge>
+												{successors.length > 0 && (
+													<Badge variant="warning">Con sustitución publicada</Badge>
+												)}
+											</div>
+										</>
 									</div>
-								)}
-							</>
-							<ul class="divide-y divide-slate-100">
-								{included.map((rule) => (
-									<li class="py-3 text-sm text-slate-700">
-										<p class="font-medium">{rule.blockingAction}</p>
-										<p>
-											{rule.reviewOwner} · {rule.sourceReference}
+									{successors.length > 0 && (
+										<p class="text-sm text-slate-600">
+											{successors.join(", ")} declara la sustitución. Su efecto depende del alcance
+											de la operación evaluada.
 										</p>
-										{version.status === "draft" && !approved.length && canEdit && (
+									)}
+									<p class="text-sm text-slate-600">
+										{included.length} requisitos · {approved.length}/3 aprobaciones
+									</p>
+									{canEdit && version.status === "published" && set.status === "active" && (
+										<Button
+											href={`${createUrl.pathname}?${new URLSearchParams({ ...Object.fromEntries(createUrl.searchParams), base: version.id })}`}
+											variant="secondary"
+											size="sm"
+										>
+											Nueva versión
+										</Button>
+									)}
+									<CommercialPolicyReviewDetails
+										context={version.contextJson}
+										country={set.country}
+										collectionModel={set.collectionModel}
+										jurisdictionRole={set.jurisdictionRole}
+										effectiveFrom={version.effectiveFrom}
+										effectiveTo={version.effectiveTo}
+										draft={version.status === "draft"}
+										territories={reviewTerritories}
+										definitions={reviewDefinitions}
+										rules={included}
+									/>
+									{version.status === "draft" && !approved.length && canEdit && (
+										<details>
+											<summary class="cursor-pointer text-sm font-semibold">Ajustar inicio</summary>
 											<form
 												action="/api/admin/commercial-policies"
 												method="post"
-												class="mt-2"
+												data-agreement-form
+												class="mt-3 flex flex-wrap items-end gap-3"
+											>
+												<input type="hidden" name="action" value="schedule" />
+												<input type="hidden" name="versionId" value={version.id} />
+												<FormField label="Fecha de inicio" htmlFor={`${version.id}-start`} required>
+													<Input
+														id={`${version.id}-start`}
+														name="effectiveFrom"
+														type="date"
+														required
+														value={version.effectiveFrom.toISOString().slice(0, 10)}
+													/>
+												</FormField>
+												<Button type="submit" variant="secondary">
+													Guardar inicio
+												</Button>
+												<p role="status" data-agreement-feedback class="text-sm text-slate-600" />
+											</form>
+										</details>
+									)}
+									{composition && (
+										<div class="space-y-2 text-sm text-slate-600">
+											<p class="font-medium text-slate-800">
+												{composition.kind === "admission" ? "Admisión" : "Requisitos"} ·{" "}
+												{policyFamilyLabels[composition.family]}
+											</p>
+											{composition.requiredFamilies.length > 0 && (
+												<p>
+													Cobertura exigida:{" "}
+													{composition.requiredFamilies
+														.map((family) => policyFamilyLabels[family])
+														.join(" · ")}
+												</p>
+											)}
+											{composition.replacesVersionIds.length > 0 && (
+												<details>
+													<summary class="cursor-pointer font-medium">
+														{composition.replacesVersionIds.length} sustituciones declaradas
+													</summary>
+													<ul class="mt-2 space-y-1">
+														{composition.replacesVersionIds.map((id) => {
+															const target = rows.find((row) => row.version.id === id)
+															return (
+																<li>
+																	{target
+																		? `${target.set.label} · v${target.version.version}`
+																		: "Versión histórica fuera de esta lista"}
+																</li>
+															)
+														})}
+													</ul>
+												</details>
+											)}
+										</div>
+									)}
+								</>
+								<ul class="divide-y divide-slate-100">
+									{included.map((rule) => (
+										<li class="py-3 text-sm text-slate-700">
+											<p class="font-medium">{rule.blockingAction}</p>
+											<p>
+												{rule.reviewOwner} · {rule.sourceReference}
+											</p>
+											{version.status === "draft" && !approved.length && canEdit && (
+												<form
+													action="/api/admin/commercial-policies"
+													method="post"
+													class="mt-2"
+													data-agreement-form
+												>
+													<input type="hidden" name="action" value="remove_rule" />
+													<input type="hidden" name="versionId" value={version.id} />
+													<input type="hidden" name="ruleId" value={rule.id} />
+													<Button type="submit" variant="secondary" size="sm">
+														Quitar requisito
+													</Button>
+													<p
+														role="status"
+														data-agreement-feedback
+														class="mt-2 text-sm text-slate-600"
+													/>
+												</form>
+											)}
+										</li>
+									))}
+								</ul>
+								{version.status === "published" &&
+									canRetireCommercialVersion(principal, version.id) && (
+										<details>
+											<summary class="cursor-pointer text-sm font-semibold">
+												Retirar versión
+											</summary>
+											<form
+												action="/api/admin/commercial-policies"
+												method="post"
+												class="mt-3 space-y-3"
 												data-agreement-form
 											>
-												<input type="hidden" name="action" value="remove_rule" />
+												<input type="hidden" name="action" value="retire" />
 												<input type="hidden" name="versionId" value={version.id} />
-												<input type="hidden" name="ruleId" value={rule.id} />
-												<Button type="submit" variant="secondary" size="sm">
-													Quitar requisito
+												<p class="text-sm text-slate-600">
+													Fastt dejará de usar esta versión para evaluar nuevas publicaciones y
+													reservas. Se conservan la versión, sus aprobaciones y el historial. El
+													retiro requiere MFA reciente.
+												</p>
+												<Button type="submit" variant="secondary">
+													Confirmar retiro de esta versión
 												</Button>
-												<p
-													role="status"
-													data-agreement-feedback
-													class="mt-2 text-sm text-slate-600"
-												/>
+												<p role="status" data-agreement-feedback class="text-sm text-slate-600" />
 											</form>
-										)}
-									</li>
-								))}
-							</ul>
-							{version.status === "published" &&
-								principalHasPermission(principal, "policy.publish") && (
+										</details>
+									)}
+								{version.status === "published" &&
+									!canRetireCommercialVersion(principal, version.id) && (
+										<div class="border-t border-slate-200 pt-3 text-sm text-slate-700">
+											<p class="font-semibold">Retiro no disponible para esta cuenta</p>
+											<p>
+												Se requiere el permiso específico de retiro de políticas comerciales de
+												Tours.
+											</p>
+										</div>
+									)}
+								{version.status === "draft" && !approved.length && canEdit && (
 									<details>
-										<summary class="cursor-pointer text-sm font-semibold">Retirar versión</summary>
+										<summary class="cursor-pointer text-sm font-semibold">Añadir requisito</summary>
 										<form
 											action="/api/admin/commercial-policies"
 											method="post"
-											class="mt-3 space-y-3"
+											class="mt-4 space-y-4"
 											data-agreement-form
 										>
-											<input type="hidden" name="action" value="retire" />
+											<input type="hidden" name="action" value="rule" />
 											<input type="hidden" name="versionId" value={version.id} />
-											<p class="text-sm text-slate-600">
-												Dejará de habilitar nuevas publicaciones y reservas. Los contratos ya
-												confirmados conservan sus condiciones.
-											</p>
-											<Button type="submit" variant="secondary">
-												Retirar esta versión
-											</Button>
+											<PolicyEvidenceAlternatives
+												definitions={documentDefinitions}
+												versionId={version.id}
+												allowLegacy={!composition}
+											/>
+											<div class="grid gap-4 sm:grid-cols-2">
+												<FormField
+													label="Clave estable del requisito"
+													htmlFor={`${version.id}-key`}
+													required
+												>
+													<Input
+														id={`${version.id}-key`}
+														name="requirementKey"
+														required
+														pattern="[a-z][a-z0-9_.]{2,100}"
+													/>
+												</FormField>
+												<FormField label="Área" htmlFor={`${version.id}-domain`} required>
+													<Select id={`${version.id}-domain`} name="domain">
+														<option value="verification">Identidad</option>
+														<option value="fiscal">Fiscalidad</option>
+														<option value="documents">Documentos</option>
+													</Select>
+												</FormField>
+												<fieldset data-policy-legacy-evidence>
+													<FormField
+														label="Categoría histórica"
+														htmlFor={`${version.id}-evidence`}
+														required
+													>
+														<Select id={`${version.id}-evidence`} name="evidence">
+															<option value="government_id">Identidad</option>
+															<option value="business_registration">Registro mercantil</option>
+															<option value="tax_document">Documento fiscal</option>
+															<option value="operating_license">Licencia</option>
+															<option value="insurance">Seguro</option>
+														</Select>
+													</FormField>
+												</fieldset>
+												<FormField label="Alcance" htmlFor={`${version.id}-scope`} required>
+													<Select id={`${version.id}-scope`} name="evidenceScope">
+														<option value="product">Experiencia</option>
+														<option value="provider">Proveedor</option>
+														<option value="operation">Operación</option>
+													</Select>
+												</FormField>
+												<FormField
+													label="Responsable de revisión"
+													htmlFor={`${version.id}-owner`}
+													required
+												>
+													<Input
+														id={`${version.id}-owner`}
+														name="reviewOwner"
+														required
+														minlength="3"
+													/>
+												</FormField>
+												<FormField label="Fuente" htmlFor={`${version.id}-source`} required>
+													<Select id={`${version.id}-source`} name="sourceKind">
+														<option value="legal">Normativa</option>
+														<option value="contract">Contrato</option>
+														<option value="fastt_policy">Política Fastt</option>
+													</Select>
+												</FormField>
+												<FormField
+													label="Referencia verificable"
+													htmlFor={`${version.id}-reference`}
+													required
+												>
+													<Input
+														id={`${version.id}-reference`}
+														name="sourceReference"
+														required
+														minlength="8"
+													/>
+												</FormField>
+												<FormField
+													label="Fecha de consulta"
+													htmlFor={`${version.id}-checked`}
+													required
+												>
+													<Input
+														id={`${version.id}-checked`}
+														name="sourceCheckedAt"
+														type="date"
+														required
+													/>
+												</FormField>
+											</div>
+											<FormField label="Acción si falta" htmlFor={`${version.id}-action`} required>
+												<Textarea
+													id={`${version.id}-action`}
+													name="blockingAction"
+													required
+													minlength="10"
+												/>
+											</FormField>
+											<fieldset class="flex flex-wrap gap-4">
+												<legend class="mb-2 text-sm font-medium">Capacidades afectadas</legend>
+												<Checkbox name="capabilities" value="publish" label="Publicar" />
+												<Checkbox name="capabilities" value="booking" label="Reservar" />
+												<Checkbox name="capabilities" value="integrations" label="Integraciones" />
+											</fieldset>
+											<Button type="submit">Guardar requisito</Button>
 											<p role="status" data-agreement-feedback class="text-sm text-slate-600" />
 										</form>
 									</details>
 								)}
-							{version.status === "draft" && !approved.length && canEdit && (
-								<details>
-									<summary class="cursor-pointer text-sm font-semibold">Añadir requisito</summary>
-									<form
-										action="/api/admin/commercial-policies"
-										method="post"
-										class="mt-4 space-y-4"
-										data-agreement-form
-									>
-										<input type="hidden" name="action" value="rule" />
-										<input type="hidden" name="versionId" value={version.id} />
-										<PolicyEvidenceAlternatives
-											definitions={documentDefinitions}
-											versionId={version.id}
-											allowLegacy={!composition}
-										/>
-										<div class="grid gap-4 sm:grid-cols-2">
-											<FormField
-												label="Clave estable del requisito"
-												htmlFor={`${version.id}-key`}
-												required
-											>
-												<Input
-													id={`${version.id}-key`}
-													name="requirementKey"
-													required
-													pattern="[a-z][a-z0-9_.]{2,100}"
-												/>
-											</FormField>
-											<FormField label="Área" htmlFor={`${version.id}-domain`} required>
-												<Select id={`${version.id}-domain`} name="domain">
-													<option value="verification">Identidad</option>
-													<option value="fiscal">Fiscalidad</option>
-													<option value="documents">Documentos</option>
-												</Select>
-											</FormField>
-											<fieldset data-policy-legacy-evidence>
-												<FormField
-													label="Categoría histórica"
-													htmlFor={`${version.id}-evidence`}
-													required
-												>
-													<Select id={`${version.id}-evidence`} name="evidence">
-														<option value="government_id">Identidad</option>
-														<option value="business_registration">Registro mercantil</option>
-														<option value="tax_document">Documento fiscal</option>
-														<option value="operating_license">Licencia</option>
-														<option value="insurance">Seguro</option>
-													</Select>
-												</FormField>
-											</fieldset>
-											<FormField label="Alcance" htmlFor={`${version.id}-scope`} required>
-												<Select id={`${version.id}-scope`} name="evidenceScope">
-													<option value="product">Experiencia</option>
-													<option value="provider">Proveedor</option>
-													<option value="operation">Operación</option>
-												</Select>
-											</FormField>
-											<FormField
-												label="Responsable de revisión"
-												htmlFor={`${version.id}-owner`}
-												required
-											>
-												<Input
-													id={`${version.id}-owner`}
-													name="reviewOwner"
-													required
-													minlength="3"
-												/>
-											</FormField>
-											<FormField label="Fuente" htmlFor={`${version.id}-source`} required>
-												<Select id={`${version.id}-source`} name="sourceKind">
-													<option value="legal">Normativa</option>
-													<option value="contract">Contrato</option>
-													<option value="fastt_policy">Política Fastt</option>
-												</Select>
-											</FormField>
-											<FormField
-												label="Referencia verificable"
-												htmlFor={`${version.id}-reference`}
-												required
-											>
-												<Input
-													id={`${version.id}-reference`}
-													name="sourceReference"
-													required
-													minlength="8"
-												/>
-											</FormField>
-											<FormField
-												label="Fecha de consulta"
-												htmlFor={`${version.id}-checked`}
-												required
-											>
-												<Input
-													id={`${version.id}-checked`}
-													name="sourceCheckedAt"
-													type="date"
-													required
-												/>
-											</FormField>
-										</div>
-										<FormField label="Acción si falta" htmlFor={`${version.id}-action`} required>
-											<Textarea
-												id={`${version.id}-action`}
-												name="blockingAction"
-												required
-												minlength="10"
-											/>
-										</FormField>
-										<fieldset class="flex flex-wrap gap-4">
-											<legend class="mb-2 text-sm font-medium">Capacidades afectadas</legend>
-											<Checkbox name="capabilities" value="publish" label="Publicar" />
-											<Checkbox name="capabilities" value="booking" label="Reservar" />
-											<Checkbox name="capabilities" value="integrations" label="Integraciones" />
-										</fieldset>
-										<Button type="submit">Guardar requisito</Button>
-										<p role="status" data-agreement-feedback class="text-sm text-slate-600" />
-									</form>
-								</details>
-							)}
-							{version.status === "draft" && (
-								<div class="space-y-3 border-t border-slate-200 pt-4">
-									{areas.every(
-										(area) =>
-											approved.some((signature) => signature.approvalArea === area.id) &&
-											principalHasPermission(principal, area.permission)
-									) && (
-										<form
-											action={`/api/admin/commercial-policies/${version.id}/approvals`}
-											data-agreement-form
-											data-agreement-json
-											class="flex flex-wrap items-end gap-3"
-										>
-											<input type="hidden" name="approvalArea" value="policy" />
-											<input type="hidden" name="resumePublication" value="true" />
-											<FormField
-												label="Motivo de recuperación de publicación"
-												for={`${version.id}-publication-recovery`}
-												required
-												class="min-w-60 flex-1"
-											>
-												<Input
-													id={`${version.id}-publication-recovery`}
-													name="approvalReference"
-													required
-													minlength="8"
-												/>
-											</FormField>
-											<Button type="submit" variant="secondary">
-												Completar publicación
-											</Button>
-											<p
-												role="status"
-												data-agreement-feedback
-												class="w-full text-sm text-slate-600"
-											/>
-										</form>
-									)}
-									{areas.map((area) =>
-										approved.some((s) => s.approvalArea === area.id) ? (
-											<p class="text-sm text-slate-700">{area.label}: aprobada</p>
-										) : principalHasPermission(principal, area.permission) ? (
+								{version.status === "draft" && (
+									<div class="space-y-3 border-t border-slate-200 pt-4">
+										{areas.every(
+											(area) =>
+												approved.some((signature) => signature.approvalArea === area.id) &&
+												principalHasPermission(principal, area.permission)
+										) && (
 											<form
 												action={`/api/admin/commercial-policies/${version.id}/approvals`}
 												data-agreement-form
 												data-agreement-json
 												class="flex flex-wrap items-end gap-3"
 											>
-												<input type="hidden" name="approvalArea" value={area.id} />
+												<input type="hidden" name="approvalArea" value="policy" />
+												<input type="hidden" name="resumePublication" value="true" />
 												<FormField
-													label={`Referencia de aprobación · ${area.label}`}
-													htmlFor={`${version.id}-${area.id}-approval`}
+													label="Motivo de recuperación de publicación"
+													for={`${version.id}-publication-recovery`}
 													required
 													class="min-w-60 flex-1"
 												>
 													<Input
-														id={`${version.id}-${area.id}-approval`}
+														id={`${version.id}-publication-recovery`}
 														name="approvalReference"
 														required
 														minlength="8"
 													/>
 												</FormField>
 												<Button type="submit" variant="secondary">
-													Aprobar {area.label}
+													Completar publicación
 												</Button>
 												<p
 													role="status"
@@ -908,38 +1401,75 @@ const areas = [
 													class="w-full text-sm text-slate-600"
 												/>
 											</form>
-										) : (
-											<p class="text-sm text-slate-500">
-												{area.label}: pendiente del revisor autorizado
-											</p>
-										)
-									)}
-								</div>
-							)}
-						</Card>
-					)
-				})
-			}
-		</div>
-		<div data-compliance-panel="simulation" hidden={workspaceView !== "simulation"}>
-			{
-				providerId ? (
-					<PolicyCompositionSimulation providerId={providerId} />
-				) : (
-					<p class="text-sm text-slate-500">
-						Abre esta herramienta desde el expediente de un proveedor para comprobar una experiencia
-						concreta.
-					</p>
-				)
-			}
-		</div>
-		<div data-compliance-panel="documents" hidden={workspaceView !== "documents"}>
-			<DocumentDefinitionCatalog
-				canEdit={canEdit}
-				canPublish={principalHasPermission(principal, "policy.publish")}
-			/>
-		</div>
-	</div></InternalAdminLayout
+										)}
+										{areas.map((area) =>
+											approved.some((s) => s.approvalArea === area.id) ? (
+												<p class="text-sm text-slate-700">{area.label}: aprobada</p>
+											) : principalHasPermission(principal, area.permission) ? (
+												<form
+													action={`/api/admin/commercial-policies/${version.id}/approvals`}
+													data-agreement-form
+													data-agreement-json
+													class="flex flex-wrap items-end gap-3"
+												>
+													<input type="hidden" name="approvalArea" value={area.id} />
+													<FormField
+														label={`Referencia de aprobación · ${area.label}`}
+														htmlFor={`${version.id}-${area.id}-approval`}
+														required
+														class="min-w-60 flex-1"
+													>
+														<Input
+															id={`${version.id}-${area.id}-approval`}
+															name="approvalReference"
+															required
+															minlength="8"
+														/>
+													</FormField>
+													<Button type="submit" variant="secondary">
+														Aprobar {area.label}
+													</Button>
+													<p
+														role="status"
+														data-agreement-feedback
+														class="w-full text-sm text-slate-600"
+													/>
+												</form>
+											) : (
+												<p class="text-sm text-slate-500">
+													{area.label}: pendiente del revisor autorizado
+												</p>
+											)
+										)}
+									</div>
+								)}
+							</Card>
+						)
+					})}
+				</div>
+				{!focusedVersionId && (
+					<div data-compliance-panel="simulation" hidden={workspaceView !== "simulation"}>
+						{providerId ? (
+							<PolicyCompositionSimulation providerId={providerId} />
+						) : (
+							<p class="text-sm text-slate-500">
+								Abre esta herramienta desde el expediente de un proveedor para comprobar una
+								experiencia concreta.
+							</p>
+						)}
+					</div>
+				)}
+				{!focusedVersionId && (
+					<div data-compliance-panel="documents" hidden={workspaceView !== "documents"}>
+						<DocumentDefinitionCatalog
+							canEdit={canEdit}
+							canPublish={principalHasPermission(principal, "policy.publish")}
+						/>
+					</div>
+				)}
+			</div>
+		)
+	}</InternalAdminLayout
 >
 <script>
 	function selectComplianceView(view: string) {
@@ -962,6 +1492,31 @@ const areas = [
 			event.button !== 0
 		)
 			return
+		const back = event.target.closest<HTMLAnchorElement>("[data-policy-editor-back]")
+		if (back) {
+			const navigation = (
+				window as Window & {
+					navigation?: {
+						currentEntry: { index: number } | null
+						entries(): Array<{ url: string | null }>
+					}
+				}
+			).navigation
+			const index = navigation?.currentEntry?.index ?? 0
+			const previous = index > 0 ? navigation?.entries()[index - 1]?.url : null
+			const normalizeListUrl = (href: string) => {
+				const url = new URL(href)
+				if (url.searchParams.get("view") === "policies") url.searchParams.delete("view")
+				url.searchParams.sort()
+				url.hash = ""
+				return url.href
+			}
+			if (previous && normalizeListUrl(previous) === normalizeListUrl(back.href)) {
+				event.preventDefault()
+				history.back()
+			}
+			return
+		}
 		const link = event.target.closest<HTMLAnchorElement>("[data-compliance-view]")
 		if (!link) return
 		event.preventDefault()

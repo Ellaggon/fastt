@@ -1,10 +1,10 @@
 ---
+import { SlidersHorizontal } from "@lucide/astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Checkbox from "@/components/ui/Checkbox.astro"
 import Input from "@/components/ui/Input.astro"
-import Notice from "@/components/ui/Notice.astro"
 import Select from "@/components/ui/Select.astro"
 import { POLICY_CATEGORY_OPTIONS } from "@/data/policy/policy-categories"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
@@ -39,6 +39,12 @@ const filters = {
 	type: String(Astro.url.searchParams.get("type") ?? "all").trim(),
 	status: String(Astro.url.searchParams.get("status") ?? "all").trim(),
 }
+const activeFilterCount = [
+	filters.scope !== "all",
+	filters.type !== "all",
+	filters.status !== "all",
+	Boolean(filters.category),
+].filter(Boolean).length
 const rawItems = isAdmin
 	? await listPolicyExceptionRulesUseCase({
 			scope: filters.scope as any,
@@ -53,7 +59,7 @@ const rawItems = isAdmin
 			limit: 250,
 		})
 	: []
-const items = filters.q
+const searchedItems = filters.q
 	? rawItems.filter((item) =>
 			[
 				item.id,
@@ -70,6 +76,24 @@ const items = filters.q
 				.includes(filters.q)
 		)
 	: rawItems
+const requestedView = Astro.url.searchParams.get("vista")
+const view = ["pending", "current", "history"].includes(requestedView ?? "")
+	? requestedView
+	: "pending"
+const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/La_Paz" }).format(new Date())
+const current = (item: (typeof searchedItems)[number]) =>
+	approvalStatus(item) === "approved" &&
+	item.isActive &&
+	(!item.effectiveFrom || String(item.effectiveFrom).slice(0, 10) <= today) &&
+	(!item.effectiveTo || String(item.effectiveTo).slice(0, 10) >= today)
+const items = searchedItems.filter((item) =>
+	view === "pending"
+		? approvalStatus(item) === "pending"
+		: view === "current"
+			? current(item)
+			: approvalStatus(item) !== "pending" && !current(item)
+)
+
 const scopeRows = await (async () => {
 	if (!isAdmin) return []
 	const ratePlanName = await resolveRatePlanNameColumn()
@@ -235,16 +259,67 @@ function approvalLabel(item: any): string {
 }
 ---
 
-<InternalAdminLayout title="Admin · Excepciones de condiciones">
+<InternalAdminLayout title="Admin · Excepciones de reserva">
 	<section class="min-h-screen text-slate-200">
 		<div class="mx-auto max-w-7xl space-y-6 px-6">
-			<header class="space-y-2">
-				<h1 class="text-2xl font-semibold text-white">Excepciones de condiciones</h1>
-				<p class="text-sm text-slate-300">
-					Excepciones legales y operativas aplicadas antes del cálculo final de reembolso, pago al
-					proveedor, no presentación e instantáneas contractuales. Mantiene potencia técnica, pero
-					cada excepción debe explicar impacto, vigencia y evidencia.
-				</p>
+			<header class="flex flex-col items-start gap-4 sm:flex-row sm:justify-between">
+				<div class="min-w-0 space-y-2">
+					<h1 class="text-2xl font-semibold text-white">Excepciones de reserva</h1>
+					<p class="text-sm text-slate-300">
+						Propón un ajuste a las condiciones habituales de reserva para un hotel, una oferta o una
+						tarifa durante fechas específicas.
+					</p>
+					<details class="group max-w-3xl text-sm">
+						<summary
+							class="flex w-fit cursor-pointer list-none items-center gap-2 rounded-lg px-2 py-1.5 text-slate-300 hover:bg-slate-800 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 [&::-webkit-details-marker]:hidden"
+						>
+							<svg
+								aria-hidden="true"
+								class="size-4 shrink-0 transition-transform group-open:rotate-90 motion-reduce:transition-none"
+								viewBox="0 0 16 16"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.5"
+							>
+								<path d="m6 3 5 5-5 5" stroke-linecap="round" stroke-linejoin="round"></path>
+							</svg>
+							Cuándo usar una excepción
+						</summary>
+						<div
+							class="fastt-soft-box mt-2 space-y-3 rounded-xl border border-slate-700 bg-slate-900/60 p-4 leading-6 text-slate-300"
+						>
+							<dl class="grid gap-4 sm:grid-cols-2">
+								<div>
+									<dt class="font-semibold text-white">Huelga de transporte</dt>
+									<dd>
+										Si una huelga impide llegar al hotel, puedes proponer que no se cobre el cargo
+										por no presentarse para las llegadas afectadas.
+									</dd>
+								</div>
+								<div>
+									<dt class="font-semibold text-white">Error de tarifa</dt>
+									<dd>
+										Si se publicó una tarifa incorrecta y se acuerda cancelar sin cargo, puedes
+										proponer un reembolso especial para las reservas que cumplan el alcance y las
+										fechas indicados. El precio publicado se corrige por separado.
+									</dd>
+								</div>
+							</dl>
+							<p class="border-t border-slate-700 pt-3 text-slate-400">
+								La propuesta requiere aprobación. Crearla no emite un reembolso ni cambia el precio
+								publicado.
+							</p>
+						</div>
+					</details>
+				</div>
+				{
+					isAdmin && (
+						<Button href="#nueva-excepcion" class="shrink-0" data-open-exception>
+							{" "}
+							Nueva excepción{" "}
+						</Button>
+					)
+				}
 			</header>
 
 			{
@@ -255,245 +330,119 @@ function approvalLabel(item: any): string {
 				) : (
 					<>
 						<Card class="bg-slate-100">
-							<Notice variant="info" title="Cómo usar excepciones" className="mb-5">
-								<p class="mt-1">
-									Una excepción cambia el contrato resuelto para un caso legal, operativo o de
-									soporte. Debe indicar a quién afecta: huésped, proveedor o plataforma; desde
-									cuándo aplica; y qué evidencia o motivo justifica el cambio.
-								</p>
-							</Notice>
-							<form
-								method="get"
-								class="fastt-card mb-5 grid gap-3 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-4 lg:grid-cols-5"
-							>
-								<label class="space-y-1 text-sm text-slate-700 lg:col-span-2">
-									<span class="font-semibold">Buscador soporte/admin</span>
-									<Input
-										name="q"
-										value={filters.q}
-										placeholder="Buscar por motivo, evidencia, alcance, creador o ID"
-										data-policy-exception-search
-									/>
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Alcance</span>
-									<Select name="scope">
-										<option value="all" selected={filters.scope === "all"}>
-											Todos
-										</option>
-										{scopes.map((scope) => (
-											<option value={scope.value} selected={filters.scope === scope.value}>
-												{scope.label}
-											</option>
-										))}
-									</Select>
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Tipo</span>
-									<Select name="type">
-										<option value="all" selected={filters.type === "all"}>
-											Todos
-										</option>
-										{POLICY_EXCEPTION_RULE_TYPES.map((type) => (
-											<option value={type} selected={filters.type === type}>
-												{exceptionTypeLabels[type] ?? type}
-											</option>
-										))}
-									</Select>
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Estado</span>
-									<Select name="status">
-										<option value="all" selected={filters.status === "all"}>
-											Todos
-										</option>
-										<option value="active" selected={filters.status === "active"}>
-											Activos
-										</option>
-										<option value="inactive" selected={filters.status === "inactive"}>
-											Inactivos
-										</option>
-									</Select>
-								</label>
-								<div class="flex items-end gap-3 lg:col-span-5">
-									<Button type="submit" variant="secondary">
+							<nav class="mb-4 flex flex-wrap gap-2" aria-label="Estado de las excepciones">
+								{[
+									["pending", "Pendientes de aprobación"],
+									["current", "Vigentes"],
+									["history", "Historial y programadas"],
+								].map(([key, label]) => (
+									<Button
+										href={`?vista=${key}`}
+										variant={view === key ? "primary" : "secondary"}
+										aria-current={view === key ? "page" : undefined}
+									>
+										{label}
+									</Button>
+								))}
+							</nav>
+							<form method="get" role="search" class="space-y-3 border-t border-slate-200 pt-3">
+								<input type="hidden" name="vista" value={view} />
+								<div class="flex flex-wrap items-center gap-2">
+									<label class="min-w-0 flex-1 basis-48">
+										<span class="sr-only">Buscar excepciones</span>
+										<Input
+											name="q"
+											value={filters.q}
+											placeholder="Buscar por motivo o referencia"
+											data-policy-exception-search
+										/>
+									</label>
+									<Button type="submit" variant="secondary" size="sm">
 										Buscar
 									</Button>
-									<a href="/admin/policy-exceptions" class="text-sm font-semibold text-slate-600">
-										Limpiar filtros
-									</a>
-									<p class="text-sm text-slate-500">{items.length} resultado(s)</p>
+									<p class="ml-auto text-sm text-slate-500">
+										{items.length} {items.length === 1 ? "resultado" : "resultados"}
+									</p>
 								</div>
-							</form>
-							<form id="policy-exception-form" class="grid gap-4 lg:grid-cols-4">
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Tipo de excepción</span>
-									<Select name="type" required>
-										{POLICY_EXCEPTION_RULE_TYPES.map((type) => (
-											<option value={type}>{exceptionTypeLabels[type] ?? type}</option>
-										))}
-									</Select>
-								</label>
-								<label class="space-y-1 text-sm text-slate-700 lg:col-span-2">
-									<span class="font-semibold">Alcance real</span>
-									<Select name="scopeTarget" required>
-										<option value="global::">Global: toda la plataforma</option>
-										<optgroup label="Ofertas y hoteles">
-											{Array.from(productOptions.entries()).map(([id, label]) => (
-												<option value={`product::${id}`}>{label}</option>
-											))}
-										</optgroup>
-										<optgroup label="Habitaciones">
-											{Array.from(variantOptions.entries()).map(([id, label]) => (
-												<option value={`variant::${id}`}>{label}</option>
-											))}
-										</optgroup>
-										<optgroup label="Tarifas">
-											{Array.from(ratePlanOptions.entries()).map(([id, label]) => (
-												<option value={`rate_plan::${id}`}>{label}</option>
-											))}
-										</optgroup>
-									</Select>
-									<span class="block text-xs text-slate-500">
-										Elige el objeto real afectado. Los IDs quedan solo como detalle técnico.
-									</span>
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Categoría</span>
-									<Select name="category">
-										<option value="">Todas</option>
-										{categories.map((category) => (
-											<option value={category.value}>{category.label}</option>
-										))}
-									</Select>
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Reembolso %</span>
-									<Input name="refundOverridePercent" type="number" min="0" max="100" />
-									<span class="block text-xs text-slate-500">
-										Impacto huésped: fuerza el porcentaje reembolsable.
-									</span>
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Base de pago al proveedor</span>
-									<Input
-										name="payoutOverrideBasis"
-										placeholder="platform_absorbs / provider_absorbs"
-									/>
-									<span class="block text-xs text-slate-500">
-										Impacto plataforma/proveedor: define quién absorbe el ajuste.
-									</span>
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Pago proveedor %</span>
-									<Input name="payoutOverridePercent" type="number" min="0" max="100" />
-									<span class="block text-xs text-slate-500">
-										Impacto proveedor: reemplaza el pago calculado.
-									</span>
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Prioridad</span>
-									<Input name="priority" type="number" value="100" min="1" max="1000" />
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Desde</span>
-									<Input name="effectiveFrom" type="date" required />
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Hasta</span>
-									<Input name="effectiveTo" type="date" />
-								</label>
-								<Checkbox
-									name="waiveNoShowCharge"
-									label="Eximir cargo de no presentación"
-									className="pt-6"
-								/>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Forzar base de reembolso</span>
-									<Input
-										name="forceRefundBasis"
-										placeholder="total_booking / room_rate / first_night / deposit"
-									/>
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Cargo por cancelación del proveedor</span>
-									<Input name="hostCancellationFeeAmount" type="number" min="0" />
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Cargo por cancelación del proveedor %</span>
-									<Input name="hostCancellationFeePercent" type="number" min="0" max="100" />
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Crédito reubicación</span>
-									<Input name="rebookingCreditAmount" type="number" min="0" />
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Crédito reubicación %</span>
-									<Input name="rebookingCreditPercent" type="number" min="0" max="100" />
-								</label>
-								<label class="space-y-1 text-sm text-slate-700 lg:col-span-2">
-									<span class="font-semibold">Motivo operativo/legal</span>
-									<Input
-										name="reason"
-										required
-										minlength="10"
-										placeholder="Ej. evento disruptivo confirmado por soporte"
-									/>
-								</label>
-								<label class="space-y-1 text-sm text-slate-700 lg:col-span-2">
-									<span class="font-semibold">Evidencia obligatoria</span>
-									<Input
-										name="note"
-										required
-										minlength="8"
-										placeholder="URL, ticket, resolución legal o referencia de soporte"
-									/>
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Ticket / caso</span>
-									<Input name="evidenceReference" required placeholder="SUP-1234 / LEGAL-2026-07" />
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">URL de evidencia</span>
-									<Input name="evidenceUrl" type="url" placeholder="https://..." />
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Adjunto referenciado</span>
-									<Input name="evidenceFileName" placeholder="captura-soporte.pdf" />
-								</label>
-								<label class="space-y-1 text-sm text-slate-700">
-									<span class="font-semibold">Aprobación</span>
-									<Select name="approvalStatus">
-										<option value="pending">Crear pendiente</option>
-										<option value="approved">Crear aprobada</option>
-									</Select>
-									<span class="block text-xs text-slate-500">
-										Pendiente no afecta snapshots hasta aprobar.
-									</span>
-								</label>
-								<div class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 lg:col-span-4">
-									<p class="font-semibold text-slate-900">Impacto previsto</p>
-									<div class="mt-3 grid gap-3 md:grid-cols-3">
-										<div>
-											<p class="text-xs font-semibold text-slate-500 uppercase">Huésped</p>
-											<p data-impact-guest>Completa reembolso, no-show o reubicación.</p>
-										</div>
-										<div>
-											<p class="text-xs font-semibold text-slate-500 uppercase">Proveedor</p>
-											<p data-impact-provider>Completa payout o cargo al proveedor.</p>
-										</div>
-										<div>
-											<p class="text-xs font-semibold text-slate-500 uppercase">Plataforma</p>
-											<p data-impact-platform>Completa base, evidencia y prioridad.</p>
+								<details class="group">
+									<summary class="flex w-fit cursor-pointer list-none items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-200 focus-visible:outline-2 focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden">
+										<SlidersHorizontal size={16} aria-hidden="true" />
+										Filtros
+										{activeFilterCount > 0 && (
+											<span
+												class="rounded-full bg-slate-200 px-2 text-xs"
+												aria-label={`${activeFilterCount} filtros activos`}
+											>
+												{activeFilterCount}
+											</span>
+										)}
+									</summary>
+									<div class="fastt-soft-box mt-2 grid gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-4">
+										<label class="space-y-1 text-sm text-slate-700">
+											<span class="font-semibold">Alcance</span>
+											<Select name="scope">
+												<option value="all" selected={filters.scope === "all"}>
+													Todos
+												</option>
+												{scopes.map((scope) => (
+													<option value={scope.value} selected={filters.scope === scope.value}>
+														{scope.label}
+													</option>
+												))}
+											</Select>
+										</label>
+										<label class="space-y-1 text-sm text-slate-700">
+											<span class="font-semibold">Tipo</span>
+											<Select name="type">
+												<option value="all" selected={filters.type === "all"}>
+													Todos
+												</option>
+												{POLICY_EXCEPTION_RULE_TYPES.map((type) => (
+													<option value={type} selected={filters.type === type}>
+														{exceptionTypeLabels[type] ?? type}
+													</option>
+												))}
+											</Select>
+										</label>
+										<label class="space-y-1 text-sm text-slate-700">
+											<span class="font-semibold">Estado</span>
+											<Select name="status">
+												<option value="all" selected={filters.status === "all"}>
+													Todos
+												</option>
+												<option value="active" selected={filters.status === "active"}>
+													Activos
+												</option>
+												<option value="inactive" selected={filters.status === "inactive"}>
+													Inactivos
+												</option>
+											</Select>
+										</label>
+
+										<label class="space-y-1 text-sm text-slate-700">
+											<span class="font-semibold">Categoría</span>
+											<Select name="category">
+												<option value="">Todas</option>
+												{categories.map(({ value, label }) => (
+													<option value={value} selected={filters.category === value}>
+														{label}
+													</option>
+												))}
+											</Select>
+										</label>
+										<div class="flex items-center gap-3 sm:col-span-2 lg:col-span-4">
+											<Button type="submit" variant="secondary" size="sm">
+												Aplicar filtros
+											</Button>
+											<a
+												href={`?vista=${view}`}
+												class="text-sm text-slate-600 underline underline-offset-4"
+											>
+												Limpiar
+											</a>
 										</div>
 									</div>
-								</div>
-								<div class="flex items-end gap-3 lg:col-span-4">
-									<Button type="submit" variant="primary">
-										Crear excepción
-									</Button>
-									<p id="policy-exception-feedback" class="text-sm text-slate-700" />
-								</div>
+								</details>
 							</form>
 						</Card>
 
@@ -643,6 +592,336 @@ function approvalLabel(item: any): string {
 								)}
 							</div>
 						</Card>
+						<Card>
+							<details id="nueva-excepcion">
+								<>
+									<summary class="cursor-pointer text-lg font-semibold">Nueva excepción</summary>
+									<p class="mt-2 text-sm">
+										Una propuesta pendiente no se aplica hasta su aprobación.
+									</p>
+								</>
+								<form
+									id="policy-exception-form"
+									class="mt-4 space-y-6"
+									method="post"
+									action="/api/admin/policies/exceptions"
+								>
+									<>
+										<fieldset class="grid gap-4 sm:grid-cols-2">
+											<>
+												<legend class="mb-3 text-lg font-semibold">1. Motivo y alcance</legend>
+												<label class="space-y-1 text-sm text-slate-700">
+													<span class="font-semibold">Tipo de excepción</span>
+													<Select name="type" required>
+														{POLICY_EXCEPTION_RULE_TYPES.map((type) => (
+															<option value={type}>{exceptionTypeLabels[type] ?? type}</option>
+														))}
+													</Select>
+												</label>
+											</>
+											<label class="space-y-1 text-sm text-slate-700 lg:col-span-2">
+												<span class="font-semibold">Alcance real</span>
+												<Select name="scopeTarget" required>
+													<option value="">Selecciona dónde aplica</option>
+													<optgroup label="Ofertas y hoteles">
+														{Array.from(productOptions.entries()).map(([id, label]) => (
+															<option value={`product::${id}`}>{label}</option>
+														))}
+													</optgroup>
+													<optgroup label="Habitaciones">
+														{Array.from(variantOptions.entries()).map(([id, label]) => (
+															<option value={`variant::${id}`}>{label}</option>
+														))}
+													</optgroup>
+													<optgroup label="Tarifas">
+														{Array.from(ratePlanOptions.entries()).map(([id, label]) => (
+															<option value={`rate_plan::${id}`}>{label}</option>
+														))}
+													</optgroup>
+													<option value="global::">Toda la plataforma</option>
+												</Select>
+												<span class="block text-xs text-slate-500">
+													Elige el objeto real afectado. Los IDs quedan solo como detalle técnico.
+												</span>
+											</label>
+											<label class="space-y-1 text-sm text-slate-700">
+												<span class="font-semibold">Categoría</span>
+												<Select name="category">
+													<option value="">Todas</option>
+													{categories.map((category) => (
+														<option value={category.value}>{category.label}</option>
+													))}
+												</Select>
+											</label>
+										</fieldset>
+										<fieldset class="grid gap-4 sm:grid-cols-2">
+											<>
+												<legend class="mb-3 text-lg font-semibold">2. Vigencia e impacto</legend>
+												<label class="space-y-1 text-sm text-slate-700">
+													<span class="font-semibold">Desde</span>
+													<Input name="effectiveFrom" type="date" required />
+												</label>
+											</>
+											<label class="space-y-1 text-sm text-slate-700">
+												<span class="font-semibold">Hasta</span>
+												<Input name="effectiveTo" type="date" />
+											</label>
+											<>
+												<p class="text-sm text-slate-600 sm:col-span-2">
+													En el cálculo de reserva, la vigencia se comprueba con la fecha de
+													llegada.
+												</p>
+												<details class="sm:col-span-2">
+													<>
+														<summary class="cursor-pointer font-semibold">
+															Configurar cambios económicos
+														</summary>
+														<div class="mt-3 grid gap-4 sm:grid-cols-2">
+															<>
+																<details class="rounded-xl border border-slate-200 p-3">
+																	<>
+																		<summary class="cursor-pointer font-medium">Reembolso</summary>
+																		<div class="mt-3 grid gap-3">
+																			<>
+																				<label class="space-y-1 text-sm text-slate-700">
+																					<span class="font-semibold">Reembolso %</span>
+																					<Input
+																						name="refundOverridePercent"
+																						type="number"
+																						min="0"
+																						max="100"
+																					/>
+																					<span class="block text-xs text-slate-500">
+																						Impacto huésped: fuerza el porcentaje reembolsable.
+																					</span>
+																				</label>
+																				<label class="space-y-1 text-sm text-slate-700">
+																					<span class="font-semibold">
+																						¿Sobre qué se calcula el reembolso?
+																					</span>
+																					<Select name="forceRefundBasis">
+																						<>
+																							<option value="">Sin cambio</option>
+																							<option value="total_booking">
+																								Total de la reserva
+																							</option>
+																							<option value="room_rate">Tarifa base</option>
+																							<option value="first_night">Primera noche</option>
+																							<option value="deposit">Depósito</option>
+																							<option value="none">Sin base de reembolso</option>
+																						</>
+																					</Select>
+																				</label>
+																			</>
+																		</div>
+																	</>
+																</details>
+																<details class="rounded-xl border border-slate-200 p-3">
+																	<>
+																		<summary class="cursor-pointer font-medium">
+																			Pago y costo del ajuste
+																		</summary>
+																		<div class="mt-3 grid gap-3">
+																			<>
+																				<label class="space-y-1 text-sm text-slate-700">
+																					<span class="font-semibold">
+																						¿Quién absorbe el ajuste?
+																					</span>
+																					<Select name="payoutOverrideBasis">
+																						<>
+																							<option value="">Sin cambio</option>
+																							<option value="platform_absorbs">
+																								La plataforma
+																							</option>
+																							<option value="provider_absorbs">El proveedor</option>
+																						</>
+																					</Select>
+																					<span class="block text-xs text-slate-500">
+																						Impacto plataforma/proveedor: define quién absorbe el
+																						ajuste.
+																					</span>
+																				</label>
+																				<label class="space-y-1 text-sm text-slate-700">
+																					<span class="font-semibold">Pago proveedor %</span>
+																					<Input
+																						name="payoutOverridePercent"
+																						type="number"
+																						min="0"
+																						max="100"
+																					/>
+																					<span class="block text-xs text-slate-500">
+																						Impacto proveedor: reemplaza el pago calculado.
+																					</span>
+																				</label>
+																			</>
+																		</div>
+																	</>
+																</details>
+																<details class="rounded-xl border border-slate-200 p-3">
+																	<>
+																		<summary class="cursor-pointer font-medium">
+																			Cargo por cancelación
+																		</summary>
+																		<div class="mt-3 grid gap-3">
+																			<>
+																				<label class="space-y-1 text-sm text-slate-700">
+																					<span class="font-semibold">
+																						Cargo por cancelación del proveedor
+																					</span>
+																					<Input
+																						name="hostCancellationFeeAmount"
+																						type="number"
+																						min="0"
+																					/>
+																				</label>
+																				<label class="space-y-1 text-sm text-slate-700">
+																					<span class="font-semibold">
+																						Cargo por cancelación del proveedor %
+																					</span>
+																					<Input
+																						name="hostCancellationFeePercent"
+																						type="number"
+																						min="0"
+																						max="100"
+																					/>
+																				</label>
+																			</>
+																		</div>
+																	</>
+																</details>
+																<details class="rounded-xl border border-slate-200 p-3">
+																	<>
+																		<summary class="cursor-pointer font-medium">
+																			Crédito de reubicación
+																		</summary>
+																		<div class="mt-3 grid gap-3">
+																			<>
+																				<label class="space-y-1 text-sm text-slate-700">
+																					<span class="font-semibold">Crédito reubicación</span>
+																					<Input
+																						name="rebookingCreditAmount"
+																						type="number"
+																						min="0"
+																					/>
+																				</label>
+																				<label class="space-y-1 text-sm text-slate-700">
+																					<span class="font-semibold">Crédito reubicación %</span>
+																					<Input
+																						name="rebookingCreditPercent"
+																						type="number"
+																						min="0"
+																						max="100"
+																					/>
+																				</label>
+																			</>
+																		</div>
+																	</>
+																</details>
+																<Checkbox
+																	name="waiveNoShowCharge"
+																	label="Eximir cargo de no presentación"
+																	className="pt-6"
+																/>
+															</>
+														</div>
+													</>
+												</details>
+												<details class="sm:col-span-2">
+													<>
+														<summary class="cursor-pointer">Precedencia de reglas</summary>
+														<p class="text-sm">
+															Si coinciden reglas del mismo alcance, un número menor tiene
+															prioridad.
+														</p>
+														<label class="space-y-1 text-sm text-slate-700">
+															<span class="font-semibold">Prioridad</span>
+															<Input name="priority" type="number" value="100" min="1" max="1000" />
+														</label>
+													</>
+												</details>
+											</>
+										</fieldset>
+										<fieldset class="grid gap-4 sm:grid-cols-2">
+											<>
+												<legend class="mb-3 text-lg font-semibold">3. Evidencia y revisión</legend>
+												<label class="space-y-1 text-sm text-slate-700 lg:col-span-2">
+													<span class="font-semibold">Motivo operativo/legal</span>
+													<Input
+														name="reason"
+														required
+														minlength="10"
+														placeholder="Ej. evento disruptivo confirmado por soporte"
+													/>
+												</label>
+											</>
+											<label class="space-y-1 text-sm text-slate-700 lg:col-span-2">
+												<span class="font-semibold">Evidencia obligatoria</span>
+												<Input
+													name="note"
+													required
+													minlength="8"
+													placeholder="URL, ticket, resolución legal o referencia de soporte"
+												/>
+											</label>
+											<label class="space-y-1 text-sm text-slate-700">
+												<span class="font-semibold">Ticket / caso</span>
+												<Input
+													name="evidenceReference"
+													required
+													placeholder="SUP-1234 / LEGAL-2026-07"
+												/>
+											</label>
+											<label class="space-y-1 text-sm text-slate-700">
+												<span class="font-semibold">URL de evidencia</span>
+												<Input name="evidenceUrl" type="url" placeholder="https://..." />
+											</label>
+											<label class="space-y-1 text-sm text-slate-700">
+												<span class="font-semibold">Adjunto referenciado</span>
+												<Input name="evidenceFileName" placeholder="captura-soporte.pdf" />
+											</label>
+											<input type="hidden" name="approvalStatus" value="pending" />
+											<div class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 lg:col-span-4">
+												<>
+													<p class="font-semibold text-slate-900">
+														Vista previa de los cambios propuestos
+													</p>
+													<p class="mt-2" data-impact-scope />
+													<p class="mt-1" data-impact-dates />
+													<p class="mt-2 text-slate-600">
+														Propuesta pendiente de aprobación. El importe final depende de cada
+														reserva.
+													</p>
+												</>
+												<div class="mt-3 grid gap-3 md:grid-cols-3">
+													<div>
+														<p class="text-xs font-semibold text-slate-500 uppercase">Huésped</p>
+														<p data-impact-guest>Completa reembolso, no-show o reubicación.</p>
+													</div>
+													<div>
+														<p class="text-xs font-semibold text-slate-500 uppercase">Proveedor</p>
+														<p data-impact-provider>Completa payout o cargo al proveedor.</p>
+													</div>
+													<div>
+														<p class="text-xs font-semibold text-slate-500 uppercase">Plataforma</p>
+														<p data-impact-platform>Completa base, evidencia y prioridad.</p>
+													</div>
+												</div>
+											</div>
+											<div class="flex items-end gap-3 lg:col-span-4">
+												<Button type="submit" variant="primary">
+													Enviar a aprobación
+												</Button>
+												<p
+													role="status"
+													id="policy-exception-feedback"
+													class="text-sm text-slate-700"
+												/>
+											</div>
+										</fieldset>
+									</>
+								</form>
+							</details>
+						</Card>
 					</>
 				)
 			}
@@ -651,6 +930,10 @@ function approvalLabel(item: any): string {
 </InternalAdminLayout>
 
 <script>
+	document.querySelector("[data-open-exception]")?.addEventListener("click", () => {
+		const panel = document.querySelector<HTMLDetailsElement>("#nueva-excepcion")
+		if (panel) panel.open = true
+	})
 	const form = document.getElementById("policy-exception-form")
 	const feedback = document.getElementById("policy-exception-feedback")
 	const impactGuest = document.querySelector("[data-impact-guest]")
@@ -668,20 +951,40 @@ function approvalLabel(item: any): string {
 		return ""
 	}
 	function updateImpactPreview() {
+		const target = form instanceof HTMLFormElement ? form.elements.namedItem("scopeTarget") : null
+		const scope = document.querySelector("[data-impact-scope]")
+		const dates = document.querySelector("[data-impact-dates]")
+		const from = fieldValue("effectiveFrom")
+		const to = fieldValue("effectiveTo")
+		if (scope)
+			scope.textContent =
+				target instanceof HTMLSelectElement && target.value
+					? `Aplica a: ${target.selectedOptions[0]?.textContent?.trim()}`
+					: "Falta seleccionar dónde aplica."
+		if (dates)
+			dates.textContent = from
+				? `Llegadas desde ${from}${to ? ` hasta ${to}` : ", sin fecha final"}.`
+				: "Falta indicar desde cuándo aplica."
+		const base =
+			form instanceof HTMLFormElement ? form.elements.namedItem("forceRefundBasis") : null
+		const baseLabel =
+			base instanceof HTMLSelectElement && base.value
+				? base.selectedOptions[0]?.textContent?.trim()
+				: null
 		const refund = fieldValue("refundOverridePercent")
 		const payout = fieldValue("payoutOverridePercent")
 		const payoutBasis = fieldValue("payoutOverrideBasis")
-		const forceRefundBasis = fieldValue("forceRefundBasis")
+
 		const noShow = fieldValue("waiveNoShowCharge")
 		const hostFee =
 			fieldValue("hostCancellationFeeAmount") || fieldValue("hostCancellationFeePercent")
 		const rebooking = fieldValue("rebookingCreditAmount") || fieldValue("rebookingCreditPercent")
-		const priority = fieldValue("priority")
+
 		if (impactGuest) {
 			impactGuest.textContent =
 				[
-					refund ? `reembolso forzado ${refund}%` : "",
-					noShow ? "sin cargo no-show" : "",
+					refund ? `Reembolso propuesto: ${refund}% sobre ${baseLabel ?? "la base habitual"}` : "",
+					noShow ? "Sin cargo por no presentarse" : "",
 					rebooking ? "crédito de reubicación activo" : "",
 				]
 					.filter(Boolean)
@@ -690,8 +993,8 @@ function approvalLabel(item: any): string {
 		if (impactProvider) {
 			impactProvider.textContent =
 				[
-					payout ? `payout forzado ${payout}%` : "",
-					payoutBasis ? `base ${payoutBasis}` : "",
+					payout ? `Pago propuesto: ${payout}%` : "",
+
 					hostFee ? "cargo al proveedor configurado" : "",
 				]
 					.filter(Boolean)
@@ -700,30 +1003,40 @@ function approvalLabel(item: any): string {
 		if (impactPlatform) {
 			impactPlatform.textContent =
 				[
-					forceRefundBasis ? `base de reembolso ${forceRefundBasis}` : "",
 					payoutBasis === "platform_absorbs" ? "plataforma absorbe diferencia" : "",
-					priority ? `prioridad ${priority}` : "",
+					payoutBasis === "provider_absorbs" ? "El proveedor absorbe el ajuste" : "",
 				]
 					.filter(Boolean)
 					.join(" · ") || "Sin impacto de plataforma seleccionado."
 		}
 	}
 	form?.addEventListener("input", updateImpactPreview)
+	form?.addEventListener("change", updateImpactPreview)
 	updateImpactPreview()
 	form?.addEventListener("submit", async (event) => {
 		event.preventDefault()
 		if (!(form instanceof HTMLFormElement)) return
-		const response = await fetch("/api/admin/policies/exceptions", {
-			method: "POST",
-			body: new FormData(form),
-		})
-		if (!feedback) return
-		if (response.ok) {
-			feedback.textContent = "Excepción creada."
-			location.reload()
-		} else {
+		if (fieldValue("effectiveTo") && fieldValue("effectiveTo") < fieldValue("effectiveFrom")) {
+			if (feedback) feedback.textContent = "La fecha final debe ser igual o posterior a la inicial."
+			return
+		}
+		const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')
+		if (submit?.disabled) return
+		if (submit) submit.disabled = true
+		try {
+			const response = await fetch(form.action, { method: "POST", body: new FormData(form) })
+			if (response.ok) {
+				location.assign("/admin/policy-exceptions?vista=pending")
+				return
+			}
 			const payload = await response.json().catch(() => ({}))
-			feedback.textContent = payload?.error || "No se pudo crear la excepción."
+			if (feedback) feedback.textContent = payload?.error || "No se pudo enviar la propuesta."
+		} catch {
+			if (feedback)
+				feedback.textContent =
+					"No se confirmó el envío. Revisa las propuestas pendientes antes de volver a intentar."
+		} finally {
+			if (submit) submit.disabled = false
 		}
 	})
 	document.querySelectorAll("[data-toggle-exception]").forEach((button) => {
