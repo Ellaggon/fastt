@@ -348,7 +348,7 @@ const processingErrorMessages: Record<string, string> = {
 	}
 	{
 		reveal && canReveal && (
-			<ProtectedFields class:list={focusedReview && "rounded-lg border border-slate-200 p-3"}>
+			<ProtectedFields class:list={focusedReview ? ["rounded-lg border border-slate-200 p-3"] : []}>
 				{focusedReview && (
 					<summary class="cursor-pointer text-sm font-semibold">
 						{documentReview || identityReview

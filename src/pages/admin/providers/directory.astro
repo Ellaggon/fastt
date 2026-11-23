@@ -64,12 +64,11 @@ const labels = {
 	sla: "Plazo",
 	documentType: "Tipo de documento",
 }
-const filters = Object.fromEntries(
-	Object.entries(options).flatMap(([key, values]) => {
-		const value = Astro.url.searchParams.get(key)
-		return value && Object.hasOwn(values, value) ? [[key, value]] : []
-	})
-)
+const filters: Record<string, string> = {}
+for (const [key, values] of Object.entries(options)) {
+	const value = Astro.url.searchParams.get(key)
+	if (value && Object.hasOwn(values, value)) filters[key] = value
+}
 const unassigned = Astro.url.searchParams.get("unassigned") === "1"
 const assignee = (Astro.url.searchParams.get("assignee") ?? "").trim().slice(0, 100)
 const hasFilters = Object.keys(filters).length > 0 || unassigned || Boolean(assignee)
@@ -86,7 +85,11 @@ const savedViews = authorized
 			(view) => view.ownerUserId === ownerId && view.name.startsWith("Proveedores: ")
 		)
 	: []
-const filterHref = (values: Record<string, string>) => `?${new URLSearchParams(values)}`
+const filterHref = (values: Record<string, string | undefined>) => {
+	const params = new URLSearchParams()
+	for (const [key, value] of Object.entries(values)) if (value) params.set(key, value)
+	return `?${params}`
+}
 const shortcuts = [
 	{ label: "Pendientes", value: { status: "pending" } },
 	{ label: "Vencidos", value: { sla: "overdue", status: "pending" } },
