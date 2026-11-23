@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
+import { getFeatureFlag, canUseCommandCenterDecisionForCase } from "@/config/featureFlags"
 import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import {
@@ -48,8 +48,8 @@ export const POST: APIRoute = async ({ request, params }) => {
 				)
 				const context = await getDecisionAuthorizationContext(decisionId)
 				if (!context) throw Object.assign(new Error("case_decision_not_found"), { status: 404 })
-				if (!isCommandCenterV2PilotProvider(context.providerId))
-					throw Response.json({ error: "casework_pilot_scope_required" }, { status: 403 })
+				if (!canUseCommandCenterDecisionForCase(context))
+					throw Response.json({ error: "case_provider_archived" }, { status: 403 })
 				const permission = {
 					verification: "provider.verification.review",
 					fiscal: "provider.fiscal.review",

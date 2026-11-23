@@ -5,11 +5,11 @@ const state = vi.hoisted(() => ({
 	blockers: [] as string[],
 	apply: vi.fn(),
 	authorized: true,
-	pilot: true,
+	providerAvailable: true,
 }))
 vi.mock("@/config/featureFlags", () => ({
 	getFeatureFlag: () => true,
-	isCommandCenterV2PilotProvider: () => state.pilot,
+	canUseCommandCenterDecisionForCase: () => state.providerAvailable,
 }))
 vi.mock("@/lib/auth/internal-authorization", () => ({
 	requireInternalPermission: async () => {
@@ -69,7 +69,7 @@ describe("second control checks the evidence at application time", () => {
 		state.revision = "original"
 		state.blockers = []
 		state.authorized = true
-		state.pilot = true
+		state.providerAvailable = true
 		state.apply.mockReset().mockResolvedValue({ applied: true })
 	})
 	it("rejects changed evidence without applying the decision", async () => {
@@ -89,8 +89,8 @@ describe("second control checks the evidence at application time", () => {
 		expect((await invoke()).status).toBe(403)
 		expect(state.apply).not.toHaveBeenCalled()
 	})
-	it("keeps the pilot boundary enforced", async () => {
-		state.pilot = false
+	it("keeps archived providers read-only", async () => {
+		state.providerAvailable = false
 		expect((await invoke()).status).toBe(403)
 		expect(state.apply).not.toHaveBeenCalled()
 	})

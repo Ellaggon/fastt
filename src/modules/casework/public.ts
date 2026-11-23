@@ -10,6 +10,7 @@ export {
 	type ProviderOperationalArea,
 	getCaseWorkspace,
 	getCommandCenterSummary,
+	listCommandCenterPendingProviders,
 	getDecisionAuthorizationContext,
 	getProvider360,
 	getProviderOperationalSnapshot,

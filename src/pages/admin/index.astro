@@ -1,11 +1,13 @@
 ---
-import CaseTable from "@/components/admin/cases/CaseTable.astro"
 import InternalAccessDenied from "@/components/admin/InternalAccessDenied.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
 import { requireInternalPermission } from "@/lib/auth/internal-authorization"
-import { getCommandCenterSummary } from "@/modules/casework/public"
+import {
+	getCommandCenterSummary,
+	listCommandCenterPendingProviders,
+} from "@/modules/casework/public"
 
 let authorized = false
 try {
@@ -16,7 +18,12 @@ try {
 	if (response instanceof Response && response.status === 403) Astro.response.status = 403
 	else throw response
 }
-const summary = authorized ? await getCommandCenterSummary() : null
+const rawPage = Number(Astro.url.searchParams.get("pagina") ?? 1)
+const page = Number.isSafeInteger(rawPage) && rawPage > 0 && rawPage <= 100_000 ? rawPage : 1
+const [summary, pending] = authorized
+	? await Promise.all([getCommandCenterSummary(), listCommandCenterPendingProviders(page)])
+	: [null, null]
+const areas = ["verification", "fiscal", "documents", "payments"] as const
 const domainLabels: Record<string, string> = {
 	verification: "Identidad y negocio",
 	fiscal: "Fiscalidad",
@@ -40,14 +47,14 @@ const domainLabels: Record<string, string> = {
 			</div>
 			<div class="flex flex-wrap gap-2">
 				<Button href="/admin/work" variant="onDark">Abrir mi trabajo</Button><Button
-					href="/admin/cases"
-					variant="secondary">Buscar caso</Button
+					href="/admin/providers/directory"
+					variant="secondary">Buscar proveedor o expediente</Button
 				>
 			</div>
 		</header>
 
 		{
-			!authorized || !summary ? (
+			!authorized || !summary || !pending ? (
 				<InternalAccessDenied />
 			) : (
 				<>
@@ -107,13 +114,88 @@ const domainLabels: Record<string, string> = {
 							<>
 								<div class="flex items-center justify-between">
 									<>
-										<h2 class="text-xl font-semibold text-white">Actividad reciente</h2>
+										<h2 class="text-xl font-semibold text-white">Proveedores con pendientes</h2>
 										<a href="/admin/queues/all" class="text-sm text-amber-200 hover:underline">
 											Ver cola completa
 										</a>
 									</>
 								</div>
-								<CaseTable items={summary.recent} />
+
+								{pending.providers.length === 0 ? (
+									<Card>
+										{page === 1
+											? "No hay proveedores con expedientes pendientes."
+											: "No hay proveedores en esta página."}
+									</Card>
+								) : (
+									<ul class="space-y-3">
+										{pending.providers.map((provider) => (
+											<li>
+												<Card>
+													<div class="flex flex-wrap items-start justify-between gap-3">
+														<div class="min-w-0">
+															<h3 class="font-semibold break-words">
+																<a
+																	class="underline underline-offset-4 hover:text-slate-600"
+																	href={`/admin/providers/${encodeURIComponent(provider.id)}`}
+																>
+																	{provider.name}
+																</a>
+															</h3>
+															<p class="mt-1 text-sm text-slate-600">
+																{provider.total}{" "}
+																{provider.total === 1
+																	? "expediente pendiente"
+																	: "expedientes pendientes"}
+																{provider.overdue > 0 && (
+																	<span class="font-semibold text-red-700">
+																		{" "}
+																		· {provider.overdue}{" "}
+																		{provider.overdue === 1 ? "vencido" : "vencidos"}
+																	</span>
+																)}
+															</p>
+															<ul
+																class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600"
+																aria-label="Pendientes por área"
+															>
+																{areas
+																	.filter((domain) => provider[domain] > 0)
+																	.map((domain) => (
+																		<li>
+																			{domainLabels[domain]}: {provider[domain]}{" "}
+																			{provider[domain] === 1 ? "pendiente" : "pendientes"}
+																		</li>
+																	))}
+															</ul>
+														</div>
+													</div>
+												</Card>
+											</li>
+										))}
+									</ul>
+								)}
+								{(page > 1 || pending.hasNext) && (
+									<nav
+										class="flex flex-wrap items-center gap-3 text-sm text-white"
+										aria-label="Páginas de proveedores"
+									>
+										{page > 1 && (
+											<Button
+												href={page === 2 ? "/admin" : `/admin?pagina=${page - 1}`}
+												variant="onDark"
+											>
+												Anterior
+											</Button>
+										)}
+										<span>Página {page}</span>
+										{pending.hasNext && (
+											<Button href={`/admin?pagina=${page + 1}`} variant="onDark">
+												Siguiente
+											</Button>
+										)}
+									</nav>
+								)}
 							</>
 						</section>
 						<aside class="space-y-4">

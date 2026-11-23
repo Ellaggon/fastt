@@ -14,34 +14,120 @@ import {
 } from "@/lib/audit/audit-console"
 import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 
+import { listRecentProviderComplianceAudit } from "@/lib/provider-admin-compliance"
+
+const complianceView = Astro.url.searchParams.get("view") === "compliance"
 let isAuthorized = false
 try {
-	await requireInternalPermission(Astro.request, "audit.read")
+	await requireInternalPermission(
+		Astro.request,
+		complianceView ? "internal.admin.access" : "audit.read"
+	)
 	isAuthorized = true
 } catch (response) {
 	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
+	if (response instanceof Response && response.status === 403) Astro.response.status = 403
+	else throw response
 }
 
 const filters = parseAuditConsoleFilters(Astro.url.searchParams)
-const events = isAuthorized ? await loadAuditConsoleEvents(filters) : []
-const fmt = new Intl.DateTimeFormat("es-CL", { dateStyle: "medium", timeStyle: "medium" })
+const canReadActivity = isAuthorized
+const activity =
+	complianceView && isAuthorized
+		? await listRecentProviderComplianceAudit({ limit: 80, providerId: filters.providerId }).catch(
+				(error: unknown) => {
+					console.error("Unable to load admin compliance activity", error)
+					Astro.response.status = 503
+					return null
+				}
+			)
+		: []
+const activityDate = new Intl.DateTimeFormat("es-CL", {
+	dateStyle: "medium",
+	timeStyle: "short",
+	timeZone: "America/Santiago",
+})
+function groupBy<T, K>(items: T[], keyOf: (item: T) => K) {
+	const groups = new Map<K, T[]>()
+	for (const item of items) {
+		const key = keyOf(item)
+		const group = groups.get(key)
+		if (group) group.push(item)
+		else groups.set(key, [item])
+	}
+	return groups
+}
+const pageSize = 25
+const requestedPage = Number(Astro.url.searchParams.get("pagina") ?? 1)
+const page =
+	Number.isSafeInteger(requestedPage) && requestedPage > 0 && requestedPage <= 100_000
+		? requestedPage
+		: 1
+const rows =
+	isAuthorized && !complianceView
+		? await loadAuditConsoleEvents({
+				...filters,
+				limit: pageSize + 1,
+				offset: (page - 1) * pageSize,
+			})
+		: []
+const events = rows.slice(0, pageSize)
+const requestIds = [
+	...new Set(events.flatMap((event) => (event.requestId ? [event.requestId] : []))),
+]
+const related = requestIds.length ? await loadAuditConsoleEvents({ requestIds, limit: 250 }) : []
+const byRequest = groupBy(related, (event) => event.requestId)
+const zone = "America/Santiago"
+const day = new Intl.DateTimeFormat("es-CL", { dateStyle: "long", timeZone: zone })
+const clock = new Intl.DateTimeFormat("es-CL", {
+	hour: "2-digit",
+	minute: "2-digit",
+	timeZone: zone,
+})
+const days = groupBy(events, (event) =>
+	event.createdAt ? day.format(event.createdAt) : "Sin fecha"
+)
+function pageHref(number: number) {
+	const params = new URLSearchParams(Astro.url.searchParams)
+	if (number === 1) params.delete("pagina")
+	else params.set("pagina", String(number))
+	return `/admin/audit?${params}#eventos`
+}
+const fmt = new Intl.DateTimeFormat("es-CL", {
+	dateStyle: "medium",
+	timeStyle: "medium",
+	timeZone: zone,
+})
 const outcomeVariant = {
 	attempted: "info",
 	succeeded: "success",
 	denied: "warning",
 	failed: "error",
 } as const
+const outcomeLabels = {
+	attempted: "Intentado",
+	succeeded: "Completado",
+	denied: "Denegado",
+	failed: "Fallido",
+} as const
+const riskLabels = { low: "Bajo", medium: "Medio", high: "Alto", critical: "Crítico" } as const
+const actionLabels: Record<string, string> = {
+	"case.decision.propose": "Propuesta de decisión",
+	"case.decision.approve_high_risk": "Aprobación de segundo control",
+	"provider.verification.review": "Revisión de identidad del proveedor",
+	"provider.document.review": "Revisión de documento",
+	"provider.fiscal.review": "Revisión fiscal",
+	"provider.payment.review": "Revisión de cuenta de pago",
+}
 const riskVariant = { low: "neutral", medium: "info", high: "warning", critical: "error" } as const
 const byOutcome = Object.fromEntries(AUDIT_OUTCOMES.map((outcome) => [outcome, 0])) as Record<
 	(typeof AUDIT_OUTCOMES)[number],
 	number
 >
 for (const event of events) byOutcome[event.outcome] += 1
-const hasFilters = [...Astro.url.searchParams.keys()].some((key) => key !== "limit")
-
-function providerAuditHref(providerId: string) {
-	return `/admin/audit?providerId=${encodeURIComponent(providerId)}`
-}
+const hasFilters = [...Astro.url.searchParams.keys()].some(
+	(key) => key !== "limit" && key !== "pagina"
+)
 ---
 
 <InternalAdminLayout title="Admin · Auditoría operativa">
@@ -57,22 +143,61 @@ function providerAuditHref(providerId: string) {
 					operar e investigar; el contenido sensible permanece redaccionado.
 				</p>
 			</div>
-			<div class="flex flex-wrap gap-2">
-				<Button href="/admin/providers" variant="onDark" size="sm">Abrir cola de proveedores</Button
-				>
-				<Button href="/auth/mfa?returnTo=/admin/audit" variant="secondary" size="sm">
-					Confirmar MFA
-				</Button>
-			</div>
 		</header>
+		<nav aria-label="Vistas de auditoría" class="flex flex-wrap gap-2">
+			<Button href="/admin/audit" variant={complianceView ? "onDark" : "selection"}
+				>Operativa</Button
+			>
+			<Button
+				href={`/admin/audit?${new URLSearchParams({ view: "compliance", ...(filters.providerId ? { providerId: filters.providerId } : {}) })}`}
+				variant={complianceView ? "selection" : "onDark"}>Cumplimiento</Button
+			>
+		</nav>
 
 		{
 			!isAuthorized ? (
 				<Card class="bg-slate-100">
 					<h2 class="text-lg font-semibold text-slate-900">Acceso restringido</h2>
 					<p class="mt-1 text-sm text-slate-600">
-						Tu cuenta necesita el permiso <code>audit.read</code> para consultar esta auditoría.
+						Tu cuenta no tiene permiso para consultar esta vista.
 					</p>
+				</Card>
+			) : complianceView ? (
+				<Card class="space-y-3">
+					<h2 class="font-semibold">Actividad de cumplimiento reciente</h2>
+					{!canReadActivity ? (
+						<p>Acceso restringido.</p>
+					) : activity === null ? (
+						<p role="status">No se pudo cargar la actividad. Recarga la página para reintentar.</p>
+					) : activity.length ? (
+						<ol class="divide-y divide-slate-200">
+							{activity.map((event) => (
+								<li class="flex flex-wrap items-baseline justify-between gap-2 py-3 text-sm">
+									<div>
+										<p class="font-medium">{event.actionLabel}</p>
+										{event.actorEmail && <p class="text-slate-600">{event.actorEmail}</p>}
+									</div>
+									<div class="flex flex-wrap items-baseline gap-3">
+										{event.createdAt && (
+											<time class="text-slate-600">
+												{activityDate.format(new Date(event.createdAt))}
+											</time>
+										)}
+										{event.providerId && (
+											<a
+												class="font-medium underline"
+												href={`/admin/providers/${encodeURIComponent(event.providerId)}#historial`}
+											>
+												Ver proveedor
+											</a>
+										)}
+									</div>
+								</li>
+							))}
+						</ol>
+					) : (
+						<p>No hay eventos recientes de cumplimiento.</p>
+					)}
 				</Card>
 			) : (
 				<>
@@ -88,7 +213,7 @@ function providerAuditHref(providerId: string) {
 							<FormField htmlFor="audit-case-id" label="Caso (ID)">
 								<Input id="audit-case-id" name="caseId" value={filters.caseId ?? ""} />
 							</FormField>
-							<FormField htmlFor="audit-request-id" label="Request ID">
+							<FormField htmlFor="audit-request-id" label="Referencia de la operación">
 								<Input id="audit-request-id" name="requestId" value={filters.requestId ?? ""} />
 							</FormField>
 							<FormField htmlFor="audit-action" label="Acción exacta">
@@ -104,7 +229,7 @@ function providerAuditHref(providerId: string) {
 									<option value="">Todos</option>
 									{AUDIT_OUTCOMES.map((outcome) => (
 										<option value={outcome} selected={filters.outcome === outcome}>
-											{outcome}
+											{outcomeLabels[outcome]}
 										</option>
 									))}
 								</Select>
@@ -114,7 +239,7 @@ function providerAuditHref(providerId: string) {
 									<option value="">Todos</option>
 									{AUDIT_RISK_LEVELS.map((risk) => (
 										<option value={risk} selected={filters.riskLevel === risk}>
-											{risk}
+											{riskLabels[risk]}
 										</option>
 									))}
 								</Select>
@@ -147,91 +272,149 @@ function providerAuditHref(providerId: string) {
 							</div>
 						</form>
 						<p class="mt-4 text-xs leading-5 text-slate-600">
-							Se muestran hasta 150 eventos, de más reciente a más antiguo. Usa el Request ID para
-							reconstruir una petición concreta.
+							Hasta 25 eventos por página. Abre una fila para consultar los detalles y los eventos
+							de la misma operación.
 						</p>
 					</Card>
 
-					<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumen de resultados">
+					<div
+						class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+						aria-label="Resumen de los eventos mostrados"
+					>
 						{AUDIT_OUTCOMES.map((outcome) => (
-							<Card class="bg-slate-900">
-								<p class="text-xs font-medium tracking-wide text-slate-400 uppercase">{outcome}</p>
-								<p class="mt-1 text-2xl font-semibold text-white">{byOutcome[outcome]}</p>
+							<Card>
+								<Badge variant={outcomeVariant[outcome]} data-audit-outcome={outcome}>
+									{outcomeLabels[outcome]}
+								</Badge>
+								<p class="mt-1 text-2xl font-semibold text-slate-900">{byOutcome[outcome]}</p>
 							</Card>
 						))}
 					</div>
 
-					<Card class="bg-slate-100">
-						<div class="mb-4 flex items-baseline justify-between gap-4">
+					<Card class="bg-slate-100" id="eventos">
+						<div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
 							<h2 class="text-lg font-semibold text-slate-900">Eventos</h2>
 							<p class="text-sm text-slate-600">
-								{events.length} resultado{events.length === 1 ? "" : "s"}
+								Página {page} · {events.length} eventos
 							</p>
 						</div>
-						{events.length ? (
-							<ol class="space-y-3" aria-label="Resultados de auditoría">
-								{events.map((event) => (
-									<li>
-										<Card class="p-4" variant="plain">
-											<div class="flex flex-col justify-between gap-3 md:flex-row">
-												<div class="min-w-0 space-y-2">
-													<div class="flex flex-wrap items-center gap-2">
-														<p class="font-semibold break-all text-slate-950">{event.action}</p>
-														<Badge variant={outcomeVariant[event.outcome]}>{event.outcome}</Badge>
-														<Badge variant={riskVariant[event.riskLevel]}>
-															riesgo {event.riskLevel}
-														</Badge>
-														{event.context?.idempotency === "replay" && (
-															<Badge variant="info">replay</Badge>
-														)}
-													</div>
-													<p class="text-sm text-slate-600">
-														{event.createdAt ? fmt.format(new Date(event.createdAt)) : "Sin fecha"}{" "}
-														· {event.entityType}
-														{event.entityId ? ` · ${event.entityId}` : ""}
-													</p>
-													<p class="text-sm text-slate-700">
-														Actor: {event.actorLabel ?? "Sesión no identificada"}
-													</p>
-													{event.actorRoles.length ? (
-														<p class="text-xs text-slate-500">
-															Roles: {event.actorRoles.join(", ")}
-														</p>
-													) : null}
-												</div>
-												<div class="space-y-2 text-sm text-slate-600 md:text-right">
-													{event.providerId ? (
-														<a
-															class="block font-medium text-slate-900 underline"
-															href={providerAuditHref(event.providerId)}
-														>
-															Proveedor: {event.providerLabel}
-														</a>
-													) : (
-														<p>Sin proveedor asociado</p>
-													)}
-													<p class="text-xs break-all">Request: {event.requestId ?? "—"}</p>
-												</div>
-											</div>
-											{event.context ? (
-												<details class="mt-3">
-													<summary class="cursor-pointer text-sm font-medium text-slate-700">
-														Ver metadatos redaccionados
+						{days.size ? (
+							Array.from(days, ([date, group]) => (
+								<section class="mb-4">
+									<h3 class="border-b border-slate-300 py-2 text-sm font-semibold text-slate-700">
+										{date}
+									</h3>
+									<ul class="divide-y divide-slate-200">
+										{group.map((event) => (
+											<li>
+												<details>
+													<summary class="grid cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-2 py-2 text-sm hover:bg-slate-200 focus-visible:outline-2 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,0.7fr)_auto]">
+														<span class="whitespace-nowrap text-slate-600 tabular-nums">
+															{event.createdAt ? clock.format(event.createdAt) : "—"}
+														</span>
+														<span class="font-medium break-words">
+															{actionLabels[event.action] ?? event.action}
+														</span>
+														<span class="col-start-2 row-start-2 break-words text-slate-600 sm:col-start-3 sm:row-start-1">
+															{event.providerLabel ?? "Sin proveedor asociado"}
+														</span>
+														<span class="col-start-3 row-start-1 flex items-center gap-2 sm:col-start-4">
+															<Badge
+																variant={outcomeVariant[event.outcome]}
+																data-audit-outcome={event.outcome}
+															>
+																{outcomeLabels[event.outcome]}
+															</Badge>
+															<span aria-hidden="true">›</span>
+														</span>
 													</summary>
-													<pre class="mt-2 overflow-x-auto rounded bg-slate-950 p-3 text-xs text-slate-100">
-														{JSON.stringify(event.context, null, 2)}
-													</pre>
+													<div class="space-y-3 border-t border-slate-200 bg-white p-3 text-sm">
+														<p>
+															{event.createdAt ? fmt.format(event.createdAt) : "Sin fecha"} ·{" "}
+															{event.actorLabel ?? "Sesión no identificada"}
+														</p>
+														<Badge variant={riskVariant[event.riskLevel]}>
+															Riesgo: {riskLabels[event.riskLevel]}
+														</Badge>
+														{event.providerId && (
+															<div>
+																<Button
+																	href={`/admin/providers/${encodeURIComponent(event.providerId)}`}
+																	variant="secondary"
+																	size="sm"
+																>
+																	Ver proveedor
+																</Button>
+															</div>
+														)}
+														{event.requestId && (
+															<div>
+																<h4 class="font-semibold">Eventos de esta operación</h4>
+																<ul class="mt-1 space-y-1">
+																	{(byRequest.get(event.requestId) ?? []).map((item) => (
+																		<li>
+																			{item.createdAt ? fmt.format(item.createdAt) : "Sin fecha"} ·{" "}
+																			{actionLabels[item.action] ?? item.action} ·{" "}
+																			{outcomeLabels[item.outcome]}
+																		</li>
+																	))}
+																</ul>
+																{related.length === 250 && (
+																	<p class="text-slate-600">
+																		La vista previa puede estar incompleta. Puedes buscar por la
+																		referencia en los filtros.
+																	</p>
+																)}
+															</div>
+														)}
+														<details>
+															<summary class="cursor-pointer font-medium">
+																Ver detalles técnicos
+															</summary>
+															<pre class="mt-2 overflow-x-auto rounded bg-slate-950 p-3 text-xs text-slate-100">
+																{JSON.stringify(
+																	{
+																		acción: event.action,
+																		recurso: event.entityType,
+																		referencia: event.entityId,
+																		operación: event.requestId,
+																		roles: event.actorRoles,
+																		contexto: event.context,
+																	},
+																	null,
+																	2
+																)}
+															</pre>
+														</details>
+													</div>
 												</details>
-											) : null}
-										</Card>
-									</li>
-								))}
-							</ol>
+											</li>
+										))}
+									</ul>
+								</section>
+							))
 						) : (
-							<p class="rounded border border-dashed border-slate-300 p-6 text-sm text-slate-600">
-								No hay eventos para estos filtros. Las decisiones nuevas aparecerán aquí como
-								intentos y resultados.
+							<p class="py-4 text-sm text-slate-600">
+								No hay eventos en esta página para los filtros seleccionados.
 							</p>
+						)}
+						{(page > 1 || rows.length > pageSize) && (
+							<nav
+								class="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-200 pt-3"
+								aria-label="Páginas de auditoría"
+							>
+								{page > 1 && (
+									<Button href={pageHref(page - 1)} variant="secondary" size="sm">
+										Anterior
+									</Button>
+								)}
+								<span class="text-sm text-slate-600">Página {page}</span>
+								{rows.length > pageSize && (
+									<Button href={pageHref(page + 1)} variant="secondary" size="sm">
+										Siguiente
+									</Button>
+								)}
+							</nav>
 						)}
 					</Card>
 				</>
@@ -239,3 +422,22 @@ function providerAuditHref(providerId: string) {
 		}
 	</section>
 </InternalAdminLayout>
+
+<style>
+	:global([data-audit-outcome="attempted"]) {
+		color: #075985;
+		background-color: #f0f9ff;
+	}
+	:global([data-audit-outcome="succeeded"]) {
+		color: #065f46;
+		background-color: #ecfdf5;
+	}
+	:global([data-audit-outcome="denied"]) {
+		color: #78350f;
+		background-color: #fffbeb;
+	}
+	:global([data-audit-outcome="failed"]) {
+		color: #991b1b;
+		background-color: #fef2f2;
+	}
+</style>

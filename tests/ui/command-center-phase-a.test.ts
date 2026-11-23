@@ -14,8 +14,11 @@ describe("command-center phase A context and outcomes", () => {
 		expect(api).toContain("parseCommandCenterQueueFilters")
 		expect(queries).toContain("providerId?: string | null")
 		expect(queries).toContain("eq(ComplianceCase.providerId, filters.providerId.trim())")
-		expect(page).toContain("Volver al proveedor")
-		expect(page).toContain("Ver todos los proveedores")
+		expect(page).toContain("return Astro.redirect")
+		const workspace = read("src/pages/admin/cases/index.astro")
+		expect(workspace).toContain('params.get("providerId")')
+		expect(workspace).toContain("/admin/providers/directory")
+		expect(workspace).toContain("#historial")
 	})
 
 	it("uses aggregate provider counts and does not infer them from the recent page", () => {

@@ -46,6 +46,23 @@ try {
 
 const filter = parseProviderComplianceQueueFilter(Astro.url.searchParams.get("filter"))
 const focusedProviderId = String(Astro.url.searchParams.get("providerId") ?? "").trim()
+if (isAdmin && filter === "audit") {
+	const query = new URLSearchParams({ view: "compliance" })
+	if (focusedProviderId) query.set("providerId", focusedProviderId)
+	return Astro.redirect(`/admin/audit?${query}`, 302)
+}
+if (
+	getFeatureFlag("COMMAND_CENTER_V2_COMMANDS_ENABLED", { request: Astro.request }) ||
+	!getFeatureFlag("COMMAND_CENTER_LEGACY_WRITE_ENABLED", { request: Astro.request })
+) {
+	if (focusedProviderId)
+		return Astro.redirect(`/admin/providers/${encodeURIComponent(focusedProviderId)}`, 302)
+	const query = new URLSearchParams({ status: "pending" })
+	if (filter === "overdue" || filter === "due_soon") query.set("sla", filter)
+	else if (filter !== "all" && filter !== "audit") query.set("domain", filter)
+	const suffix = Astro.url.searchParams.has("filter") ? `?${query}` : ""
+	return Astro.redirect(`/admin/providers/directory${suffix}`, 302)
+}
 const reviewPermissions = {
 	verification: "provider.verification.review",
 	fiscal: "provider.fiscal.review",
@@ -208,11 +225,10 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 			<header class="space-y-2">
 				<div class="flex flex-wrap items-center justify-between gap-3">
 					<h1 class="text-2xl font-semibold text-white">Cumplimiento de proveedores</h1>
-					<Button href="/admin/audit" variant="onDark" size="sm">Auditoría técnica</Button>
 				</div>
 				<p class="text-sm text-slate-300">
-					Workbench ops: una cola activa (default SLA vencidas), abre un caso en el panel lateral.
-					El proveedor envía; solo el equipo interno valida. Toda decisión queda en auditoría.
+					Consulta y revisa los envíos de proveedores por área. Selecciona un proveedor para abrir
+					su revisión.
 				</p>
 			</header>
 			{
@@ -220,12 +236,11 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 					<div class="fastt-notice rounded-xl border border-sky-400/40 bg-sky-950/50 px-4 py-3 text-sm text-sky-100">
 						<div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
 							<p>
-								<strong>Página legacy.</strong> El nuevo Centro de Mando ya ofrece Inicio, Mi
-								trabajo, colas y expedientes. Esta vista permanece como fuente operativa durante el
-								piloto.
+								<strong>Panel anterior de revisión.</strong> Usa Proveedores para el trabajo diario.
+								Este panel sigue disponible para los flujos de revisión que aún se atienden aquí.
 							</p>
-							<Button href="/admin/queues/all" variant="onDark" size="sm">
-								Abrir Casework
+							<Button href="/admin/providers/directory" variant="onDark" size="sm">
+								Ir a Proveedores
 							</Button>
 						</div>
 					</div>
@@ -236,7 +251,7 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 				!isAdmin ? (
 					<Card class="bg-slate-100">
 						<div class="space-y-2">
-							<p class="text-xl font-semibold text-slate-900">Forbidden</p>
+							<p class="text-xl font-semibold text-slate-900">Acceso restringido</p>
 							<p class="text-sm text-slate-600">Su usuario no tiene permisos para esta sección.</p>
 						</div>
 					</Card>
@@ -1454,43 +1469,13 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 												) : null}
 											</section>
 
-											{focusedDetail.audit.length ? (
-												<div class="overflow-x-auto" data-case-audit>
-													<p class="mb-2 text-sm font-semibold text-slate-900">
-														Auditoría reciente
-													</p>
-													<a
-														href={`/admin/audit?providerId=${encodeURIComponent(focusedDetail.provider.id)}`}
-														class="mb-3 inline-block text-xs font-semibold text-slate-900 underline"
-													>
-														Ver auditoría técnica completa
-													</a>
-													<table class="min-w-full divide-y divide-slate-200 text-sm">
-														<thead>
-															<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
-																<th class="px-2 py-1">Cuándo</th>
-																<th class="px-2 py-1">Acción</th>
-																<th class="px-2 py-1">Actor</th>
-															</tr>
-														</thead>
-														<tbody class="divide-y divide-slate-200">
-															{focusedDetail.audit.slice(0, 8).map((row) => (
-																<tr>
-																	<td class="px-2 py-2 text-slate-700">
-																		{row.createdAt ? fmt.format(new Date(row.createdAt)) : "—"}
-																	</td>
-																	<td class="px-2 py-2 text-slate-900">{row.actionLabel}</td>
-																	<td class="px-2 py-2 text-slate-600">
-																		{row.actorEmail || row.actorUserId || "—"}
-																	</td>
-																</tr>
-															))}
-														</tbody>
-													</table>
-												</div>
-											) : (
-												<p class="text-sm text-slate-600">Sin eventos de auditoría recientes.</p>
-											)}
+											<Button
+												href={`/admin/providers/${encodeURIComponent(focusedDetail.provider.id)}#historial`}
+												variant="secondary"
+												size="sm"
+											>
+												Ver historial en la ficha del proveedor
+											</Button>
 										</aside>
 									</>
 								) : null}

@@ -42,26 +42,11 @@ export type FeatureFlagContext = {
 	env?: Record<string, string | undefined> | null
 }
 
-/**
- * Command Center V2 decisions are deliberately enabled per test provider during
- * the pilot. An empty list never grants command access, even when the global
- * command switch is on. This is configuration, not request-controlled input.
- */
-export function isCommandCenterV2PilotProvider(
-	providerId: string,
-	context?: Pick<FeatureFlagContext, "env">
-): boolean {
-	const raw =
-		context?.env?.COMMAND_CENTER_V2_PILOT_PROVIDER_IDS ??
-		process.env.COMMAND_CENTER_V2_PILOT_PROVIDER_IDS ??
-		""
-	const providerIds = new Set(
-		String(raw)
-			.split(",")
-			.map((value) => value.trim())
-			.filter(Boolean)
-	)
-	return providerIds.has(String(providerId).trim())
+/** Archived providers remain read-only; commands and permissions are checked separately. */
+export function canUseCommandCenterDecisionForCase(input: {
+	providerStatus: string | null
+}): boolean {
+	return input.providerStatus !== "archived"
 }
 
 function parseBoolean(value: string | undefined, defaultValue: boolean): boolean {

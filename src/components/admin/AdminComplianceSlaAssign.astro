@@ -58,7 +58,7 @@ const shortcutEmails = Array.from(
 				{summary}
 			</p>
 		) : (
-			<p class="text-xs text-slate-500">Sin SLA asignado</p>
+			<p class="text-xs text-slate-500">Sin plazo asignado</p>
 		)
 	}
 	{
@@ -71,7 +71,7 @@ const shortcutEmails = Array.from(
 						data-assignee-shortcut={email}
 						data-assignee-me={me && email === me ? "true" : undefined}
 					>
-						{me && email === me ? "Yo" : email}
+						{me && email === me ? "Asignarme" : email}
 					</button>
 				))}
 			</div>
@@ -87,19 +87,26 @@ const shortcutEmails = Array.from(
 		<input
 			name="assigneeEmail"
 			type="email"
+			aria-label="Responsable"
 			placeholder="responsable@fastt.test"
 			value={assignment?.assigneeEmail ?? ""}
 			class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
 			data-assignee-email-input
 		/>
-		<input
-			name="slaHours"
-			type="number"
-			min="1"
-			max="168"
-			value={String(assignment?.slaHours ?? 48)}
-			class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
-		/>
-		<Button type="submit" variant="secondary" className="w-fit">Asignar SLA</Button>
+		<details class="text-sm">
+			<summary class="cursor-pointer font-medium">Cambiar plazo</summary>
+			<label class="mt-2 block">
+				Plazo de revisión (horas)
+				<input
+					name="slaHours"
+					type="number"
+					min="1"
+					max="168"
+					value={String(assignment?.slaHours ?? 48)}
+					class="fastt-field w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+				/>
+			</label>
+		</details>
+		<Button type="submit" variant="secondary" className="w-fit">Guardar asignación</Button>
 	</form>
 </div>

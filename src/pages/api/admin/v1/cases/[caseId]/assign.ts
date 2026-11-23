@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro"
 import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 
-import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
+import { getFeatureFlag } from "@/config/featureFlags"
 import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import {
 	idempotencyKeyFromRequest,
@@ -31,9 +31,10 @@ export const POST: APIRoute = async ({ request, params, redirect }) => {
 		const body = await payload(request)
 		const caseId = String(params.caseId ?? "")
 		const expectedVersion = Number(body.caseVersion)
+		const deadlineHours = body.deadlineHours === undefined ? undefined : Number(body.deadlineHours)
 		const audit: SensitiveCommandAudit = {
 			requestId,
-			action: "case.assign",
+			action: deadlineHours === undefined ? "case.assign" : "case.deadline.set",
 			entityType: "ComplianceCase",
 			entityId: caseId,
 			riskLevel: "medium",
@@ -43,15 +44,15 @@ export const POST: APIRoute = async ({ request, params, redirect }) => {
 			idempotency: {
 				scope: "case.assign",
 				key: idempotencyKeyFromRequest(request),
-				payload: { caseId, expectedVersion },
+				payload: { caseId, expectedVersion, deadlineHours },
 			},
 			authorize: async () => {
 				const principal = await requireInternalPermission(request, "case.assign")
 				await requireRecentInternalAuthentication({ request, user: principal.user })
 				const workspace = await getCaseWorkspace(caseId)
 				if (!workspace) throw Object.assign(new Error("case_not_found"), { status: 404 })
-				if (!isCommandCenterV2PilotProvider(workspace.case.providerId))
-					throw Response.json({ error: "casework_pilot_scope_required" }, { status: 403 })
+				if (workspace.case.providerStatus === "archived")
+					throw Response.json({ error: "case_provider_archived" }, { status: 409 })
 				audit.actorUserId = principal.user.id
 				audit.actorRoleKeys = principal.roles
 				;(audit as SensitiveCommandAudit & { actorEmail?: string }).actorEmail =
@@ -66,12 +67,24 @@ export const POST: APIRoute = async ({ request, params, redirect }) => {
 					assigneeUserId: principal.user.id,
 					assigneeEmail: principal.user.email,
 					actorUserId: principal.user.id,
+					deadlineHours,
 				})
-				return { response: result, afterJson: { assigneeUserId: principal.user.id, ...result } }
+				return {
+					response: result,
+					afterJson: {
+						...(deadlineHours === undefined
+							? { assigneeUserId: principal.user.id }
+							: { deadlineHours }),
+						...result,
+					},
+				}
 			},
 		})
 		if (!request.headers.get("content-type")?.includes("application/json"))
-			return redirect(`/admin/cases/${encodeURIComponent(caseId)}?notice=assigned`, 303)
+			return redirect(
+				`/admin/cases/${encodeURIComponent(caseId)}${deadlineHours === undefined ? "?notice=assigned" : ""}`,
+				303
+			)
 		return withRequestId(
 			Response.json({ ok: true, ...command.response, idempotent: command.replayed }),
 			requestId

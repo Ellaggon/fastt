@@ -405,7 +405,7 @@ export function labelMatrixCheckState(params: { complete: boolean; pending?: boo
 	return TRUST_GLOSSARY.matrix.missing
 }
 
-function trustLinkStateLabel(uiState: TrustLinkUiState): string {
+export function trustLinkStateLabel(uiState: TrustLinkUiState): string {
 	switch (uiState) {
 		case "ready":
 			return TRUST_GLOSSARY.trustLink.ready
@@ -423,7 +423,7 @@ function trustLinkStateLabel(uiState: TrustLinkUiState): string {
 	}
 }
 
-function trustLinkTone(uiState: TrustLinkUiState): TrustLinkTone {
+export function trustLinkTone(uiState: TrustLinkUiState): TrustLinkTone {
 	switch (uiState) {
 		case "ready":
 			return "success"

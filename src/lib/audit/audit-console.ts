@@ -1,4 +1,5 @@
 import {
+	and,
 	AuditEvent,
 	db,
 	desc,
@@ -27,6 +28,8 @@ export type AuditConsoleFilters = {
 	from?: Date
 	to?: Date
 	limit?: number
+	offset?: number
+	requestIds?: string[]
 }
 
 function nonEmpty(value: string | null | undefined, maxLength = 160): string | undefined {
@@ -101,6 +104,7 @@ export async function loadAuditConsoleEvents(
 			))
 			OR coalesce(${AuditEvent.contextJson}->>'caseId', '') = ${filters.caseId}
 		)`)
+	if (filters.requestIds?.length) conditions.push(inArray(AuditEvent.requestId, filters.requestIds))
 	if (filters.requestId) conditions.push(eq(AuditEvent.requestId, filters.requestId))
 	if (filters.action) conditions.push(eq(AuditEvent.action, filters.action))
 	if (filters.outcome) conditions.push(eq(AuditEvent.outcome, filters.outcome))
@@ -108,11 +112,13 @@ export async function loadAuditConsoleEvents(
 	if (filters.from) conditions.push(gte(AuditEvent.createdAt, filters.from))
 	if (filters.to) conditions.push(lte(AuditEvent.createdAt, filters.to))
 
-	let query = db.select().from(AuditEvent).$dynamic()
-	for (const condition of conditions) query = query.where(condition)
-	const rows = await query
-		.orderBy(desc(AuditEvent.createdAt))
+	const rows = await db
+		.select()
+		.from(AuditEvent)
+		.where(and(...conditions))
+		.orderBy(desc(AuditEvent.createdAt), desc(AuditEvent.id))
 		.limit(Math.min(Math.max(filters.limit ?? 150, 1), 250))
+		.offset(filters.offset ?? 0)
 
 	const actorIds = [
 		...new Set(rows.map((row) => row.actorUserId).filter((id): id is string => Boolean(id))),

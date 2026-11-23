@@ -5,9 +5,10 @@ import { commercialAgreementRollout } from "@/modules/financial/commercial-agree
 
 interface Props {
 	title?: string
+	wide?: boolean
 }
 
-const { title = "Centro de Mando FASTT" } = Astro.props
+const { title = "Centro de Mando FASTT", wide = false } = Astro.props
 const pathname = Astro.url.pathname
 const commandCenterEnabled = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", {
 	request: Astro.request,
@@ -16,11 +17,10 @@ const links = commandCenterEnabled
 	? [
 			{ href: "/admin", label: "Inicio", exact: true },
 			{ href: "/admin/work", label: "Mi trabajo" },
-			{ href: "/admin/queues/all", label: "Colas" },
-			{ href: "/admin/cases", label: "Casos" },
+			{ href: "/admin/providers/directory", label: "Proveedores" },
 			{ href: "/admin/support", label: "Soporte" },
 			{ href: "/admin/audit", label: "Auditoría" },
-			{ href: "/admin/policy-exceptions", label: "Políticas" },
+			{ href: "/admin/policy-exceptions", label: "Excepciones de reserva" },
 		]
 	: [
 			{ href: "/admin/providers", label: "Proveedores", exact: true },
@@ -31,6 +31,10 @@ const isActive = (link: (typeof links)[number]) =>
 	link.exact
 		? pathname === link.href
 		: pathname === link.href || pathname.startsWith(`${link.href}/`)
+links.splice(links.findIndex((link) => link.label === "Proveedores") + 1, 0, {
+	href: "/admin/commercial-policies",
+	label: "Políticas",
+})
 if (commercialAgreementRollout().enabled)
 	links.push({ href: "/admin/commercial-agreements", label: "Acuerdos" })
 ---
@@ -44,7 +48,7 @@ if (commercialAgreementRollout().enabled)
 	</a>
 	<div class="min-h-screen bg-slate-950 text-slate-100">
 		<header class="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/95 backdrop-blur">
-			<div class="mx-auto max-w-[96rem] px-4 sm:px-6">
+			<div class:list={["mx-auto px-4 sm:px-6", !wide && "max-w-[96rem]"]}>
 				<div class="flex min-h-16 flex-wrap items-center justify-between gap-3 py-3">
 					<div class="flex items-center gap-4">
 						<a
@@ -85,10 +89,19 @@ if (commercialAgreementRollout().enabled)
 						</nav>
 					</div>
 					<div class="flex items-center gap-2">
-						<a
-							class="rounded-lg px-3 py-2 text-xs text-slate-400 hover:bg-slate-900 hover:text-white"
-							href="/admin/providers">Legacy</a
-						>
+						{
+							!getFeatureFlag("COMMAND_CENTER_V2_COMMANDS_ENABLED", { request: Astro.request }) &&
+								getFeatureFlag("COMMAND_CENTER_LEGACY_WRITE_ENABLED", {
+									request: Astro.request,
+								}) && (
+									<a
+										class="rounded-lg px-3 py-2 text-xs text-slate-400 hover:bg-slate-900 hover:text-white"
+										href="/admin/providers"
+									>
+										Panel anterior
+									</a>
+								)
+						}
 						<a
 							class="rounded-lg border border-slate-700 px-3 py-2 text-xs font-medium text-amber-200 hover:border-amber-300"
 							href={`/auth/mfa?returnTo=${encodeURIComponent(pathname + Astro.url.search)}`}
@@ -117,7 +130,11 @@ if (commercialAgreementRollout().enabled)
 				</nav>
 			</div>
 		</header>
-		<main id="admin-main" class="mx-auto max-w-[96rem] px-4 py-6 sm:px-6 sm:py-8" tabindex="-1">
+		<main
+			id="admin-main"
+			class:list={["mx-auto px-4 py-6 sm:px-6 sm:py-8", !wide && "max-w-[96rem]"]}
+			tabindex="-1"
+		>
 			<slot />
 		</main>
 	</div>

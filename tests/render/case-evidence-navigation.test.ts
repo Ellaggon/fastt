@@ -26,6 +26,34 @@ const fiscal: CaseEvidenceReadModel = {
 	},
 }
 describe("review evidence navigation", () => {
+	it("shows company evidence separately from the document being decided", async () => {
+		const container = await AstroContainer.create()
+		const html = await container.renderToString(CaseEvidencePanel, {
+			props: {
+				caseId: "identity-a",
+				evidence: {
+					...fiscal,
+					domain: "documents",
+					reveal: null,
+					signals: [
+						{
+							key: "business_registration",
+							label: "Registro de la empresa",
+							status: "review",
+							statusLabel: "Requiere cambios",
+							detail: "registro.pdf · Registro ilegible",
+						},
+					],
+				},
+			},
+		})
+		expect(html).toContain("Respaldos del proveedor")
+		expect(html).not.toContain("Criterios de decisión")
+		expect(html).toContain("Registro de la empresa")
+		expect(html).toContain("Requiere cambios")
+		expect(html).toContain("registro.pdf")
+		expect(html.replace(/\s+/g, " ")).toContain("solo afecta al archivo asociado")
+	})
 	it("lists prior holder documents and only offers original access with permission", async () => {
 		const container = await AstroContainer.create()
 		const evidence: CaseEvidenceReadModel = {
@@ -102,7 +130,9 @@ describe("review evidence navigation", () => {
 		expect(html).toContain('id="case-evidence"')
 		expect(html).toContain("datos fiscales declarados")
 		expect(html).toContain('data-endpoint="/api/admin/v1/cases/fiscal-a/evidence/reveal"')
-		expect(html.indexOf("data-evidence-reveal")).toBeLessThan(html.indexOf("Criterios de decisión"))
+		expect(html.indexOf("data-evidence-reveal")).toBeLessThan(
+			html.indexOf("Respaldos del proveedor")
+		)
 		expect(html).not.toContain("Consultar archivo original")
 	})
 	it("explains protected access without offering a form to a reader without reveal permission", async () => {

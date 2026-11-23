@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import { loadProviderAccountPolicyEvidence } from "@/lib/commercial-policy/account-evidence"
 
 import { assessHolderNameMatch, type HolderNameMatch } from "@/lib/compliance/holder-name-match"
 import {
@@ -9,7 +10,11 @@ import {
 import { getLatestProviderVerificationStatus } from "@/lib/provider-admin-compliance"
 import { readProviderHolderProfile } from "@/lib/provider-holder-profile"
 import { legalFormForCountry } from "@/shared/domain/legal-forms"
-import { listProviderDocuments } from "@/lib/provider-documents"
+import {
+	buildRequiredKycSlots,
+	listProviderDocuments,
+	type ProviderDocumentRecord,
+} from "@/lib/provider-documents"
 import { listProviderPaymentAccounts } from "@/lib/provider-payment-accounts"
 import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
 import {
@@ -70,6 +75,34 @@ export type EvidenceSignal = {
 	label: string
 	status: "pass" | "review" | "missing" | "info"
 	detail: string
+	statusLabel?: string
+}
+
+export function accountDocumentEvidenceSignals(input: {
+	holderType: string | null
+	documents: ProviderDocumentRecord[]
+}): EvidenceSignal[] {
+	return buildRequiredKycSlots({
+		documents: input.documents,
+		types:
+			input.holderType === "entidad"
+				? ["government_id", "business_registration"]
+				: ["government_id"],
+	}).map((slot) => ({
+		key: slot.type === "government_id" ? "identity_documents" : "business_registration",
+		label:
+			slot.type === "government_id"
+				? "Documento de identidad de la cuenta"
+				: "Registro de la empresa",
+		status: slot.state === "verified" ? "pass" : slot.state === "missing" ? "missing" : "review",
+		statusLabel: slot.stateLabel,
+		detail: [
+			slot.fileName ?? (slot.documentId ? "Archivo registrado" : "No hay un documento enviado"),
+			slot.reviewNotes,
+		]
+			.filter(Boolean)
+			.join(" · "),
+	}))
 }
 
 export type CaseEvidenceReadModel = {
@@ -129,9 +162,7 @@ export async function getCaseEvidence(workspace: Workspace): Promise<CaseEvidenc
 			getProviderTaxConfiguration(providerId),
 			listProviderDocuments(providerId),
 			listProviderPaymentAccounts(providerId),
-			workspace.case.sourceType === "ProviderVerification"
-				? readProviderHolderProfile(providerId)
-				: null,
+			readProviderHolderProfile(providerId),
 			workspace.case.sourceType === "ProviderVerification"
 				? db
 						.select({
@@ -175,30 +206,50 @@ export async function getCaseEvidence(workspace: Workspace): Promise<CaseEvidenc
 			accountHolderName: item.accountHolderName,
 		})
 	)
-	const verifiedDocuments = documents.filter(
-		(item) => item.type === "government_id" && item.status === "verified"
-	)
-	const pendingDocuments = documents.filter(
-		(item) => item.type === "government_id" && item.status === "pending"
-	)
 	const commonSignals: EvidenceSignal[] = [
-		{
-			key: "identity_documents",
-			label: "Documentación de identidad",
-			status: verifiedDocuments.length ? "pass" : pendingDocuments.length ? "review" : "missing",
-			detail: verifiedDocuments.length
-				? `${verifiedDocuments.length} documento(s) verificado(s)`
-				: pendingDocuments.length
-					? `${pendingDocuments.length} documento(s) pendiente(s)`
-					: "No hay documentos verificables registrados",
-		},
+		...accountDocumentEvidenceSignals({ holderType: holder?.holderType ?? null, documents }),
 		{
 			key: "fiscal_state",
-			label: "Identidad fiscal",
+			label: "Registro fiscal administrativo",
 			status: fiscal?.status === "verified" ? "pass" : fiscal ? "review" : "missing",
 			detail: fiscal?.statusLabel ?? "Sin configuración fiscal",
 		},
 	]
+	const accountPolicies = await loadProviderAccountPolicyEvidence({
+		providerId,
+		holder,
+		documents,
+	}).catch(() => null)
+	if (accountPolicies) {
+		commonSignals.push(
+			...accountPolicies.items.map(
+				(item): EvidenceSignal => ({
+					key: `policy.${item.policyVersionId}.${item.key}`,
+					label: item.label,
+					status:
+						item.state === "verified"
+							? "pass"
+							: item.state === "pending_review" || item.state === "rejected"
+								? "review"
+								: "missing",
+					statusLabel: item.stateLabel,
+					detail: item.documents.length
+						? item.documents
+								.map((doc) => `${doc.fileName ?? "Archivo registrado"} · ${doc.statusLabel}`)
+								.join("; ")
+						: "No hay respaldo vinculado a la definición exigida por la política.",
+				})
+			)
+		)
+	} else {
+		commonSignals.push({
+			key: "account_policies_unavailable",
+			label: "Respaldos de políticas",
+			status: "review",
+			detail:
+				"No se pudieron comprobar los requisitos aplicables. No equivale a requisitos completos.",
+		})
+	}
 
 	let model: Omit<CaseEvidenceReadModel, "revision" | "observedAt">
 	if (workspace.case.domain === "fiscal") {
@@ -298,6 +349,7 @@ export async function getCaseEvidence(workspace: Workspace): Promise<CaseEvidenc
 					key: "source_integrity",
 					label: "Integridad de referencia",
 					status: sourceDocument ? "pass" : "missing",
+					statusLabel: sourceDocument ? "Coincide" : "Faltante",
 					detail: sourceDocument
 						? "La fuente coincide con el expediente"
 						: "Reconciliación requerida",

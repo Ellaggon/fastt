@@ -23,7 +23,7 @@ import { listPendingProviderDocumentsForAdmin } from "@/lib/provider-documents"
 import { listPendingProviderPaymentAccountsForAdmin } from "@/lib/provider-payment-accounts"
 import { listPendingProviderVerificationsForAdmin } from "@/lib/provider-admin-compliance"
 import { listProviderTaxConfigurationsForAdmin } from "@/lib/provider-tax-configuration"
-import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
+import { getFeatureFlag } from "@/config/featureFlags"
 import { ProviderCommercialAgreement } from "@/shared/infrastructure/db/schema/tables"
 import { commercialAgreementRollout } from "@/modules/financial/commercial-agreement-rollout"
 
@@ -90,10 +90,7 @@ export async function assertLegacyComplianceReviewAllowed(
 			fail("case_waiting_information")
 		if (cases.some((item) => item.riskTier !== "standard")) fail("casework_review_required")
 	}
-	if (
-		getFeatureFlag("COMMAND_CENTER_V2_COMMANDS_ENABLED") &&
-		isCommandCenterV2PilotProvider(source.providerId)
-	)
+	if (cases.length && getFeatureFlag("COMMAND_CENTER_V2_COMMANDS_ENABLED"))
 		fail("casework_review_required")
 }
 

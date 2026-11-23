@@ -7,7 +7,6 @@ interface Props {
 	caseVersion: number
 	status: string
 	commandsEnabled: boolean
-	caseInPilot: boolean
 	canAssignCase: boolean
 	hasUnassignedTask: boolean
 	pendingDecisionReview: boolean
@@ -21,7 +20,6 @@ const {
 	caseVersion,
 	status,
 	commandsEnabled,
-	caseInPilot,
 	canAssignCase,
 	hasUnassignedTask,
 	pendingDecisionReview,
@@ -36,7 +34,6 @@ const canTakeCase =
 	!pendingDecisionReview &&
 	!waiting &&
 	commandsEnabled &&
-	caseInPilot &&
 	canAssignCase &&
 	hasUnassignedTask
 const canContinueReview =
@@ -53,13 +50,11 @@ const message = !actionable
 				? "El caso espera información del proveedor. Revisa la solicitud y su respuesta."
 				: !commandsEnabled
 					? "La asignación y las decisiones están en modo consulta en este entorno."
-					: !caseInPilot
-						? "La asignación y las decisiones de este proveedor aún no están habilitadas en este expediente."
-						: !hasUnassignedTask
-							? "Las tareas abiertas ya tienen responsable."
-							: !canAssignCase
-								? "Tu cuenta puede consultar el caso, pero no tiene permiso para asignarlo."
-								: "Toma el caso para figurar como responsable de la revisión."
+					: !hasUnassignedTask
+						? "Las tareas abiertas ya tienen responsable."
+						: !canAssignCase
+							? "Tu cuenta puede consultar el caso, pero no tiene permiso para asignarlo."
+							: "Toma el caso para figurar como responsable de la revisión."
 ---
 
 {

@@ -10,7 +10,7 @@ import InternalAccessDenied from "@/components/admin/InternalAccessDenied.astro"
 import CaseEvidencePanel from "@/components/admin/cases/CaseEvidencePanel.astro"
 import CaseNextAction from "@/components/admin/cases/CaseNextAction.astro"
 import CaseRelatedReviews from "@/components/admin/cases/CaseRelatedReviews.astro"
-import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
+import { getFeatureFlag, canUseCommandCenterDecisionForCase } from "@/config/featureFlags"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
 import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import {
@@ -85,7 +85,7 @@ const [evidence, relatedReviews] = workspace
 const commandsEnabled = getFeatureFlag("COMMAND_CENTER_V2_COMMANDS_ENABLED", {
 	request: Astro.request,
 })
-const caseInPilot = workspace ? isCommandCenterV2PilotProvider(workspace.case.providerId) : false
+const caseProviderAvailable = workspace ? canUseCommandCenterDecisionForCase(workspace.case) : false
 const legacyWriteEnabled = getFeatureFlag("COMMAND_CENTER_LEGACY_WRITE_ENABLED", {
 	request: Astro.request,
 })
@@ -149,7 +149,7 @@ if (Astro.request.method === "GET" && activeHolderCase) {
 		302
 	)
 }
-const canStartHolderReview = commandsEnabled && caseInPilot && canProposeDecision
+const canStartHolderReview = commandsEnabled && caseProviderAvailable && canProposeDecision
 if (Astro.request.method === "POST") {
 	if (
 		Astro.request.headers.get("origin") !== Astro.url.origin ||
@@ -240,7 +240,8 @@ const legacyReviewHref = holderWorkspace
 			  workspace.case.status !== "waiting_information" &&
 			  workspace.case.riskTier === "standard" &&
 			  !pendingDecisionReview &&
-			  (!commandsEnabled || !caseInPilot) &&
+			  caseProviderAvailable &&
+			  !commandsEnabled &&
 			  legacyWriteEnabled &&
 			  canAccessLegacy &&
 			  canReviewArea
@@ -381,7 +382,9 @@ const noticeMessage =
 														{caseActionable
 															? holderWorkspace
 																? "Declaración del titular en revisión"
-																: "Qué revisar"
+																: workspace.case.domain === "payments"
+																	? "Revisión de la cuenta"
+																	: "Qué revisar"
 															: holderWorkspace && latestOutcome
 																? "Decisión aplicada"
 																: reconciliation
@@ -390,7 +393,9 @@ const noticeMessage =
 													</h2>
 													<p class="mt-2 text-sm text-slate-600">
 														{caseActionable
-															? `Revisa la evidencia de ${domainLabels[workspace.case.domain]} antes de registrar un resultado.`
+															? workspace.case.domain === "payments"
+																? "Cuenta registrada para recibir desembolsos."
+																: `Revisa la evidencia de ${domainLabels[workspace.case.domain]} antes de registrar un resultado.`
 															: reconciliation
 																? `El sistema cerró el expediente el ${fmt.format(reconciliation.createdAt)}, sin registrar una nueva decisión humana.`
 																: latestOutcome
@@ -402,6 +407,30 @@ const noticeMessage =
 											{caseActionable && <CaseStatusBadge value={workspace.case.stage} />}
 										</>
 									</div>
+									{workspace.tasks.length > 0 && (
+										<ul
+											aria-label="Responsable y plazo de la revisión"
+											class="mt-4 divide-y divide-slate-200 border-t border-slate-200"
+										>
+											{workspace.tasks.map((task) => (
+												<li class="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 text-sm">
+													{workspace.tasks.length > 1 && (
+														<span class="basis-full font-medium">
+															{taskLabels[task.requirementKey ?? task.taskType] ??
+																"Revisar evidencia del área"}
+														</span>
+													)}
+													<span class="break-all">
+														Responsable: {task.assigneeEmail ?? "Sin asignar"}
+													</span>
+													<CaseStatusBadge value={task.status} />
+													{task.dueAt && caseActionable && (
+														<span class="text-slate-600">Vence: {fmt.format(task.dueAt)}</span>
+													)}
+												</li>
+											))}
+										</ul>
+									)}
 									{holderWorkspace && (
 										<section class="mt-4 border-t border-slate-200 pt-4">
 											<h3 class="font-semibold">Qué cambió</h3>
@@ -470,7 +499,7 @@ const noticeMessage =
 									{holderWorkspace &&
 										caseActionable &&
 										commandsEnabled &&
-										caseInPilot &&
+										caseProviderAvailable &&
 										canProposeDecision &&
 										!pendingDecisionReview &&
 										workspace.case.status !== "waiting_information" && (
@@ -534,47 +563,6 @@ const noticeMessage =
 								</>
 							</Card>
 
-							<Card>
-								<>
-									<div class="flex items-center justify-between">
-										<>
-											<div>
-												<>
-													<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-														Requisitos
-													</p>
-													<h2 class="mt-1 text-lg font-semibold">Tareas de revisión</h2>
-												</>
-											</div>
-											<span class="text-sm text-slate-500">{workspace.tasks.length} tarea(s)</span>
-										</>
-									</div>
-									<ol class="mt-4 divide-y divide-slate-200">
-										{workspace.tasks.map((task) => (
-											<li class="flex flex-col justify-between gap-3 py-4 sm:flex-row sm:items-center">
-												<div>
-													<p class="font-medium">
-														{taskLabels[task.requirementKey ?? task.taskType] ??
-															"Revisar evidencia del área"}
-													</p>
-													<p class="mt-1 text-xs text-slate-500">
-														Responsable: {task.assigneeEmail ?? "sin asignar"}
-													</p>
-												</div>
-												<div class="flex items-center gap-2">
-													<CaseStatusBadge value={task.status} />
-													{task.dueAt && (
-														<span class="text-xs text-slate-500">
-															vence {fmt.format(task.dueAt)}
-														</span>
-													)}
-												</div>
-											</li>
-										))}
-									</ol>
-								</>
-							</Card>
-
 							{evidence && (
 								<Card>
 									<CaseEvidencePanel
@@ -612,12 +600,12 @@ const noticeMessage =
 											<span
 												class:list={[
 													"rounded-full px-3 py-1 text-xs font-semibold",
-													commandsEnabled && caseInPilot && canProposeDecision
+													commandsEnabled && caseProviderAvailable && canProposeDecision
 														? "bg-emerald-100 text-emerald-800"
 														: "bg-amber-100 text-amber-800",
 												]}
 											>
-												{commandsEnabled && caseInPilot && canProposeDecision
+												{commandsEnabled && caseProviderAvailable && canProposeDecision
 													? "Puede registrar una propuesta"
 													: "Solo lectura"}
 											</span>
@@ -625,7 +613,7 @@ const noticeMessage =
 									</>
 								</div>
 								{commandsEnabled &&
-								caseInPilot &&
+								caseProviderAvailable &&
 								caseActionable &&
 								workspace.case.status !== "waiting_information" &&
 								canProposeDecision &&
@@ -639,38 +627,55 @@ const noticeMessage =
 									>
 										<input type="hidden" name="caseVersion" value={workspace.case.version} />
 										<input type="hidden" name="evidenceRevision" value={evidence?.revision ?? ""} />
-										<label class="block text-sm font-medium">
-											Resultado
-											<Select name="decision" class="mt-2" required>
-												<option value="">Selecciona</option>
+										<fieldset class="text-sm">
+											<legend class="font-semibold">Resultado de la revisión</legend>
+											<div class="mt-2 flex flex-wrap gap-2">
 												{allowedDecisionValues.map((decision) => (
-													<option
-														value={decision}
-														data-effect={decisionEffects[decision]}
-														disabled={
-															decision === "approved" && Boolean(evidence?.approvalBlockers.length)
-														}
-													>
+													<label class="fastt-row-card flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 font-medium has-checked:border-slate-900 has-checked:bg-slate-100 has-disabled:cursor-not-allowed has-disabled:opacity-60">
+														<input
+															type="radio"
+															name="decision"
+															required
+															value={decision}
+															data-effect={decisionEffects[decision]}
+															disabled={
+																decision === "approved" &&
+																Boolean(evidence?.approvalBlockers.length)
+															}
+														/>
 														{decisionLabels[decision] ?? decision}
-													</option>
+													</label>
 												))}
-											</Select>
-										</label>
-										<label class="block text-sm font-medium">
-											Motivo de política
-											<Select name="reasonCode" class="mt-2" required>
-												<option value="">Selecciona un resultado primero</option>
-												{workspace.reasons.map((reason) => (
-													<option
-														value={reason.code}
-														data-decision={reason.decision}
-														data-requires-comment={reason.requiresComment ? "true" : "false"}
-													>
-														{reason.label}
-													</option>
-												))}
-											</Select>
-										</label>
+											</div>
+										</fieldset>
+										<div class="text-sm">
+											<label for="case-decision-reason" class="block font-medium">
+												Motivo de política
+											</label>
+											<p class="mt-2 text-slate-600" data-reason-display>
+												Elige un resultado para ver los motivos.
+											</p>
+											<div hidden data-reason-picker>
+												<Select
+													id="case-decision-reason"
+													name="reasonCode"
+													class="mt-2"
+													closeOnScroll
+													required
+												>
+													<option value="">Selecciona un resultado primero</option>
+													{workspace.reasons.map((reason) => (
+														<option
+															value={reason.code}
+															data-decision={reason.decision}
+															data-requires-comment={reason.requiresComment ? "true" : "false"}
+														>
+															{reason.label}
+														</option>
+													))}
+												</Select>
+											</div>
+										</div>
 										{coverageContext?.kind && <CoverageReviewFields kind={coverageContext.kind} />}
 										<label class="block text-sm font-medium">
 											Comentario{" "}
@@ -763,11 +768,9 @@ const noticeMessage =
 											</p>
 										)}
 									</div>
-								) : !caseInPilot ? (
+								) : !caseProviderAvailable ? (
 									<div class="fastt-notice mt-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
-										<p class="font-semibold">
-											Este proveedor está fuera del piloto de decisiones v2
-										</p>
+										<p class="font-semibold">Este proveedor está archivado</p>
 										<p class="mt-1">
 											Consulta la evidencia en esta vista. Antes de continuar en el panel anterior,
 											comprueba que la tarea admite esa ruta; las propuestas pendientes de segundo
@@ -863,8 +866,7 @@ const noticeMessage =
 								caseVersion={workspace.case.version}
 								status={workspace.case.status}
 								commandsEnabled={commandsEnabled}
-								caseInPilot={caseInPilot}
-								canAssignCase={canAssignCase}
+								canAssignCase={canAssignCase && workspace.case.providerStatus !== "archived"}
 								hasUnassignedTask={workspace.tasks.some(
 									(task) =>
 										["open", "in_progress", "blocked"].includes(task.status) &&
@@ -966,7 +968,7 @@ const noticeMessage =
 															decision.status === "applied" &&
 															workspace.case.status === "waiting_information" &&
 															commandsEnabled &&
-															caseInPilot &&
+															caseProviderAvailable &&
 															canProposeDecision && (
 																<form
 																	class="mt-3 space-y-3"
@@ -1067,7 +1069,7 @@ const noticeMessage =
 												<p class="mt-2 text-xs">
 													No puedes aprobar ni rechazar tu propia propuesta.
 												</p>
-											) : commandsEnabled && caseInPilot && canReviewDecision ? (
+											) : commandsEnabled && caseProviderAvailable && canReviewDecision ? (
 												<div class="mt-3 space-y-3">
 													<form
 														data-case-command
@@ -1173,11 +1175,14 @@ const noticeMessage =
 			const composer = document.querySelector<HTMLFormElement>(
 				"[data-endpoint*='/propose-decision']"
 			)
-			const decision = composer?.querySelector<HTMLSelectElement>("select[name='decision']")
+			const decision = composer?.querySelector<HTMLInputElement>(
+				"input[name='decision'][value='request_information']:not(:disabled)"
+			)
 			const reason = composer?.querySelector<HTMLSelectElement>("select[name='reasonCode']")
 			const comment = composer?.querySelector<HTMLTextAreaElement>("textarea[name='comment']")
 			if (!composer || !decision || !reason || !comment) return
-			decision.value = "request_information"
+			decision.checked = true
+			decision.dispatchEvent(new Event("change", { bubbles: true }))
 			const matchingReason = [...reason.options].find(
 				(option) => option.dataset.decision === "request_information"
 			)
@@ -1333,7 +1338,8 @@ const noticeMessage =
 		}
 		const syncComposer = () => {
 			if (!composer) return
-			const decision = composer.querySelector<HTMLSelectElement>("[name='decision']")
+			const selectedDecision = composer.querySelector<HTMLInputElement>("[name='decision']:checked")
+			const decision = { value: selectedDecision?.value ?? "" }
 			const reason = composer.querySelector<HTMLSelectElement>("[name='reasonCode']")
 			const comment = composer.querySelector<HTMLTextAreaElement>("[name='comment']")
 			const effect = composer.querySelector<HTMLElement>("[data-decision-effect]")
@@ -1349,7 +1355,29 @@ const noticeMessage =
 				option.hidden = !allowed
 				option.disabled = !allowed
 			}
+			reason.disabled = !selectedDecision
+			if (reason.options[0]) {
+				reason.options[0].text = selectedDecision
+					? "Selecciona un motivo"
+					: "Selecciona un resultado primero"
+			}
 			if (reason.selectedOptions[0]?.disabled) reason.value = ""
+			const validReasons = selectedDecision
+				? Array.from(reason.options).filter((option) => option.value && !option.disabled)
+				: []
+			if (validReasons.length === 1) reason.value = validReasons[0]!.value
+			const picker = composer.querySelector<HTMLElement>("[data-reason-picker]")
+			const display = composer.querySelector<HTMLElement>("[data-reason-display]")
+			if (picker) picker.hidden = validReasons.length < 2
+			if (display) {
+				display.hidden = validReasons.length > 1
+				display.textContent =
+					validReasons[0]?.label ??
+					(selectedDecision
+						? "No hay motivos configurados para este resultado."
+						: "Elige un resultado para ver los motivos.")
+			}
+			reason.dispatchEvent(new Event("fastt:options-updated"))
 			const selectedReason = reason.selectedOptions[0]
 			const bankReview =
 				composer.dataset.bankReview === "true" && decision.value !== "request_information"
@@ -1364,7 +1392,7 @@ const noticeMessage =
 				: required
 					? "Obligatorio para este motivo"
 					: "Opcional según el motivo"
-			effect.innerHTML = `<strong>Efecto antes de decidir:</strong> ${decision.selectedOptions[0]?.dataset.effect || "selecciona un resultado para ver qué fuente cambiará."} La propuesta quedará ligada a la versión ${composer.querySelector<HTMLInputElement>("[name='caseVersion']")?.value || "actual"}.`
+			effect.textContent = `Efecto antes de decidir: ${selectedDecision?.dataset.effect || "selecciona un resultado para ver qué fuente cambiará."} La propuesta quedará ligada a la versión ${composer.querySelector<HTMLInputElement>("[name='caseVersion']")?.value || "actual"}.`
 		}
 		if (composer) {
 			const addRoutePlace = () => {
@@ -1406,6 +1434,16 @@ const noticeMessage =
 				)
 				for (let index = 0; index < lastIndex; index++) addRoutePlace()
 				for (const [name, value] of Object.entries(draft)) {
+					if (name === "decision") {
+						const choice = Array.from(
+							composer.querySelectorAll<HTMLInputElement>("[name='decision']")
+						).find((input) => input.value === value && !input.disabled)
+						if (choice) {
+							choice.checked = true
+							syncComposer()
+						}
+						continue
+					}
 					const field = composer.querySelector<
 						HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
 					>(`[name='${name}']`)

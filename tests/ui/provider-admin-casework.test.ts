@@ -40,7 +40,7 @@ describe("S5-5 admin case templates + a11y drawer + assignee shortcuts", () => {
 		expect(assign).toContain("data-assignee-me")
 		expect(assign).toContain("currentAdminEmail")
 		expect(assign).toContain("assigneeShortcuts")
-		expect(assign).toContain('? "Yo" : email')
+		expect(assign).toContain('? "Asignarme" : email')
 		expect(assign).toContain("data-assignee-me")
 
 		expect(admin).toContain("assigneeShortcuts={assigneeShortcuts}")
@@ -60,7 +60,9 @@ describe("S6-5 Admin reject dedupe when drawer open", () => {
 		expect(admin).toContain("revisión en el panel")
 		expect(admin).toContain("data-case-templates")
 
-		expect(admin).toContain('row.verificationStatus === "pending" && !focusedDetail && (')
+		expect(admin).toMatch(
+			/row\.verificationStatus === "pending" &&\s*!row\.holderReviewPending &&\s*!focusedDetail &&/
+		)
 		expect(admin).toMatch(
 			/\{!focusedDetail && \(\s*<form[\s\S]*?data-tax-attention-form[\s\S]*?data-row-reject/
 		)

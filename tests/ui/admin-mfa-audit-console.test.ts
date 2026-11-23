@@ -26,7 +26,7 @@ describe("command center MFA recovery and audit console", () => {
 		const readModel = read("src/lib/audit/audit-console.ts")
 		expect(page).toContain('requireInternalPermission(Astro.request, "audit.read")')
 		expect(page).toContain("Auditoría operativa")
-		expect(page).toContain("Request ID")
+		expect(page).toContain("Referencia de la operación")
 		expect(readModel).toContain("AuditEvent")
 		expect(readModel).toContain("before/after snapshots out of the UI")
 		expect(readModel).toContain("desc(AuditEvent.createdAt)")

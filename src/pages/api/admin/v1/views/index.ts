@@ -24,6 +24,9 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 	try {
 		const principal = await requireInternalPermission(request, "provider.compliance.read")
 		const body = await readBody(request)
+		const surface = body.surface === "providers" ? "providers" : undefined
+		if (surface && request.headers.get("origin") !== new URL(request.url).origin)
+			return Response.json({ error: "invalid_origin" }, { status: 403 })
 		const rawFilters = body.filters
 		const filters =
 			typeof rawFilters === "string"
@@ -33,9 +36,13 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 			ownerUserId: principal.user.id,
 			name: String(body.name ?? ""),
 			filters,
+			surface,
 		})
 		if (!request.headers.get("content-type")?.includes("application/json"))
-			return redirect("/admin/cases?notice=view_saved", 303)
+			return redirect(
+				`${surface === "providers" ? "/admin/providers/directory" : "/admin/cases"}?${new URLSearchParams({ ...(item.filtersJson as Record<string, string>), notice: "view_saved" })}`,
+				303
+			)
 		return Response.json({ ok: true, item }, { status: 201 })
 	} catch (error) {
 		if (error instanceof Response) return error
