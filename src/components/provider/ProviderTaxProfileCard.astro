@@ -20,6 +20,7 @@ type Props = {
 	} | null
 	formReturnTo?: "taxIdentity" | "verificationFiscal"
 	saveError?: string
+	separateDocumentEvidence?: boolean
 }
 
 const {
@@ -28,6 +29,7 @@ const {
 	reviewAssignment = null,
 	formReturnTo = "taxIdentity",
 	saveError = "",
+	separateDocumentEvidence = false,
 } = Astro.props as Props
 const saveAction = copyVerificationNavigationQuery(
 	new URL("/api/provider/settings/tax-configuration", Astro.url),
@@ -58,7 +60,9 @@ const formStartsOpen =
 	Boolean(saveErrorMessage) || !showSubmittedRecord || status === "requires_attention"
 const actionLead =
 	status === "verified"
-		? "La identidad fiscal del negocio está verificada."
+		? separateDocumentEvidence
+			? "El registro fiscal declarado está verificado."
+			: "La identidad fiscal del negocio está verificada."
 		: status === "requires_attention"
 			? "Corrige los datos fiscales indicados y vuelve a enviarlos a revisión."
 			: status === "pending"
@@ -70,7 +74,9 @@ const actionLead =
 	<div class="space-y-5">
 		<div class="flex flex-wrap items-start justify-between gap-3">
 			<div>
-				<h2 class="text-xl font-semibold text-slate-950">Identidad fiscal</h2>
+				<h2 class="text-xl font-semibold text-slate-950">
+					{separateDocumentEvidence ? "Registro fiscal declarado" : "Identidad fiscal"}
+				</h2>
 				<p class="mt-2 text-sm leading-6 text-slate-600" data-fiscal-action-lead>
 					{actionLead}
 				</p>

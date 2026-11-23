@@ -9,6 +9,7 @@ import {
 } from "@/lib/tours/tour-compliance-context"
 type ProductChoice = { id: string; name: string | null; kind?: "tour" | "lodging" }
 type Props = {
+	holderSubject?: { type: "person" | "legal_entity"; reference: string }
 	requireDefinition?: boolean
 	documentDefinitions?: Array<{ id: string; label: string; family: string; capture?: unknown }>
 	selectedType: string | null | undefined
@@ -19,6 +20,7 @@ type Props = {
 	resourceChoices: Array<{ id: string; name: string; type: string }>
 }
 const {
+	holderSubject,
 	requireDefinition = false,
 	documentDefinitions = [],
 	selectedType,
@@ -138,112 +140,132 @@ const subjectOptions = guideCredential
 			Vence el
 			<Input name="expiresAt" type="date" />
 		</label>
-		<label class="grid gap-2 text-sm font-medium text-slate-700">
-			{insurance ? "Asegurado que figura en la póliza" : "Titular del documento"}
-			<Select name="subjectType" required={tourSurface} data-evidence-subject>
-				{
-					tourSurface ? (
-						<option value="" disabled selected>
-							Selecciona a quién cubre
-						</option>
-					) : null
-				}
-				{
-					subjectOptions.map((option) => (
-						<option value={option.value} selected={guideCredential}>
-							{option.label}
-						</option>
-					))
-				}
-			</Select>
-			{
-				tourSurface ? (
-					<span class="text-xs leading-5 font-normal text-slate-500">
-						Elige al titular que aparece en el documento, no a quien carga el archivo.
-					</span>
-				) : null
-			}
-		</label>
 		{
-			guideCredential ? (
-				<label class="grid gap-2 text-sm font-medium text-slate-700">
-					Guía titular de la credencial
-					<select
-						class="fastt-field min-h-11 w-full"
-						name="subjectReference"
-						required
-						data-evidence-guide
-					>
-						<option value="" disabled selected>
-							Selecciona el guía
-						</option>
-						{guideResources.map((guide) => (
-							<option value={guide.id}>{guide.name}</option>
-						))}
-					</select>
-					<span class="text-xs font-normal text-slate-500">
-						Debe ser la persona identificada en la credencial. Si no aparece, regístrala aquí.
-					</span>
-					<div class="flex flex-wrap gap-2" data-guide-registration>
-						<Input
-							aria-label="Nombre completo del guía"
-							data-guide-name
-							placeholder="Nombre completo del guía"
-						/>
-						<Button type="button" variant="secondary" data-register-evidence-guide>
-							Registrar guía
-						</Button>
-						<span role="status" data-guide-registration-status />
-					</div>
-				</label>
+			holderSubject ? (
+				<div class="grid gap-2 text-sm font-medium text-slate-700">
+					<>
+						<span>Titular del documento</span>
+						<span>
+							{holderSubject.type === "person"
+								? "Persona natural titular del negocio"
+								: "Entidad titular del negocio"}
+						</span>
+					</>
+					<input type="hidden" name="subjectType" value={holderSubject.type} />
+					<input type="hidden" name="subjectReference" value={holderSubject.reference} />
+				</div>
 			) : (
 				<label class="grid gap-2 text-sm font-medium text-slate-700">
-					{insurance ? "Nombre o razón social del asegurado" : "Nombre o razón social del titular"}
-					<Input
-						name="subjectReference"
-						placeholder="Tal como aparece en el documento"
-						data-evidence-subject-text
-					/>
-					<select
-						class="fastt-field min-h-11 w-full"
-						name="subjectReference"
-						disabled
-						hidden
-						data-evidence-subject-resource
-						required
-					>
-						<option value="" selected disabled>
-							Selecciona la persona o recurso registrado
-						</option>
-						{resourceChoices.map((guide) => (
-							<option value={guide.id} data-resource-type={guide.type}>
-								{guide.name}
+					{insurance ? "Asegurado que figura en la póliza" : "Titular del documento"}
+					<Select name="subjectType" required={tourSurface} data-evidence-subject>
+						{tourSurface ? (
+							<option value="" disabled selected>
+								Selecciona a quién cubre
+							</option>
+						) : null}
+						{subjectOptions.map((option) => (
+							<option value={option.value} selected={guideCredential}>
+								{option.label}
 							</option>
 						))}
-					</select>
+					</Select>
+					{tourSurface ? (
+						<span class="text-xs leading-5 font-normal text-slate-500">
+							Elige al titular que aparece en el documento, no a quien carga el archivo.
+						</span>
+					) : null}
 				</label>
 			)
 		}
-		<fieldset class="grid gap-2 text-sm font-medium text-slate-700">
-			<legend>Territorios cubiertos por el documento</legend>
-			<OperatingTerritoryPicker name="territoryCode" />
-		</fieldset>
+		{
+			!holderSubject &&
+				(guideCredential ? (
+					<label class="grid gap-2 text-sm font-medium text-slate-700">
+						Guía titular de la credencial
+						<select
+							class="fastt-field min-h-11 w-full"
+							name="subjectReference"
+							required
+							data-evidence-guide
+						>
+							<option value="" disabled selected>
+								Selecciona el guía
+							</option>
+							{guideResources.map((guide) => (
+								<option value={guide.id}>{guide.name}</option>
+							))}
+						</select>
+						<span class="text-xs font-normal text-slate-500">
+							Debe ser la persona identificada en la credencial. Si no aparece, regístrala aquí.
+						</span>
+						<div class="flex flex-wrap gap-2" data-guide-registration>
+							<Input
+								aria-label="Nombre completo del guía"
+								data-guide-name
+								placeholder="Nombre completo del guía"
+							/>
+							<Button type="button" variant="secondary" data-register-evidence-guide>
+								Registrar guía
+							</Button>
+							<span role="status" data-guide-registration-status />
+						</div>
+					</label>
+				) : (
+					<label class="grid gap-2 text-sm font-medium text-slate-700">
+						{insurance
+							? "Nombre o razón social del asegurado"
+							: "Nombre o razón social del titular"}
+						<Input
+							name="subjectReference"
+							placeholder="Tal como aparece en el documento"
+							data-evidence-subject-text
+						/>
+						<select
+							class="fastt-field min-h-11 w-full"
+							name="subjectReference"
+							disabled
+							hidden
+							data-evidence-subject-resource
+							required
+						>
+							<option value="" selected disabled>
+								Selecciona la persona o recurso registrado
+							</option>
+							{resourceChoices.map((guide) => (
+								<option value={guide.id} data-resource-type={guide.type}>
+									{guide.name}
+								</option>
+							))}
+						</select>
+					</label>
+				))
+		}
+		{
+			!holderSubject && (
+				<fieldset class="grid gap-2 text-sm font-medium text-slate-700">
+					<legend>Territorios cubiertos por el documento</legend>
+					<OperatingTerritoryPicker name="territoryCode" />
+				</fieldset>
+			)
+		}
 	</div>
-	<fieldset class="mt-4 grid gap-2 text-sm text-slate-700">
-		<legend class="font-medium">Actividad cubierta (si corresponde)</legend>
-		<div class="flex flex-wrap gap-x-4 gap-y-2">
-			{
-				tourComplianceActivityClasses
-					.filter((value) => value !== "water_air")
-					.map((value) => (
-						<label class="inline-flex items-center gap-2">
-							<input type="checkbox" name="activityClass" value={value} />
-							{tourComplianceActivityLabels[value]}
-						</label>
-					))
-			}
-		</div>
-	</fieldset>
+	{
+		!holderSubject && (
+			<fieldset class="mt-4 grid gap-2 text-sm text-slate-700">
+				<legend class="font-medium">Actividad cubierta (si corresponde)</legend>
+				<div class="flex flex-wrap gap-x-4 gap-y-2">
+					{tourComplianceActivityClasses
+						.filter((value) => value !== "water_air")
+						.map((value) => (
+							<label class="inline-flex items-center gap-2">
+								<input type="checkbox" name="activityClass" value={value} />
+								{tourComplianceActivityLabels[value]}
+							</label>
+						))}
+				</div>
+			</fieldset>
+		)
+	}
 </details>
 <script>
 	import "@/lib/ui/direct-document-upload"

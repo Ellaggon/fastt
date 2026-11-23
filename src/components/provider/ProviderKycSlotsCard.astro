@@ -58,6 +58,12 @@ function uploadPausedForHolder(slot: ProviderKycSlot) {
 
 const missingCount = slots.filter((slot) => slot.state === "missing").length
 const rejectedCount = slots.filter((slot) => slot.state === "rejected").length
+const rejectionTitle = (type: ProviderKycSlot["type"]) =>
+	type === "government_id"
+		? "Tu documento de identidad fue rechazado"
+		: type === "business_registration"
+			? "El registro mercantil de tu empresa fue rechazado"
+			: "Documento rechazado"
 const completeCount = slots.filter((slot) => slot.state === "verified").length
 const focusTypeResolved = resolveKycUploadFocusType({ slots, focusType })
 const requestedSlot = focusType ? (slots.find((slot) => slot.type === focusType) ?? null) : null
@@ -244,13 +250,14 @@ function allowUploadForm(slot: ProviderKycSlot) {
 								</div>
 							)}
 							{slot.state === "rejected" && (slot.reviewNotes || slot.documentId) ? (
-								<Notice variant="error" title="Motivo del rechazo">
+								<Notice variant="error" title={rejectionTitle(slot.type)}>
 									{slot.rejectCategoryLabel ? (
 										<Badge variant="error" class="mb-2">
 											{slot.rejectCategoryLabel}
 										</Badge>
 									) : null}
 									<p>
+										{slot.reviewNotes && <strong>Motivo: </strong>}
 										{slot.reviewNotes ||
 											"El equipo Fastt rechazó este documento. Corrige y envía una nueva versión."}
 									</p>
@@ -416,13 +423,14 @@ function allowUploadForm(slot: ProviderKycSlot) {
 							) : null}
 
 							{slot.state === "rejected" && (slot.reviewNotes || slot.documentId) ? (
-								<Notice variant="error" title="Motivo del rechazo">
+								<Notice variant="error" title={rejectionTitle(slot.type)}>
 									{slot.rejectCategoryLabel ? (
 										<Badge variant="error" class="mb-2">
 											{slot.rejectCategoryLabel}
 										</Badge>
 									) : null}
 									<p>
+										{slot.reviewNotes && <strong>Motivo: </strong>}
 										{slot.reviewNotes ||
 											"El equipo Fastt rechazó este documento. Corrige y envía una nueva versión."}
 									</p>
@@ -467,7 +475,11 @@ function allowUploadForm(slot: ProviderKycSlot) {
 											{bridge?.allowOptionalUpload
 												? "Adjuntar constancia (solo si te la pedimos)"
 												: slot.state === "rejected"
-													? "Reenviar documento"
+													? slot.type === "government_id"
+														? "Reemplazar documento de identidad"
+														: slot.type === "business_registration"
+															? "Reemplazar registro mercantil"
+															: "Reemplazar documento"
 													: "Subir documento"}
 										</summary>
 										<div class="mt-3">

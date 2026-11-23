@@ -1,4 +1,9 @@
 import {
+	loadProviderAccountPolicyEvidence,
+	accountEvidenceReadiness,
+	type AccountPolicyEvidenceResult,
+} from "@/lib/commercial-policy/account-evidence"
+import {
 	presentExperienceDocument,
 	type DocumentListPresentation,
 } from "@/lib/verification/document-list-presentation"
@@ -22,6 +27,8 @@ import { resolveProviderRejectCategory } from "@/lib/provider-reject-categories"
 import type { ProviderTaxConfigurationRecord } from "@/lib/provider-tax-configuration"
 import {
 	buildVerificationCrossLinks,
+	trustLinkStateLabel,
+	trustLinkTone,
 	isProviderTrustMapComplete,
 	isVerificationListaReady,
 	resolveVerificationNextStep,
@@ -100,8 +107,16 @@ type SlaAssignment = {
 }
 
 export type ProviderVerificationWorkspaceModel = {
+	providerId?: string
+	accountPolicyEvidence?: AccountPolicyEvidenceResult
 	policyDiagnosis?: import("@/lib/commercial-policy/evaluate").CommercialPolicyDiagnosis | null
-	documentDefinitions?: Array<{ id: string; label: string; family: string; capture?: unknown }>
+	documentDefinitions?: Array<{
+		id: string
+		key?: string
+		label: string
+		family: string
+		capture?: unknown
+	}>
 	businessProfile?: {
 		displayName: string | null
 		legalName: string | null
@@ -396,7 +411,28 @@ export async function loadProviderVerificationWorkspace(params: {
 	const latestVerification = trustSnapshot?.latestVerification ?? null
 	const taxConfiguration = trustSnapshot?.taxConfiguration ?? null
 	const paymentAccounts = trustSnapshot?.paymentAccounts ?? []
-	const trustLinks = trustSnapshot?.trustLinks ?? []
+	const accountPolicyEvidence =
+		!params.experienceWorkspace && selectedLine === "tour"
+			? await loadProviderAccountPolicyEvidence({
+					providerId: params.providerId,
+					holder,
+					documents,
+					productIds: tourProducts.map((p) => p.id),
+				})
+			: { items: [], unresolvedOffers: 0 }
+	const trustLinks = (trustSnapshot?.trustLinks ?? []).map((link) => {
+		if (link.id !== "fiscal") return link
+		const uiState = accountEvidenceReadiness(
+			link.uiState,
+			accountPolicyEvidence.items.filter((item) => item.area === "fiscal")
+		)
+		return {
+			...link,
+			uiState,
+			stateLabel: trustLinkStateLabel(uiState),
+			tone: trustLinkTone(uiState),
+		}
+	})
 	const legalNameComplete = Boolean(trustSnapshot?.legalNameComplete)
 	const holderDeclarationInReview = isHolderDeclarationInReview(holder)
 	const trustMapComplete = isProviderTrustMapComplete(trustLinks)
@@ -604,8 +640,9 @@ export async function loadProviderVerificationWorkspace(params: {
 				section.items.some((item) => item.id === "shared.business_registration")
 			)
 		)
-	const tourIdentityFromSlots = trustStateFromKycSlotState(
-		kycSlots.find((slot) => slot.type === "government_id")?.state
+	const tourIdentityFromSlots = accountEvidenceReadiness(
+		trustStateFromKycSlotState(kycSlots.find((slot) => slot.type === "government_id")?.state),
+		accountPolicyEvidence.items.filter((item) => item.area === "identity")
 	)
 	const tourRegistrationFromSlots = tourRequiresRegistration
 		? trustStateFromKycSlotState(
@@ -624,14 +661,17 @@ export async function loadProviderVerificationWorkspace(params: {
 							tab,
 						}),
 					identity: tourIdentityFromSlots,
-					business: tourBusinessVerificationState({
-						legalNameComplete,
-						holderType,
-						holderCountry: holder?.holderCountry ?? null,
-						holderInReview: holderDeclarationInReview,
-						accountStatus: latestVerification?.status ?? null,
-						registration: tourRegistrationFromSlots,
-					}),
+					business: accountEvidenceReadiness(
+						tourBusinessVerificationState({
+							legalNameComplete,
+							holderType,
+							holderCountry: holder?.holderCountry ?? null,
+							holderInReview: holderDeclarationInReview,
+							accountStatus: latestVerification?.status ?? null,
+							registration: tourRegistrationFromSlots,
+						}),
+						accountPolicyEvidence.items.filter((item) => item.area === "business")
+					),
 					registration: tourRegistrationFromSlots,
 					fiscal: linkState("fiscal"),
 					payments: linkState("payments"),
@@ -716,6 +756,8 @@ export async function loadProviderVerificationWorkspace(params: {
 		holderDeclarationInReview,
 		historicalBusinessRegistrationDocuments,
 		result,
+		providerId: params.providerId,
+		accountPolicyEvidence,
 		uploadErrorCode,
 		error,
 	}

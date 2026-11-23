@@ -22,7 +22,7 @@ it("shows an independent operator without a company-document form", async () => 
 	expect(html).toContain("Persona natural")
 	expect(html).toContain("Bolivia")
 		expect(html).toContain("Los respaldos dependen de su actividad y forma de registro")
-	expect(html).toContain("Editar datos del negocio")
+	expect(html).toContain("Editar datos")
 	expect(html).not.toContain("data-kyc-slots")
 })
 

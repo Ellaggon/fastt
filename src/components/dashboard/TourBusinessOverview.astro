@@ -15,9 +15,16 @@ interface Props {
 	providerId: string
 	userId: string
 	providerNotice?: { label: string; href: string } | null
+	publicationVerificationHref?: string | null
 	embedded?: boolean
 }
-const { providerId, userId, providerNotice, embedded = false } = Astro.props
+const {
+	providerId,
+	userId,
+	providerNotice,
+	publicationVerificationHref,
+	embedded = false,
+} = Astro.props
 const createHref = getProductVerticalEntry("tour").routes.workspaceCreateHref
 const [countsResult, sessionsResult, dayResult, requestsResult] = await Promise.allSettled([
 	countProviderTours(providerId),
@@ -58,6 +65,13 @@ if (session) {
 	}
 }
 const resume = session ? presentTourCatalogItem(session.productId, preparation) : null
+const showPublicationVerification =
+	publicationVerificationHref &&
+	preparation &&
+	!preparation.isPublished &&
+	preparation.tourPresentation?.publicationBlockers.some(
+		(blocker) => blocker.id === "provider_authorization"
+	)
 const dayLabel = day
 	? new Intl.DateTimeFormat("es-BO", { dateStyle: "long", timeZone: "UTC" }).format(
 			new Date(`${day.date}T12:00:00Z`)
@@ -181,12 +195,51 @@ const darkMetricCardClass =
 					)}
 				</section>
 				{session && resume && (
-					<Card class="space-y-3 bg-white p-5" data-tour-resume data-product-id={session.productId}>
-						<p class="text-xs font-medium tracking-wide text-slate-500 uppercase">
-							Continúa donde quedaste
-						</p>
-						<h2 class="text-lg font-semibold text-slate-950">{session.productName}</h2>
-						<p class="text-sm text-slate-600">{resume.support}</p>
+					<Card class="space-y-5 bg-white p-5" data-tour-resume data-product-id={session.productId}>
+						<header class="space-y-1">
+							<p class="text-xs font-medium tracking-wide text-slate-500 uppercase">
+								Continúa donde quedaste
+							</p>
+							<h2 class="text-lg font-semibold text-slate-950">{session.productName}</h2>
+						</header>
+						<div class="space-y-1.5">
+							{!showPublicationVerification && (
+								<p class="text-sm text-slate-600">
+									{!preparation?.tourPresentation
+										? "No pudimos comprobar si el paseo está listo para publicar."
+										: preparation.isPublished
+											? "Este paseo ya está publicado."
+											: preparation.tourPresentation.publicationBlockers.length > 0
+												? "Todavía hay requisitos pendientes para publicar este paseo."
+												: "El paseo está listo para que revises y confirmes su publicación."}
+								</p>
+							)}
+							{showPublicationVerification && publicationVerificationHref && (
+								<div class="flex flex-wrap items-baseline gap-x-2 gap-y-1 border-l-2 border-amber-400 pl-3 text-sm text-slate-800">
+									<p>Para publicar este paseo, completa la verificación de identidad y negocio.</p>
+									<a
+										href={publicationVerificationHref}
+										class="font-semibold underline underline-offset-4"
+									>
+										Revisar pendientes
+									</a>
+								</div>
+							)}
+							{preparation?.tourPresentation?.publicationBlockers.some(
+								(blocker) => blocker.id === "experience_authorization"
+							) && (
+								<p class="text-sm text-slate-600">
+									Revisa qué respaldos faltan para este paseo en{" "}
+									<a
+										href={resume.publicationHref}
+										class="font-semibold underline underline-offset-4"
+									>
+										Pendientes para publicar
+									</a>
+									.
+								</p>
+							)}
+						</div>
 						<Button href={resume.primaryAction.href} variant="selection" size="sm">
 							{resume.primaryAction.label}
 						</Button>

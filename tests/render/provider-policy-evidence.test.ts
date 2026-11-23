@@ -35,6 +35,41 @@ function model(state: "missing" | "pending_review" | null) {
 	} as unknown as ProviderVerificationWorkspaceModel
 }
 describe("provider versioned evidence", () => {
+	it("names distinct entity requirements instead of repeating the transport file type", async () => {
+		const data = model(null)
+		data.documentDefinitions = [
+			{
+				id: "existence-v1",
+				key: "bo.holder.entity_existence",
+				family: "identity",
+				label: "Existencia de la entidad titular",
+			},
+			{
+				id: "representation-v1",
+				key: "bo.holder.entity_representation",
+				family: "identity",
+				label: "Representación vigente de la entidad",
+			},
+		] as ProviderVerificationWorkspaceModel["documentDefinitions"]
+		const template = data.policyDiagnosis!.applicableRequirements![0]
+		data.policyDiagnosis!.applicableRequirements = ["existence", "representation"].map((key) => ({
+			...template,
+			key,
+			documentAcceptance: {
+				version: 1,
+				alternatives: [{ id: key, allOf: [{ definitionVersionId: `${key}-v1` }] }],
+			},
+		}))
+		const html = await (
+			await AstroContainer.create()
+		).renderToString(Evidence, { props: { model: data, productId: "tour-a" } })
+		const headings = [...html.matchAll(/<h4\b[^>]*>(.*?)<\/h4>/gs)].map((match) => match[1].trim())
+		expect(headings).toEqual([
+			"Existencia de la entidad titular",
+			"Representación vigente de la entidad",
+		])
+		expect(headings).not.toContain("Registro mercantil")
+	})
 	it("offers upload tied to an exact policy and shows admitted documents", async () => {
 		const html = await (
 			await AstroContainer.create()

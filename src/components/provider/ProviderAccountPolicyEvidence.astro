@@ -1,0 +1,87 @@
+---
+import ProviderVerificationOptionals from "@/components/provider/ProviderVerificationOptionals.astro"
+import Badge from "@/components/ui/Badge.astro"
+import { providerDocumentTypeForDefinition } from "@/lib/provider-documents"
+import { nationalHolderUploadSubject } from "@/lib/documents/holder-evidence-subject"
+import type { ProviderVerificationWorkspaceModel } from "@/lib/provider-verification-workspace"
+const { model, area } = Astro.props as {
+	model: ProviderVerificationWorkspaceModel
+	area: "identity" | "business" | "fiscal"
+}
+const items = model.accountPolicyEvidence?.items.filter((item) => item.area === area) ?? []
+---
+
+{
+	items.length > 0 && (
+		<section class="space-y-4" aria-label="Respaldos exigidos por la política">
+			<h3 class="text-base font-semibold text-slate-100">Respaldos del titular</h3>
+			{items.map((item) => {
+				const definitions = item.definitions.map((d) => ({
+					...d,
+					family: providerDocumentTypeForDefinition(d) ?? d.family,
+				}))
+				const types = [...new Set(definitions.map((d) => d.family))].map((value) => ({
+					value,
+					label: item.label,
+				}))
+				const subject =
+					definitions.length === 1
+						? nationalHolderUploadSubject(definitions[0].key, model.holderType, model.providerId)
+						: undefined
+				return (
+					<article class="fastt-row-card space-y-4 rounded-lg border border-slate-200 bg-white p-4 text-slate-900 sm:p-5">
+						<div class="flex flex-wrap items-start justify-between gap-3">
+							<h4 class="min-w-0 text-sm font-semibold text-slate-950">{item.label}</h4>
+							<Badge
+								variant={
+									item.state === "verified"
+										? "success"
+										: item.state === "rejected" || item.state === "expired"
+											? "error"
+											: item.state === "pending_review"
+												? "neutral"
+												: "warning"
+								}
+							>
+								{item.stateLabel}
+							</Badge>
+						</div>
+						{item.documents.length > 0 && (
+							<ul class="space-y-1 text-sm break-words text-slate-600">
+								{item.documents.map((doc) => (
+									<li>
+										{doc.fileName ?? "Archivo registrado"} · {doc.statusLabel}
+									</li>
+								))}
+							</ul>
+						)}
+						{item.canUpload &&
+							model.canManageDocuments &&
+							!model.holderDeclarationInReview &&
+							subject && (
+								<ProviderVerificationOptionals
+									compact
+									surface="tour-activity"
+									canManageDocuments={model.canManageDocuments}
+									documents={item.documents}
+									documentTypes={types}
+									documentDefinitions={definitions}
+									holderSubject={subject}
+									scopeProductId={null}
+									availableProducts={[]}
+									policyRequirement={{
+										key: item.key,
+										versionId: item.policyVersionId,
+										contextProductId: item.productId,
+									}}
+									playbookReturnTo={`/provider/settings/verification?line=tour&tab=${area}&tourTab=${area}`}
+									playbookVertical="tour"
+									uploadLabel="Enviar respaldo"
+								/>
+							)}
+					</article>
+				)
+			})}
+		</section>
+	)
+}

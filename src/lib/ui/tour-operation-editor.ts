@@ -317,5 +317,18 @@ function bindOperationEditors() {
 		})
 }
 bindOperationEditors()
+function revealResourceEditor() {
+	if (location.hash !== "#register-tour-guide") return
+	const target = document.getElementById("register-tour-guide")
+	if (!target) return
+	for (let parent = target.parentElement; parent; parent = parent.parentElement) {
+		if (parent instanceof HTMLDetailsElement) parent.open = true
+	}
+	target.scrollIntoView({ block: "center" })
+	target.focus({ preventScroll: true })
+}
+window.addEventListener("hashchange", revealResourceEditor)
+document.addEventListener("astro:page-load", revealResourceEditor)
+revealResourceEditor()
 document.addEventListener("astro:page-load", bindOperationEditors)
 document.addEventListener("fastt:operation-refreshed", bindOperationEditors)

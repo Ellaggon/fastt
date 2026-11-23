@@ -1,8 +1,10 @@
 ---
 import ProviderVerificationOptionals from "@/components/provider/ProviderVerificationOptionals.astro"
+import Button from "@/components/ui/Button.astro"
 import type { ProviderVerificationWorkspaceModel } from "@/lib/provider-verification-workspace"
-import { providerDocumentTypes } from "@/lib/provider-documents"
+import { providerDocumentTypes, providerDocumentTypeForDefinition } from "@/lib/provider-documents"
 import { presentPolicyEvidence } from "@/lib/commercial-policy/evidence-presentation"
+import { nationalHolderUploadSubject } from "@/lib/documents/holder-evidence-subject"
 const { model, productId } = Astro.props as {
 	model: ProviderVerificationWorkspaceModel
 	productId: string
@@ -26,7 +28,10 @@ const subjectLabels = {
 
 {
 	requirements.length > 0 && (
-		<section class="space-y-5" aria-label="Respaldos aplicables">
+		<section
+			class="fastt-card space-y-5 border border-slate-200 bg-white p-3 text-slate-900 md:p-6"
+			aria-label="Respaldos aplicables"
+		>
 			<h3 class="text-lg font-semibold text-slate-900">Respaldos aplicables</h3>
 			{requirements.map((requirement) => {
 				const view = presentation.find(
@@ -42,24 +47,78 @@ const subjectLabels = {
 				const documents = model.documents.filter(
 					(document) => document.definitionVersionId && ids.includes(document.definitionVersionId)
 				)
+				const priorIdentity =
+					requirement.key === "la_paz.holder.identity"
+						? model.documents.filter(
+								(document) =>
+									!document.definitionVersionId &&
+									document.status === "verified" &&
+									["government_id", "business_registration"].includes(document.type)
+							)
+						: []
+				const awaitingReuse =
+					priorIdentity.length > 0 && documents.length === 0 && view.state !== "verified"
+				const holderIdentity = requirement.key === "la_paz.holder.identity"
+				const needsAction = view.state !== "verified" && view.state !== "pending_review"
 				const packageResult = model.policyDiagnosis?.evaluation?.requirements.find(
 					(item) =>
 						item.policyVersionId === requirement.policyVersionId && item.key === requirement.key
 				)?.package
-				const types = [...new Set(definitions.map((definition) => definition.family))].flatMap(
-					(family) => {
-						const type = providerDocumentTypes.find((type) => type.value === family)
-						return type
-							? [{ value: type.value, label: type.label, description: requirement.blockingAction }]
-							: []
-					}
+				const uploadDefinitions = definitions.map((definition) => ({
+					...definition,
+					family: providerDocumentTypeForDefinition(definition) ?? definition.family,
+				}))
+				const holderSubject =
+					definitions.length === 1 && requirement.condition?.evidenceSubjectSelector === "holder"
+						? nationalHolderUploadSubject(definitions[0].key, model.holderType, model.providerId)
+						: undefined
+				const operatorAuthorization = definitions.some(
+					(definition) => definition.key === "bo.tour.operator_authorization"
 				)
+				const types = [
+					...new Set(uploadDefinitions.map((definition) => definition.family)),
+				].flatMap((family) => {
+					const type = providerDocumentTypes.find((type) => type.value === family)
+					return type
+						? [{ value: type.value, label: type.label, description: type.description }]
+						: []
+				})
+				const title =
+					[...new Set(definitions.map((definition) => definition.label))].join(" / ") ||
+					[...new Set(types.map((type) => type.label))].join(" / ") ||
+					"Respaldo requerido"
 				return (
 					<article class="space-y-3 border-t border-slate-200 pt-4">
 						<div class="flex flex-wrap items-start justify-between gap-2">
-							<h4 class="font-semibold text-slate-900">{requirement.blockingAction}</h4>
-							<span class="text-sm text-slate-600">{view.label}</span>
+							<h4 class="font-semibold text-slate-900">{title}</h4>
+							<span class="text-sm text-slate-600">
+								{awaitingReuse ? "Respaldo previo sin vincular" : view.label}
+							</span>
 						</div>
+						{awaitingReuse && (
+							<p class="text-sm text-slate-600">
+								Ya tienes respaldos verificados en la ficha del proveedor. Fastt todavía no los
+								reconoce para este requisito. No vuelvas a cargar los mismos archivos.
+							</p>
+						)}
+						{holderIdentity && needsAction && (
+							<div class="flex flex-wrap gap-2">
+								<Button
+									href="/provider/settings/verification?line=tour&tab=identity"
+									variant="secondary"
+									size="sm"
+								>
+									Revisar documento de identidad
+								</Button>
+								<Button
+									href="/provider/settings/verification?line=tour&tab=business"
+									variant="secondary"
+									size="sm"
+								>
+									Revisar documentos del negocio
+								</Button>
+							</div>
+						)}
 						<p class="text-sm text-slate-600">
 							{subjectLabels[requirement.condition?.evidenceSubjectSelector ?? "holder"]}
 						</p>
@@ -77,8 +136,24 @@ const subjectLabels = {
 							<p class="text-sm text-slate-600">
 								{packageResult.subjects.filter((subject) => subject.satisfiedBy).length} de{" "}
 								{packageResult.subjects.length} sujetos con respaldo completo.
-								{packageResult.subjects.length === 0 &&
-									" Completa las personas o recursos de la operación antes de cargar sus respaldos."}
+								{packageResult.subjects.length === 0 && (
+									<>
+										{" "}
+										Completa las personas o recursos de la operación antes de cargar sus
+										respaldos.{" "}
+									</>
+								)}
+							</p>
+						)}
+						{packageResult?.subjects.length === 0 && (
+							<Button href="#register-tour-guide" variant="secondary" size="sm">
+								Registrar o vincular un recurso
+							</Button>
+						)}
+						{needsAction && !view.canUpload && !model.canManageDocuments && (
+							<p class="text-sm text-slate-600">
+								Tu rol no permite enviar respaldos. Pide a alguien con acceso a Documentos que los
+								envíe.
 							</p>
 						)}
 						<ol class="space-y-2 text-sm text-slate-700">
@@ -96,20 +171,30 @@ const subjectLabels = {
 								</li>
 							))}
 						</ol>
-						{view.canUpload && (
+						{view.canUpload && !awaitingReuse && (
 							<ProviderVerificationOptionals
 								surface="tour-activity"
 								documents={documents}
 								documentTypes={types}
-								documentDefinitions={definitions}
-								policyRequirement={{ key: requirement.key, versionId: requirement.policyVersionId }}
+								documentDefinitions={uploadDefinitions}
+								holderSubject={holderSubject}
+								uploadLabel={operatorAuthorization ? "Enviar habilitación turística" : undefined}
+								policyRequirement={{
+									key: requirement.key,
+									versionId: requirement.policyVersionId,
+									contextProductId: productId,
+								}}
 								canManageDocuments={model.canManageDocuments}
-								scopeProductId={productId}
-								availableProducts={model.tourProducts.map((product) => ({
-									id: product.id,
-									name: product.name,
-									kind: "tour",
-								}))}
+								scopeProductId={holderSubject ? null : productId}
+								availableProducts={
+									holderSubject
+										? []
+										: model.tourProducts.map((product) => ({
+												id: product.id,
+												name: product.name,
+												kind: "tour",
+											}))
+								}
 								guideResources={model.tourResources.filter((resource) => resource.type === "guide")}
 								resourceChoices={model.tourResources}
 								playbookReturnTo={`/product/${productId}#experience-requirements`}

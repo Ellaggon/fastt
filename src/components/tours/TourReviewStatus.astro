@@ -26,6 +26,7 @@ import {
 } from "@lucide/astro"
 
 interface Props {
+	experienceEvidenceHref?: string
 	holderReviewHref?: string
 	diagnosis: TourDiagnostic
 	reviewHref: string
@@ -89,16 +90,16 @@ const taskIcon = (task: (typeof openTasks)[number]) => {
 }
 ---
 
-<div class="space-y-5" data-tour-review-status>
+<div class="space-y-6 sm:space-y-8" data-tour-review-status>
 	<section
 		aria-label="Estado para publicar"
-		class="divide-y divide-slate-200"
+		class="divide-y divide-slate-200 pt-3 sm:pt-4"
 		data-tour-publication-decisions
 	>
 		<h3 class="pb-3 text-base font-semibold text-slate-950">Estado para publicar</h3>
 		{
 			decisions.map((decision) => (
-				<div class="py-4" data-publication-decision={decision.id}>
+				<div class="py-4 sm:py-5" data-publication-decision={decision.id}>
 					<div class="flex flex-wrap items-center justify-between gap-2">
 						<h4 class="text-sm font-semibold text-slate-950">{decision.label}</h4>
 						<Badge variant={decision.tone}>{decision.status}</Badge>
@@ -120,9 +121,23 @@ const taskIcon = (task: (typeof openTasks)[number]) => {
 						</Button>
 					)}
 					{decision.actions.length > 0 && (
-						<div class="mt-2 flex flex-wrap gap-2">
+						<div
+							class:list={[
+								"mt-2 flex flex-wrap gap-2",
+								decision.id === "verification" && "justify-end",
+							]}
+						>
 							{decision.actions.map((action) => (
-								<Button href={decisionHref(action.href)} variant="ghost" size="sm">
+								<Button
+									href={
+										Astro.props.experienceEvidenceHref &&
+										action.href.endsWith("#experience-requirements")
+											? Astro.props.experienceEvidenceHref
+											: decisionHref(action.href)
+									}
+									variant="ghost"
+									size="sm"
+								>
 									{action.label}
 								</Button>
 							))}
@@ -144,7 +159,7 @@ const taskIcon = (task: (typeof openTasks)[number]) => {
 				><ChevronRight
 					class="size-4 transition-transform motion-reduce:transition-none group-open:rotate-90"
 					aria-hidden="true"
-				/>Preparación de la experiencia</span
+				/>Preparación de la ficha</span
 			>
 			<Badge variant={preparationTasks.length ? "warning" : "success"}
 				>{
@@ -209,7 +224,7 @@ const taskIcon = (task: (typeof openTasks)[number]) => {
 
 			{
 				completed.length ? (
-					<details class="group border-t border-slate-200 pt-4" data-tour-publication-completed>
+					<details class="group pt-4" data-tour-publication-completed>
 						<summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-sky-50 [&::-webkit-details-marker]:hidden">
 							<span class="inline-flex items-center gap-2">
 								<CircleCheck class="size-4 text-emerald-600" aria-hidden="true" />
@@ -276,7 +291,7 @@ const taskIcon = (task: (typeof openTasks)[number]) => {
 	}
 
 	{
-		!published ? (
+		!published && !completed.some((item) => item.id === "presentation") ? (
 			<div class="flex justify-end border-t border-slate-200 pt-4">
 				<Button href={edit.pathname + edit.search} variant="ghost" size="sm">
 					Editar preparación

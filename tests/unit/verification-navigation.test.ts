@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { buildProviderTrustMap } from "@/lib/provider-trust-map"
 import {
 	buildTourVerificationPlaybook,
 	copyVerificationNavigationQuery,
@@ -14,6 +15,41 @@ import {
 } from "@/lib/verification/navigation"
 
 const base = "https://fastt.test/provider/settings/verification"
+
+describe("fiscal status is independent from identity approval", () => {
+	it.each([
+		["requires_attention", "requires_changes"],
+		["pending", "in_review"],
+		["not_configured", "not_started"],
+		["verified", "ready"],
+	] as const)("keeps fiscal %s unchanged across identity states", (fiscalStatus, expected) => {
+		for (const accountStatus of ["rejected", "pending", "approved"] as const) {
+			for (const identity of ["requires_changes", "in_review", "ready"] as const) {
+				const links = buildProviderTrustMap({
+					accountStatus,
+					fiscalStatus,
+					documentsComplete: identity === "ready",
+					hasRejectedDocs: identity === "requires_changes",
+					hasSubmittedDocs: identity === "in_review",
+				})
+				const fiscal = links.find((link) => link.id === "fiscal")!.uiState
+				expect(fiscal).toBe(expected)
+				const tabs = buildTourVerificationPlaybook({
+					tabs: ["identity", "business", "fiscal"],
+					hrefFor: (tab) => `?tab=${tab}`,
+					identity,
+					registration: "requires_changes",
+					fiscal,
+					payments: "not_started",
+					activity: [],
+					safety: [],
+					contextComplete: false,
+				})
+				expect(tabs.find((tab) => tab.id === "fiscal")?.uiState).toBe(expected)
+			}
+		}
+	})
+})
 
 describe("independent identity and business results", () => {
 	const profile = {
