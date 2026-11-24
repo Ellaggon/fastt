@@ -38,6 +38,7 @@ describe("review evidence navigation", () => {
 					signals: [
 						{
 							key: "business_registration",
+							area: "business",
 							label: "Registro de la empresa",
 							status: "review",
 							statusLabel: "Requiere cambios",
@@ -50,6 +51,7 @@ describe("review evidence navigation", () => {
 		expect(html).toContain("Respaldos del proveedor")
 		expect(html).not.toContain("Criterios de decisión")
 		expect(html).toContain("Registro de la empresa")
+		expect(html).toContain("Área: Negocio")
 		expect(html).toContain("Requiere cambios")
 		expect(html).toContain("registro.pdf")
 		expect(html.replace(/\s+/g, " ")).toContain("solo afecta al archivo asociado")
@@ -166,4 +168,66 @@ describe("review evidence navigation", () => {
 		expect(html).toContain("Revisar evidencia")
 		expect(html).toContain("#case-evidence")
 	})
+})
+
+it("shows a missing source as a technical alert outside provider evidence", async () => {
+	const container = await AstroContainer.create()
+	const html = await container.renderToString(CaseEvidencePanel, {
+		props: {
+			caseId: "missing-source",
+			evidence: {
+				...fiscal,
+				domain: "documents",
+				reveal: null,
+				signals: [
+					{
+						key: "source_integrity",
+						label: "Integridad de referencia",
+						status: "missing",
+						detail: "Reconciliación requerida",
+					},
+				],
+				approvalBlockers: ["Archivo no disponible"],
+			},
+		},
+	})
+	expect(html).toContain('role="alert"')
+	expect(html).toContain("No se encuentra el documento asociado")
+	expect(html).not.toContain("Integridad de referencia")
+	expect(html).toContain("Archivo no disponible")
+})
+it("shows a valid source beside the associated file rather than as a provider requirement", async () => {
+	const container = await AstroContainer.create()
+	const html = await container.renderToString(CaseEvidencePanel, {
+		props: {
+			caseId: "valid-source",
+			evidence: {
+				...fiscal,
+				domain: "documents",
+				reveal: null,
+				signals: [
+					{
+						key: "source_integrity",
+						label: "Integridad de referencia",
+						status: "pass",
+						detail: "Coincide",
+					},
+				],
+				artifact: {
+					kind: "document",
+					id: "file-a",
+					fileName: "identity.pdf",
+					mimeType: "application/pdf",
+					sizeBytes: 100,
+					hasFile: true,
+					previewState: "ready",
+					previewMessage: "Disponible",
+					inspection: null,
+				},
+			},
+		},
+	})
+	expect(html).toContain("Documento vinculado al expediente")
+	expect(html).not.toContain("Integridad de referencia")
+	expect(html).not.toContain('role="alert"')
 })

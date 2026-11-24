@@ -1,3 +1,4 @@
+import type { VerificationTab } from "@/lib/verification/navigation"
 import { createHash } from "node:crypto"
 import { loadProviderAccountPolicyEvidence } from "@/lib/commercial-policy/account-evidence"
 
@@ -71,6 +72,7 @@ export type EvidenceFact = {
 }
 
 export type EvidenceSignal = {
+	area?: VerificationTab
 	key: string
 	label: string
 	status: "pass" | "review" | "missing" | "info"
@@ -90,6 +92,7 @@ export function accountDocumentEvidenceSignals(input: {
 				: ["government_id"],
 	}).map((slot) => ({
 		key: slot.type === "government_id" ? "identity_documents" : "business_registration",
+		area: slot.type === "government_id" ? "identity" : "business",
 		label:
 			slot.type === "government_id"
 				? "Documento de identidad de la cuenta"
@@ -210,6 +213,7 @@ export async function getCaseEvidence(workspace: Workspace): Promise<CaseEvidenc
 		...accountDocumentEvidenceSignals({ holderType: holder?.holderType ?? null, documents }),
 		{
 			key: "fiscal_state",
+			area: "fiscal",
 			label: "Registro fiscal administrativo",
 			status: fiscal?.status === "verified" ? "pass" : fiscal ? "review" : "missing",
 			detail: fiscal?.statusLabel ?? "Sin configuración fiscal",
@@ -225,6 +229,7 @@ export async function getCaseEvidence(workspace: Workspace): Promise<CaseEvidenc
 			...accountPolicies.items.map(
 				(item): EvidenceSignal => ({
 					key: `policy.${item.policyVersionId}.${item.key}`,
+					area: item.area,
 					label: item.label,
 					status:
 						item.state === "verified"

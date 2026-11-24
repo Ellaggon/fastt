@@ -1,4 +1,7 @@
 ---
+import { loadProviderVerificationWorkspace } from "@/lib/provider-verification-workspace"
+import { caseVerificationArea } from "@/lib/verification/areas"
+import { verificationTabLabel } from "@/lib/verification/navigation"
 import Button from "@/components/ui/Button.astro"
 import CoverageReviewFields from "@/components/admin/cases/CoverageReviewFields.astro"
 import { readCoverageReviewContext } from "@/lib/documents/coverage-review-context"
@@ -94,12 +97,20 @@ const fmt = new Intl.DateTimeFormat("es-BO", {
 	timeStyle: "short",
 	timeZone: "America/La_Paz",
 })
-const domainLabels: Record<string, string> = {
-	verification: "Identidad y negocio",
-	fiscal: "Fiscalidad",
-	documents: "Documentos",
-	payments: "Pagos",
-}
+const verificationModel = workspace
+	? await loadProviderVerificationWorkspace({
+			providerId: workspace.case.providerId,
+			providerRoleLabel: "Administrador",
+			url: Astro.url,
+		})
+	: null
+const functionalArea =
+	workspace && verificationModel
+		? caseVerificationArea(workspace.case, verificationModel.documents, verificationModel)
+		: null
+const functionalLabel = functionalArea
+	? verificationTabLabel(functionalArea)
+	: "Revisión de requisitos de experiencia"
 const legacyFilter = workspace?.case.domain ?? "all"
 const legacyHref = workspace
 	? workspace.case.sourceType === "ProviderCommercialAgreement"
@@ -211,7 +222,7 @@ const taskLabels: Record<string, string> = {
 	payout_account_review: "Revisar cuenta para desembolsos",
 	document_review: "Revisar documento",
 	identity_review: "Revisar identidad",
-	business_verification: "Revisar identidad y negocio",
+	business_verification: "Revisar negocio",
 }
 const reasonById = new Map((workspace?.reasons ?? []).map((reason) => [reason.id, reason]))
 const pendingDecisionReview =
@@ -332,11 +343,11 @@ const noticeMessage =
 										</>
 									</div>
 									<h1 class="mt-2 text-2xl font-semibold text-white">
-										{workspace.case.summary ?? domainLabels[workspace.case.domain]}
+										{workspace.case.summary ?? functionalLabel}
 									</h1>
 									<p class="mt-1 text-sm text-slate-400">
 										{workspace.case.providerName || workspace.case.providerLegalName || "Proveedor"}{" "}
-										· {domainLabels[workspace.case.domain]}
+										· {functionalLabel}
 									</p>
 								</>
 							</div>
@@ -395,7 +406,7 @@ const noticeMessage =
 														{caseActionable
 															? workspace.case.domain === "payments"
 																? "Cuenta registrada para recibir desembolsos."
-																: `Revisa la evidencia de ${domainLabels[workspace.case.domain]} antes de registrar un resultado.`
+																: `Revisa la evidencia de ${functionalLabel} antes de registrar un resultado.`
 															: reconciliation
 																? `El sistema cerró el expediente el ${fmt.format(reconciliation.createdAt)}, sin registrar una nueva decisión humana.`
 																: latestOutcome
@@ -778,9 +789,7 @@ const noticeMessage =
 									</div>
 								) : (
 									<div class="fastt-notice mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-										<p class="font-semibold">
-											No tienes permiso para decidir en {domainLabels[workspace.case.domain]}
-										</p>
+										<p class="font-semibold">No tienes permiso para decidir en {functionalLabel}</p>
 										<p class="mt-1">
 											Puedes consultar la evidencia, el historial y el estado del segundo control.
 											Solicita el permiso del área para proponer, aprobar o devolver una decisión.

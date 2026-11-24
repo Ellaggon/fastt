@@ -92,3 +92,9 @@ describe("account document context in administrative reviews", () => {
 		})
 	})
 })
+
+it("classifies personal and business evidence independently", () => {
+	const signals = accountDocumentEvidenceSignals({ holderType: "entidad", documents: [] })
+	expect(signals.find((signal) => signal.key === "identity_documents")?.area).toBe("identity")
+	expect(signals.find((signal) => signal.key === "business_registration")?.area).toBe("business")
+})
