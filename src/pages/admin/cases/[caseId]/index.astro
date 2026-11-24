@@ -770,19 +770,11 @@ const noticeMessage =
 									</div>
 								) : !caseProviderAvailable ? (
 									<div class="fastt-notice mt-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
-										<p class="font-semibold">Este proveedor está archivado</p>
+										<p class="font-semibold">Operaciones no habilitadas para este proveedor</p>
 										<p class="mt-1">
-											Consulta la evidencia en esta vista. Antes de continuar en el panel anterior,
-											comprueba que la tarea admite esa ruta; las propuestas pendientes de segundo
-											control deben resolverse en su expediente.
+											Consulta la evidencia en esta vista. Las operaciones requieren un proveedor
+											vigente y habilitado en la cohorte del Centro de Mando.
 										</p>
-										{legacyReviewHref && (
-											<div class="mt-4">
-												<Button href={legacyReviewHref} reload variant="secondary">
-													Continuar revisión del área
-												</Button>
-											</div>
-										)}
 									</div>
 								) : (
 									<div class="fastt-notice mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
@@ -865,7 +857,7 @@ const noticeMessage =
 								caseId={workspace.case.id}
 								caseVersion={workspace.case.version}
 								status={workspace.case.status}
-								commandsEnabled={commandsEnabled}
+								commandsEnabled={commandsEnabled && caseProviderAvailable}
 								canAssignCase={canAssignCase && workspace.case.providerStatus !== "archived"}
 								hasUnassignedTask={workspace.tasks.some(
 									(task) =>
@@ -1462,6 +1454,8 @@ const noticeMessage =
 		}
 		const commandErrorMessage = (code: string) =>
 			({
+				case_provider_outside_command_scope:
+					"Las operaciones no están habilitadas para este proveedor. Recarga el expediente para consultar su estado actual.",
 				case_not_actionable:
 					"El caso ya fue resuelto. Revisa la cronología o la auditoría; no se creó una segunda decisión.",
 				case_version_conflict:

@@ -74,7 +74,7 @@ export const POST: APIRoute = async ({ request, params, redirect }) => {
 				const workspace = await getCaseWorkspace(caseId)
 				if (!workspace) throw Object.assign(new Error("case_not_found"), { status: 404 })
 				if (!canUseCommandCenterDecisionForCase(workspace.case))
-					throw Response.json({ error: "case_provider_archived" }, { status: 403 })
+					throw Response.json({ error: "case_provider_outside_command_scope" }, { status: 403 })
 				const permission = {
 					verification: "provider.verification.review",
 					fiscal: "provider.fiscal.review",

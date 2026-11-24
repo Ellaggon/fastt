@@ -5,10 +5,19 @@ const state = vi.hoisted(() => ({
 	domainPermission: true,
 	publish: vi.fn(),
 }))
-vi.mock("@/config/featureFlags", () => ({
-	getFeatureFlag: () => true,
-	canUseCommandCenterDecisionForCase: () => state.providerAvailable,
-}))
+vi.mock("@/config/featureFlags", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/config/featureFlags")>()
+	return {
+		...actual,
+		getFeatureFlag: () => true,
+		canUseCommandCenterDecisionForCase: (
+			input: Parameters<typeof actual.canUseCommandCenterDecisionForCase>[0]
+		) =>
+			actual.canUseCommandCenterDecisionForCase(input, {
+				COMMAND_CENTER_V2_PILOT_PROVIDER_IDS: state.providerAvailable ? "fixture" : "other",
+			}),
+	}
+})
 vi.mock("@/lib/auth/internal-authorization", () => ({
 	requireInternalPermission: async (_request: Request, permission: string) => {
 		if (permission === "provider.fiscal.review" && !state.domainPermission)
@@ -33,7 +42,10 @@ vi.mock("@/lib/commands/command-idempotency", () => ({
 	IdempotencyConflictError: class extends Error {},
 }))
 vi.mock("@/modules/casework/public", () => ({
-	informationRequestContext: async () => ({ case: { providerId: "fixture", domain: "fiscal" } }),
+	informationRequestContext: async () => ({
+		case: { providerId: "fixture", domain: "fiscal" },
+		providerStatus: "active",
+	}),
 	reviewPermissionByDomain: { fiscal: "provider.fiscal.review" },
 	publishInformationRequest: (...args: unknown[]) => state.publish(...args),
 }))
@@ -69,7 +81,7 @@ describe("information publication authorization", () => {
 		expect((await invoke()).status).toBe(403)
 		expect(state.publish).not.toHaveBeenCalled()
 	})
-	it("rejects an archived provider", async () => {
+	it("rejects a provider outside the configured cohort", async () => {
 		state.providerAvailable = false
 		expect((await invoke()).status).toBe(403)
 		expect(state.publish).not.toHaveBeenCalled()

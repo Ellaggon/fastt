@@ -8,14 +8,14 @@ describe("Fase E: validación y adopción del Centro de Mando", () => {
 	it("mantiene los proveedores archivados fuera de los comandos tanto en UI como en API", () => {
 		const page = read("src/pages/admin/cases/[caseId]/index.astro")
 		expect(page).toContain("canUseCommandCenterDecisionForCase")
-		expect(page).toContain("Este proveedor está archivado")
+		expect(page).toContain("Operaciones no habilitadas para este proveedor")
 		for (const route of [
 			"src/pages/api/admin/v1/cases/[caseId]/propose-decision.ts",
 			"src/pages/api/admin/v1/cases/[caseId]/assign.ts",
 			"src/pages/api/admin/v1/decisions/[decisionId]/approve.ts",
 			"src/pages/api/admin/v1/decisions/[decisionId]/reject.ts",
 		]) {
-			expect(read(route)).toContain("case_provider_archived")
+			expect(read(route)).toContain("case_provider_outside_command_scope")
 			expect(read(route)).not.toContain("casework_pilot_scope_required")
 		}
 	})

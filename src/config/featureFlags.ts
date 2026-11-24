@@ -42,11 +42,25 @@ export type FeatureFlagContext = {
 	env?: Record<string, string | undefined> | null
 }
 
-/** Archived providers remain read-only; commands and permissions are checked separately. */
-export function canUseCommandCenterDecisionForCase(input: {
-	providerStatus: string | null
-}): boolean {
-	return input.providerStatus !== "archived"
+/** Scope is server configuration; an empty cohort never enables commands. */
+export function canUseCommandCenterDecisionForCase(
+	input: {
+		providerId: string
+		providerStatus: string | null
+	},
+	env: Record<string, string | undefined> = process.env
+): boolean {
+	const cohort = new Set(
+		(env.COMMAND_CENTER_V2_PILOT_PROVIDER_IDS ?? "")
+			.split(",")
+			.map((id) => id.trim())
+			.filter(Boolean)
+	)
+	return (
+		Boolean(input.providerStatus) &&
+		input.providerStatus !== "archived" &&
+		cohort.has(input.providerId)
+	)
 }
 
 function parseBoolean(value: string | undefined, defaultValue: boolean): boolean {

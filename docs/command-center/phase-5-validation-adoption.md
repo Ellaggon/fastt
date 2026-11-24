@@ -3,7 +3,7 @@
 Status: active
 Document type: runbook
 Owner: Operations / Engineering
-Last verified: 2026-10-16
+Last verified: 2026-11-23
 Scope: certificación, observación humana, cohortes y reversión del Centro de Mando
 Source of truth: contrato operativo, pruebas y certificador enlazados
 Review trigger: cambio de contrato, controles o procedimiento; revisar evidencia del entorno antes de ejecutar
@@ -82,7 +82,7 @@ COMMAND_CENTER_V2_COMMANDS_ENABLED=true
 COMMAND_CENTER_V2_PILOT_PROVIDER_IDS=provider_command_center_v2_certification
 ```
 
-La API valida la cohorte además de la interfaz para propuestas, asignación, aprobación y devolución de segundo control. Un proveedor fuera de `COMMAND_CENTER_V2_PILOT_PROVIDER_IDS` recibe una vista de solo lectura y una salida explícita a legacy. La lista vacía habilita a nadie.
+La API valida la cohorte además de la interfaz para propuestas, asignación, aprobación y devolución de segundo control. Un proveedor fuera de `COMMAND_CENTER_V2_PILOT_PROVIDER_IDS` recibe una vista de solo lectura y una salida explícita a legacy. La lista vacía habilita a nadie. Los proveedores archivados o sin estado verificable permanecen en consulta, incluso si aparecen en la cohorte. La asignación y las decisiones comparten esta evaluación en servidor e interfaz. La apertura general requiere una decisión y certificación explícitas; no se obtiene omitiendo la cohorte.
 
 | Etapa | Alcance | Condición de entrada | Condición de salida |
 | --- | --- | --- | --- |
